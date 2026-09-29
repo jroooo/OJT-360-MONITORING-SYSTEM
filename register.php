@@ -1,203 +1,229 @@
 <?php
-  $pageTitle = "OJT360 - Register";
+$pageTitle = "OJT360 - Create Account";
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><?php echo $pageTitle; ?></title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    body { font-family: 'Plus Jakarta Sans', sans-serif; }
-    .hero-bg { background: radial-gradient(circle at 70% 30%, #0d3b66 0%, #081c33 50%, #040e1a 100%); }
-    .tab-active { background-color: #ffffff; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-weight: 600; }
-    .orbit-ring { border: 1px dashed rgba(255, 255, 255, 0.15); border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-  </style>
-</head>
-<body class="bg-slate-50 min-h-screen text-slate-800 flex flex-col md:flex-row antialiased">
-
-  <!-- Left Hero Panel -->
-  <div class="hero-bg md:w-1/2 min-h-[340px] md:min-h-screen p-8 md:p-12 flex flex-col justify-between text-white relative overflow-hidden">
-    <div class="z-10 flex items-center space-x-3">
-      <div class="flex items-center space-x-1">
-        <span class="w-3 h-3 rounded-full bg-cyan-400 inline-block"></span>
-        <span class="w-3 h-3 rounded-full bg-teal-300 inline-block"></span>
-        <span class="w-3 h-3 rounded-full border-2 border-white inline-block"></span>
-      </div>
-      <span class="font-bold text-xl tracking-tight">OJT360</span>
-    </div>
-
-    <!-- Orbit Graphics -->
-    <div class="absolute inset-0 flex items-center justify-center opacity-80 pointer-events-none">
-      <div class="orbit-ring w-64 h-64 md:w-80 md:h-80"></div>
-      <div class="orbit-ring w-96 h-96 md:w-[480px] md:h-[480px]"></div>
-      <div class="w-24 h-24 md:w-32 md:h-32 bg-slate-900/60 backdrop-blur-md rounded-2xl border border-white/20 transform rotate-45 flex items-center justify-center shadow-2xl">
-        <div class="transform -rotate-45 flex items-center space-x-1">
-          <span class="w-4 h-4 rounded-full bg-cyan-400"></span>
-          <span class="w-4 h-4 rounded-full bg-teal-300"></span>
-          <span class="w-4 h-4 rounded-full border-2 border-white"></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Hero Content -->
-    <div class="z-10 max-w-md my-auto">
-      <span class="text-xs font-semibold uppercase tracking-widest text-cyan-400 mb-2 block">Built for BSIT Internships</span>
-      <h1 class="text-3xl md:text-5xl font-bold leading-tight mb-4">Grow with every hour, task, and lesson.</h1>
-      <p class="text-slate-300 text-sm md:text-base leading-relaxed mb-8">
-        Track progress, share meaningful work, and stay connected with everyone guiding your BSIT internship journey.
-      </p>
-      <div class="flex items-center space-x-8 pt-4 border-t border-white/10">
-        <div>
-          <div class="text-2xl font-bold">2,400+</div>
-          <div class="text-xs text-slate-400">Student journeys</div>
-        </div>
-        <div>
-          <div class="text-2xl font-bold">98%</div>
-          <div class="text-xs text-slate-400">On-time completion</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="z-10 text-xs text-slate-500 hidden md:block">
-      &copy; <?php echo date('Y'); ?> OJT360. All rights reserved.
-    </div>
-  </div>
-
-  <!-- Right Form Panel -->
-  <div class="md:w-1/2 p-6 md:p-12 lg:p-16 flex flex-col justify-between min-h-screen bg-white">
-    <div class="max-w-md w-full mx-auto my-auto">
-      
-      <!-- Top Title Header -->
-      <div class="mb-6">
-        <span class="text-xs font-bold uppercase tracking-wider text-cyan-600 mb-1 block">GET STARTED</span>
-        <h2 class="text-2xl md:text-3xl font-bold text-slate-900">Create your account</h2>
-        <p class="text-sm text-slate-500 mt-1">Join a connected internship experience.</p>
-      </div>
-
-      <!-- Role Selector Tabs -->
-      <div class="bg-slate-100 p-1 rounded-xl flex space-x-1 mb-6 text-sm font-medium">
-        <button type="button" onclick="setRole('student')" id="tab-student" class="flex-1 py-2 text-center rounded-lg transition-all tab-active">Student</button>
-        <button type="button" onclick="setRole('employee')" id="tab-employee" class="flex-1 py-2 text-center rounded-lg text-slate-500 hover:text-slate-800 transition-all">Employee</button>
-        <button type="button" onclick="setRole('company')" id="tab-company" class="flex-1 py-2 text-center rounded-lg text-slate-500 hover:text-slate-800 transition-all">Company</button>
-      </div>
-
-      <!-- REGISTER FORM -->
-      <form action="register.php" method="POST" onsubmit="handleFormSubmit(event)" class="space-y-3">
-        <input type="hidden" name="role" id="regRoleInput" value="student">
-        <div class="grid grid-cols-3 gap-2">
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">First name</label>
-            <input type="text" name="firstname" required placeholder="First name" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Middle name</label>
-            <input type="text" name="middlename" placeholder="Middle name" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Last name</label>
-            <input type="text" name="lastname" required placeholder="Last name" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-          </div>
-        </div>
-
-        <div class="grid grid-cols-3 gap-2">
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Course</label>
-            <input type="text" name="course" value="BSIT" readonly class="w-full px-3 py-2 text-sm bg-slate-50 font-semibold text-cyan-700 border border-slate-200 rounded-lg" />
-          </div>
-          <div class="col-span-2">
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Mobile number</label>
-            <input type="tel" name="mobile" required placeholder="+63 9XX XXX XXXX" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">School / Institution</label>
-          <input type="text" name="school" required placeholder="Enter school or institution" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Complete address</label>
-          <input type="text" name="address" required placeholder="Street, barangay, city, province" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-        </div>
-
-        <div>
-          <label id="regIdLabel" class="block text-xs font-semibold text-slate-700 mb-1">Student ID or institutional email</label>
-          <input type="text" name="identifier" required placeholder="2021-00001 or name@lnu.edu.ph" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Password</label>
-          <div class="relative">
-            <input type="password" name="password" id="regPassword" required placeholder="Enter your password" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 pr-16" />
-            <button type="button" onclick="togglePassword('regPassword')" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 font-medium">Show</button>
-          </div>
-        </div>
-
-        <button type="submit" class="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-medium py-2.5 px-4 rounded-lg shadow-sm shadow-cyan-200 transition-all flex items-center justify-center space-x-2 mt-4">
-          <span>Create account</span>
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-        </button>
-      </form>
-
-      <!-- Navigation Link to Login Page -->
-      <div class="mt-6 text-center text-xs text-slate-500">
-        <span>Already have an account?</span>
-        <a href="login.php" class="text-cyan-600 font-semibold hover:underline ml-1">Sign in</a>
-      </div>
-    </div>
-
-    <div class="text-center text-[10px] text-slate-400 mt-6">
-      Powered by enterprise-grade security &bull; Privacy &bull; Help
-    </div>
-  </div>
-
-  <script>
-    let currentRole = 'student';
-
-    function setRole(role) {
-      currentRole = role;
-      document.getElementById('regRoleInput').value = role;
-
-      ['student', 'employee', 'company'].forEach(r => {
-        const btn = document.getElementById(`tab-${r}`);
-        if (r === role) {
-          btn.className = "flex-1 py-2 text-center rounded-lg transition-all tab-active";
-        } else {
-          btn.className = "flex-1 py-2 text-center rounded-lg text-slate-500 hover:text-slate-800 transition-all";
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo $pageTitle; ?></title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .hero-bg {
+            background: radial-gradient(circle at 78% 30%, #0d3b66 0%, #081c33 50%, #0f172a 100%);
         }
-      });
+        .tab-active {
+            background-color: #ffffff;
+            color: #0f172a;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .orbit-ring {
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body class="hero-bg min-h-screen w-full flex items-center justify-center p-4 sm:p-8 lg:p-12 overflow-x-hidden antialiased relative">
 
-      const regLabel = document.getElementById('regIdLabel');
-      if (role === 'student') {
-        regLabel.innerText = 'Student ID or institutional email';
-      } else if (role === 'employee') {
-        regLabel.innerText = 'Employee ID or work email';
-      } else {
-        regLabel.innerText = 'Company ID or corporate email';
-      }
-    }
+    <!-- Background Constellation Effect -->
+    <div class="absolute inset-0 pointer-events-none overflow-hidden">
+        <div class="absolute top-[18%] left-[45%] w-3 h-3 rounded-full bg-cyan-400 shadow-[0_0_18px_#22d3ee] opacity-90 animate-pulse"></div>
+        <div class="absolute top-[38%] left-[52%] w-2 h-2 rounded-full bg-cyan-300 shadow-[0_0_12px_#67e8f9] opacity-70"></div>
+        <div class="absolute bottom-[28%] left-[35%] w-2.5 h-2.5 rounded-full bg-blue-400 shadow-[0_0_15px_#60a5fa] opacity-80"></div>
+        <div class="absolute -top-10 left-[20%] w-[500px] h-[500px] orbit-ring"></div>
+        <div class="absolute top-1/4 left-[15%] w-[700px] h-[700px] orbit-ring"></div>
+    </div>
 
-    function togglePassword(inputId) {
-      const input = document.getElementById(inputId);
-      const btn = input.nextElementSibling;
-      if (input.type === 'password') {
-        input.type = 'text';
-        btn.innerText = 'Hide';
-      } else {
-        input.type = 'password';
-        btn.innerText = 'Show';
-      }
-    }
+    <!-- Main Content Container -->
+    <div class="w-full max-w-6xl flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12 relative z-10 my-auto">
 
-    function handleFormSubmit(e) {
-      e.preventDefault();
-      alert(`Sprint 1 Demo: REGISTER attempt as [${currentRole.toUpperCase()}] submitted!`);
-    }
-  </script>
+        <!-- Left Hero Section (Unchanged) -->
+        <div class="w-full md:w-1/2 text-white flex flex-col justify-between space-y-8 md:space-y-12 p-2 sm:p-4">
+            <div class="flex items-center space-x-3">
+                <div class="flex items-center justify-center">
+                    <svg class="w-10 h-10 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                </div>
+                <span class="font-extrabold text-3xl sm:text-4xl tracking-tight text-white">OJT<span class="text-cyan-400">360</span></span>
+            </div>
+
+            <div class="space-y-4 max-w-lg">
+                <span class="text-xs sm:text-sm font-bold uppercase tracking-widest text-cyan-300">Join OJT360 Today</span>
+                <h1 class="text-3xl sm:text-5xl font-extrabold leading-tight text-white tracking-tight">
+                    Start tracking your internship journey.
+                </h1>
+                <p class="text-blue-100 text-sm sm:text-base leading-relaxed opacity-90 font-normal">
+                    Connect with coordinators, log your rendered hours, and submit daily requirements seamlessly.
+                </p>
+            </div>
+
+            <div class="flex items-center space-x-12 pt-6 border-t border-blue-400/20 max-w-lg">
+                <div>
+                    <div class="text-2xl sm:text-4xl font-extrabold text-white">2,400+</div>
+                    <div class="text-xs sm:text-sm text-blue-200 mt-0.5">Active Students</div>
+                </div>
+                <div class="h-10 w-px bg-blue-400/20"></div>
+                <div>
+                    <div class="text-2xl sm:text-4xl font-extrabold text-white">98%</div>
+                    <div class="text-xs sm:text-sm text-blue-200 mt-0.5">Success Rate</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Floating Box (Accurate Information Box UI from Screenshot) -->
+        <div class="w-full md:w-[540px] bg-white rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] p-8 sm:p-10 text-slate-800 border border-slate-100">
+            
+            <div class="space-y-4">
+                
+                <!-- Card Header -->
+                <div class="space-y-1">
+                    <span class="text-[11px] font-bold uppercase tracking-widest text-sky-500">Get Started</span>
+                    <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">Create your account</h2>
+                    <p class="text-xs sm:text-sm text-slate-500">Join a connected internship experience.</p>
+                </div>
+
+                <!-- Role Selector Pills -->
+                <div class="bg-slate-100/80 p-1.5 rounded-2xl flex items-center justify-between text-xs font-semibold text-slate-500">
+                    <button type="button" onclick="selectRole('student')" id="tab-student" class="w-1/3 py-2.5 rounded-xl transition-all duration-200 tab-active text-sky-600 font-bold">Student</button>
+                    <button type="button" onclick="selectRole('employee')" id="tab-employee" class="w-1/3 py-2.5 rounded-xl transition-all duration-200 hover:text-slate-800">Employee</button>
+                    <button type="button" onclick="selectRole('company')" id="tab-company" class="w-1/3 py-2.5 rounded-xl transition-all duration-200 hover:text-slate-800">Company</button>
+                </div>
+
+                <!-- Registration Form -->
+                <form action="" method="POST" class="space-y-3 pt-1">
+                    <input type="hidden" name="role" id="selected-role" value="student">
+                    
+                    <!-- First, Middle, Last Name Grid -->
+                    <div class="grid grid-cols-3 gap-2 sm:gap-3">
+                        <div>
+                            <label for="firstname" class="block text-[11px] font-bold text-slate-700 mb-1">First name</label>
+                            <input type="text" id="firstname" name="firstname" required placeholder="First name"
+                                class="w-full px-3 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm">
+                        </div>
+                        <div>
+                            <label for="middlename" class="block text-[11px] font-bold text-slate-700 mb-1">Middle name</label>
+                            <input type="text" id="middlename" name="middlename" placeholder="Middle name"
+                                class="w-full px-3 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm">
+                        </div>
+                        <div>
+                            <label for="lastname" class="block text-[11px] font-bold text-slate-700 mb-1">Last name</label>
+                            <input type="text" id="lastname" name="lastname" required placeholder="Last name"
+                                class="w-full px-3 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm">
+                        </div>
+                    </div>
+
+                    <!-- Course & Mobile Number Grid -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label for="course" class="block text-[11px] font-bold text-slate-700 mb-1">Course</label>
+                            <input type="text" id="course" name="course" value="BSIT" required
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-sky-50/50 border border-sky-100 text-sky-700 font-bold text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm">
+                        </div>
+                        <div>
+                            <label for="mobile" class="block text-[11px] font-bold text-slate-700 mb-1">Mobile number</label>
+                            <input type="text" id="mobile" name="mobile" required placeholder="+63 9XX XXX XXXX"
+                                class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm">
+                        </div>
+                    </div>
+
+                    <!-- School Name -->
+                    <div>
+                        <label for="school" class="block text-[11px] font-bold text-slate-700 mb-1">School name</label>
+                        <input type="text" id="school" name="school" required placeholder="Enter school or institution"
+                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm">
+                    </div>
+
+                    <!-- Complete Address -->
+                    <div>
+                        <label for="address" class="block text-[11px] font-bold text-slate-700 mb-1">Complete address</label>
+                        <input type="text" id="address" name="address" required placeholder="Street, barangay, city, province"
+                            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm">
+                    </div>
+
+                    <!-- Student ID / Email -->
+                    <div>
+                        <label for="email" class="block text-[11px] font-bold text-slate-700 mb-1">Student ID or institutional email</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 text-xs">
+                                @
+                            </div>
+                            <input type="text" id="email" name="email" required placeholder="2021-00001 or name@lnu.edu.ph"
+                                class="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm">
+                        </div>
+                    </div>
+
+                    <!-- Password -->
+                    <div>
+                        <label for="password" class="block text-[11px] font-bold text-slate-700 mb-1">Password</label>
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                </svg>
+                            </div>
+                            <input type="password" id="password" name="password" required placeholder="Enter your password"
+                                class="w-full pl-9 pr-14 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm">
+                            <button type="button" onclick="togglePassword()" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-[11px] font-semibold text-sky-600 hover:text-sky-700 transition">
+                                Show
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" 
+                        class="w-full py-3 bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs rounded-xl transition duration-200 shadow-md shadow-sky-500/25 flex items-center justify-center space-x-2 mt-2">
+                        <span>Create account</span>
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                        </svg>
+                    </button>
+                </form>
+
+                <!-- Footer Link -->
+                <div class="pt-2 text-center">
+                    <p class="text-xs text-slate-500">
+                        Already have an account? 
+                        <a href="login.php" class="font-bold text-sky-500 hover:text-sky-600 transition">Sign in</a>
+                    </p>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Interactive Scripts -->
+    <script>
+        function togglePassword() {
+            const pwdInput = document.getElementById('password');
+            if (pwdInput.type === 'password') {
+                pwdInput.type = 'text';
+            } else {
+                pwdInput.type = 'password';
+            }
+        }
+
+        function selectRole(role) {
+            document.getElementById('selected-role').value = role;
+            ['student', 'employee', 'company'].forEach(r => {
+                const btn = document.getElementById('tab-' + r);
+                if (r === role) {
+                    btn.classList.add('tab-active', 'text-sky-600', 'font-bold');
+                    btn.classList.remove('hover:text-slate-800');
+                } else {
+                    btn.classList.remove('tab-active', 'text-sky-600', 'font-bold');
+                    btn.classList.add('hover:text-slate-800');
+                }
+            });
+        }
+    </script>
 </body>
-</html> 
+</html>
