@@ -538,7 +538,7 @@ $pageTitle = "OJT360 - Create Account";
                                     oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 7)"
                                     class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm"
     > 
-                            </div>
+                                </div>
                             <div>
                                 <label class="block text-[10px] font-bold text-slate-700 mb-0.5">Institutional Email</label>
                                 <div class="relative">
