@@ -1,6 +1,227 @@
+```php
 <?php
+
+// =====================================================
+// DATABASE CONNECTION
+// =====================================================
+
+$host = "localhost";
+$username = "root";
+$password = "";
+$database = "ojt360";
+
+$conn = new mysqli($host, $username, $password, $database);
+
+if ($conn->connect_error) {
+    die("Database connection failed: " . $conn->connect_error);
+}
+
+$conn->set_charset("utf8mb4");
+
+
+// =====================================================
+// REGISTRATION VARIABLES
+// =====================================================
+
+$successMessage = "";
+$errorMessage = "";
+
+
+// =====================================================
+// REGISTRATION PROCESS
+// =====================================================
+
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+
+    $role = $_POST["role"] ?? "";
+
+
+    // =================================================
+    // STUDENT REGISTRATION
+    // =================================================
+
+    if ($role === "student") {
+
+        // Get values from your existing form
+        $first_name = trim($_POST["student_firstname"] ?? "");
+        $middle_name = trim($_POST["student_middlename"] ?? "");
+        $last_name = trim($_POST["student_lastname"] ?? "");
+        $course = trim($_POST["course"] ?? "");
+        $mobile_number = trim($_POST["student_mobile"] ?? "");
+        $school_name = trim($_POST["school"] ?? "");
+        $complete_address = trim($_POST["student_address"] ?? "");
+        $student_id = trim($_POST["student_id"] ?? "");
+        $institutional_email = trim($_POST["student_email"] ?? "");
+        $student_password = $_POST["student_password"] ?? "";
+
+
+        // ---------------------------------------------
+        // CHECK REQUIRED FIELDS
+        // ---------------------------------------------
+
+        if (
+            empty($first_name) ||
+            empty($last_name) ||
+            empty($course) ||
+            empty($mobile_number) ||
+            empty($school_name) ||
+            empty($complete_address) ||
+            empty($student_id) ||
+            empty($institutional_email) ||
+            empty($student_password)
+        ) {
+
+            $errorMessage = "Please fill in all required fields.";
+
+        } else {
+
+            // -----------------------------------------
+            // CHECK STUDENT ID
+            // -----------------------------------------
+
+            $checkStudent = $conn->prepare(
+                "SELECT id FROM students WHERE student_id = ?"
+            );
+
+            $checkStudent->bind_param("s", $student_id);
+            $checkStudent->execute();
+            $checkStudent->store_result();
+
+
+            // -----------------------------------------
+            // CHECK EMAIL
+            // -----------------------------------------
+
+            $checkEmail = $conn->prepare(
+                "SELECT id FROM students WHERE institutional_email = ?"
+            );
+
+            $checkEmail->bind_param("s", $institutional_email);
+            $checkEmail->execute();
+            $checkEmail->store_result();
+
+
+            // -----------------------------------------
+            // DUPLICATE CHECK
+            // -----------------------------------------
+
+            if ($checkStudent->num_rows > 0) {
+
+                $errorMessage = "Student ID is already registered.";
+
+            } elseif ($checkEmail->num_rows > 0) {
+
+                $errorMessage = "Institutional email is already registered.";
+
+            } else {
+
+                // -------------------------------------
+                // HASH PASSWORD
+                // -------------------------------------
+
+                $password_hash = password_hash(
+                    $student_password,
+                    PASSWORD_DEFAULT
+                );
+
+
+                // -------------------------------------
+                // INSERT STUDENT
+                // -------------------------------------
+
+                $stmt = $conn->prepare(
+                    "INSERT INTO students
+                    (
+                        first_name,
+                        middle_name,
+                        last_name,
+                        course,
+                        mobile_number,
+                        school_name,
+                        complete_address,
+                        student_id,
+                        institutional_email,
+                        password_hash
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                );
+
+
+                $stmt->bind_param(
+                    "ssssssssss",
+                    $first_name,
+                    $middle_name,
+                    $last_name,
+                    $course,
+                    $mobile_number,
+                    $school_name,
+                    $complete_address,
+                    $student_id,
+                    $institutional_email,
+                    $password_hash
+                );
+
+
+                // -------------------------------------
+                // EXECUTE INSERT
+                // -------------------------------------
+
+                if ($stmt->execute()) {
+
+                    $successMessage = "Account created successfully!";
+
+                } else {
+
+                    $errorMessage = "Registration failed. Please try again.";
+
+                }
+
+
+                $stmt->close();
+            }
+
+
+            $checkStudent->close();
+            $checkEmail->close();
+        }
+    }
+
+
+    // =================================================
+    // EMPLOYEE REGISTRATION
+    // =================================================
+
+    elseif ($role === "employee") {
+
+        // Employee database table is not yet connected.
+        // Your current database structure only contains
+        // the students table.
+
+        $errorMessage = "Employee registration is not connected yet.";
+
+    }
+
+
+    // =================================================
+    // COMPANY REGISTRATION
+    // =================================================
+
+    elseif ($role === "company") {
+
+        // Company database table is not yet connected.
+        // Your current database structure only contains
+        // the students table.
+
+        $errorMessage = "Company registration is not connected yet.";
+
+    }
+}
+
+
 $pageTitle = "OJT360 - Create Account";
+
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -249,6 +470,19 @@ $pageTitle = "OJT360 - Create Account";
                 </div>
 
                 <!-- Registration Form -->
+
+                <?php if (!empty($successMessage)): ?>
+                    <div class="p-3 rounded-xl bg-green-50 border border-green-200 text-green-700 text-xs font-semibold">
+                        <?php echo htmlspecialchars($successMessage); ?>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (!empty($errorMessage)): ?>
+                    <div class="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
+                        <?php echo htmlspecialchars($errorMessage); ?>
+                    </div>
+                <?php endif; ?>
+
                 <form action="" method="POST" class="space-y-2.5 pt-0.5">
                     <input type="hidden" name="role" id="selected-role" value="student">
                     
@@ -292,9 +526,18 @@ $pageTitle = "OJT360 - Create Account";
 
                         <!-- Separated Student ID and Email Grid -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
-                            <div>
-                                <label class="block text-[10px] font-bold text-slate-700 mb-0.5">Student ID</label>
-                                <input type="text" name="student_id" placeholder="ex. 1234567" class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm">
+                            <div> 
+                                <label class="block text-[10px] font-bold text-slate-700 mb-0.5">Student ID</label> 
+                                <input 
+                                    type="text" 
+                                    name="student_id" 
+                                    placeholder="ex. 1234567" 
+                                    maxlength="7"
+                                    pattern="[0-9]{7}"
+                                    inputmode="numeric"
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 7)"
+                                    class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm"
+    > 
                             </div>
                             <div>
                                 <label class="block text-[10px] font-bold text-slate-700 mb-0.5">Institutional Email</label>
@@ -500,3 +743,6 @@ $pageTitle = "OJT360 - Create Account";
     </script>
 </body>
 </html>
+
+
+
