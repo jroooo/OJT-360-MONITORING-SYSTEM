@@ -648,7 +648,7 @@ body {
     ====================================================== -->
 
     <section
-        class="w-full md:w-1/2 text-white relative p-2 sm:p-4"
+        class="w-full md:w-1/2 text-white flex flex-col justify-between items-start space-y-8 lg:space-y-12 relative p-2 sm:p-4"
     >
 
         <!-- =================================================
@@ -758,7 +758,7 @@ body {
             ================================================== -->
 
             <div
-                class="flex items-center gap-3 mb-14"
+                class="flex items-center gap-3 drop-shadow-md"
             >
 
                 <!-- PEOPLE ICON -->
@@ -782,7 +782,7 @@ body {
                 <!-- OJT360 -->
 
                 <span
-                    class="font-extrabold text-3xl sm:text-4xl lg:text-5xl tracking-tight"
+                    class="font-extrabold text-3xl sm:text-4xl lg:text-5xl tracking-tight text-white"
                 >
 
                     OJT<span class="text-cyan-400">360</span>
@@ -795,31 +795,25 @@ body {
                  SMALL HEADING
             ================================================== -->
 
-            <div class="max-w-xl">
+            <div class="space-y-4 max-w-xl">
 
-                <div class="mb-5">
+                <span
+                    class="text-xs sm:text-sm font-bold uppercase tracking-widest text-cyan-300"
+                >
 
-                    <span
-                        class="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-cyan-300"
-                    >
+                    JOIN OJT360 TODAY
 
-                        JOIN OJT360 TODAY
-
-                    </span>
-
-                </div>
+                </span>
 
                 <!-- =================================================
                      MAIN HEADING
                 ================================================== -->
 
                 <h1
-                    class="text-3xl sm:text-5xl lg:text-6xl font-extrabold leading-tight tracking-tight mb-5"
+                    class="text-3xl sm:text-5xl lg:text-6xl font-extrabold leading-tight text-white tracking-tight drop-shadow-lg"
                 >
 
-                    Start tracking your
-                    <br>
-                    internship journey.
+                    Start tracking your internship journey.
 
                 </h1>
 
@@ -828,7 +822,7 @@ body {
                 ================================================== -->
 
                 <p
-                    class="text-blue-100 text-sm sm:text-base md:text-lg leading-relaxed opacity-90 max-w-xl"
+                    class="text-blue-100 text-sm sm:text-base lg:text-lg leading-relaxed opacity-95 font-normal drop-shadow-sm"
                 >
 
                     Connect with coordinators, log your rendered hours,
@@ -843,7 +837,7 @@ body {
             ================================================== -->
 
             <div
-                class="flex items-center gap-10 sm:gap-12 pt-7 mt-10 border-t border-blue-400/20 max-w-xl"
+                class="flex items-center space-x-12 pt-6 border-t border-blue-400/20 max-w-xl w-full"
             >
 
                 <!-- STAT 1 -->
@@ -851,7 +845,7 @@ body {
                 <div>
 
                     <div
-                        class="text-2xl sm:text-4xl lg:text-5xl font-extrabold leading-none"
+                        class="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white"
                     >
 
                         2,400+
@@ -859,7 +853,7 @@ body {
                     </div>
 
                     <div
-                        class="text-xs sm:text-sm text-blue-200 mt-2"
+                        class="text-xs sm:text-sm text-blue-200 mt-0.5"
                     >
 
                         Active Students
@@ -879,7 +873,7 @@ body {
                 <div>
 
                     <div
-                        class="text-2xl sm:text-4xl lg:text-5xl font-extrabold leading-none"
+                        class="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white"
                     >
 
                         98%
@@ -887,7 +881,7 @@ body {
                     </div>
 
                     <div
-                        class="text-xs sm:text-sm text-blue-200 mt-2"
+                        class="text-xs sm:text-sm text-blue-200 mt-0.5"
                     >
 
                         Success Rate
@@ -907,17 +901,17 @@ body {
     ====================================================== -->
 
     <section
-        class="w-full md:w-[480px] bg-white rounded-3xl shadow-2xl p-7 sm:p-10 text-slate-800 relative z-20"
+        class="w-full md:w-[540px] lg:w-[560px] bg-white rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] p-6 sm:p-8 text-slate-800 border border-slate-100 relative z-20 my-auto"
     >
 
         <!-- =================================================
              HEADER
         ================================================== -->
 
-        <div class="space-y-1 mb-5">
+        <div class="space-y-0.5 mb-5">
 
             <span
-                class="text-[11px] font-bold uppercase tracking-widest text-sky-500"
+                class="text-[10px] font-bold uppercase tracking-widest text-sky-500"
             >
 
                 Welcome Back
@@ -925,7 +919,7 @@ body {
             </span>
 
             <h2
-                class="text-2xl sm:text-3xl font-extrabold"
+                class="text-2xl font-extrabold text-slate-800 tracking-tight"
             >
 
                 Sign in to your account
@@ -933,7 +927,7 @@ body {
             </h2>
 
             <p
-                class="text-xs sm:text-sm text-slate-500"
+                class="text-xs text-slate-500"
             >
 
                 Continue your internship journey with OJT360.
@@ -947,7 +941,7 @@ body {
         ================================================== -->
 
         <div
-            class="bg-slate-100 p-1.5 rounded-2xl flex text-xs font-semibold text-slate-500 mb-5"
+            class="bg-slate-100/80 p-1 rounded-2xl flex items-center justify-between text-xs font-semibold text-slate-500 mb-5"
         >
 
             <!-- STUDENT -->
