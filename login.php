@@ -1002,6 +1002,7 @@ body {
                 id="student-form"
                 class="space-y-4"
                 method="POST"
+                action="dashboard.php"
             >
 
                 <!-- STUDENT ID -->
