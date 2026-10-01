@@ -632,7 +632,7 @@ body {
 </head>
 
 <body
-    class="hero-bg min-h-screen flex items-center justify-center px-4 sm:px-8 py-8 overflow-x-hidden"
+    class="hero-bg min-h-screen w-full flex items-center justify-center p-4 sm:p-6 lg:p-8 overflow-x-hidden antialiased relative"
 >
 
 <!-- =========================================================
@@ -640,7 +640,7 @@ body {
 ========================================================= -->
 
 <div
-    class="w-full max-w-6xl flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12"
+    class="w-full max-w-7xl flex flex-col md:flex-row items-center justify-between gap-8 lg:gap-16 relative z-10 my-auto"
 >
 
     <!-- =====================================================
@@ -782,7 +782,7 @@ body {
                 <!-- OJT360 -->
 
                 <span
-                    class="font-extrabold text-3xl sm:text-4xl tracking-tight"
+                    class="font-extrabold text-3xl sm:text-4xl lg:text-5xl tracking-tight"
                 >
 
                     OJT<span class="text-cyan-400">360</span>
@@ -800,7 +800,7 @@ body {
                 <div class="mb-5">
 
                     <span
-                        class="text-xs sm:text-sm font-extrabold uppercase tracking-wide text-cyan-300"
+                        class="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-cyan-300"
                     >
 
                         JOIN OJT360 TODAY
@@ -814,7 +814,7 @@ body {
                 ================================================== -->
 
                 <h1
-                    class="text-4xl sm:text-5xl md:text-6xl font-extrabold leading-[1.02] tracking-tight mb-5"
+                    class="text-3xl sm:text-5xl lg:text-6xl font-extrabold leading-tight tracking-tight mb-5"
                 >
 
                     Start tracking your
@@ -851,7 +851,7 @@ body {
                 <div>
 
                     <div
-                        class="text-4xl sm:text-5xl font-extrabold leading-none"
+                        class="text-2xl sm:text-4xl lg:text-5xl font-extrabold leading-none"
                     >
 
                         2,400+
@@ -879,7 +879,7 @@ body {
                 <div>
 
                     <div
-                        class="text-4xl sm:text-5xl font-extrabold leading-none"
+                        class="text-2xl sm:text-4xl lg:text-5xl font-extrabold leading-none"
                     >
 
                         98%
