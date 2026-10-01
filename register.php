@@ -1,4 +1,3 @@
-```php
 <?php
 
 // =====================================================
@@ -193,12 +192,175 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     elseif ($role === "employee") {
 
-        // Employee database table is not yet connected.
-        // Your current database structure only contains
-        // the students table.
+        // ---------------------------------------------
+        // GET EMPLOYEE FORM VALUES
+        // ---------------------------------------------
 
-        $errorMessage = "Employee registration is not connected yet.";
+        $employee_id = trim($_POST["emp_id"] ?? "");
+        $first_name = trim($_POST["emp_firstname"] ?? "");
+        $middle_name = trim($_POST["emp_middlename"] ?? "");
+        $last_name = trim($_POST["emp_lastname"] ?? "");
+        $contact_number = trim($_POST["emp_contact"] ?? "");
+        $email = trim($_POST["emp_personal_email"] ?? "");
+        $department = trim($_POST["emp_department"] ?? "");
+        $position = trim($_POST["emp_position"] ?? "");
+        $username = trim($_POST["emp_account_username"] ?? "");
+        $employee_password = $_POST["emp_password"] ?? "";
+        $confirm_password = $_POST["emp_confirm_password"] ?? "";
 
+
+        // ---------------------------------------------
+        // CHECK REQUIRED FIELDS
+        // ---------------------------------------------
+
+        if (
+            empty($employee_id) ||
+            empty($first_name) ||
+            empty($last_name) ||
+            empty($contact_number) ||
+            empty($email) ||
+            empty($department) ||
+            empty($position) ||
+            empty($username) ||
+            empty($employee_password) ||
+            empty($confirm_password)
+        ) {
+
+            $errorMessage = "Please fill in all required employee fields.";
+
+        } elseif ($employee_password !== $confirm_password) {
+
+            $errorMessage = "Passwords do not match.";
+
+        } else {
+
+            // -----------------------------------------
+            // CHECK EMPLOYEE ID
+            // -----------------------------------------
+
+            $checkEmployee = $conn->prepare(
+                "SELECT id FROM employees WHERE employee_id = ?"
+            );
+
+            $checkEmployee->bind_param("s", $employee_id);
+            $checkEmployee->execute();
+            $checkEmployee->store_result();
+
+
+            // -----------------------------------------
+            // CHECK EMAIL
+            // -----------------------------------------
+
+            $checkEmail = $conn->prepare(
+                "SELECT id FROM employees WHERE email = ?"
+            );
+
+            $checkEmail->bind_param("s", $email);
+            $checkEmail->execute();
+            $checkEmail->store_result();
+
+
+            // -----------------------------------------
+            // CHECK USERNAME
+            // -----------------------------------------
+
+            $checkUsername = $conn->prepare(
+                "SELECT id FROM employees WHERE username = ?"
+            );
+
+            $checkUsername->bind_param("s", $username);
+            $checkUsername->execute();
+            $checkUsername->store_result();
+
+
+            // -----------------------------------------
+            // DUPLICATE CHECK
+            // ---------------------------------------------
+
+            if ($checkEmployee->num_rows > 0) {
+
+                $errorMessage = "Employee ID is already registered.";
+
+            } elseif ($checkEmail->num_rows > 0) {
+
+                $errorMessage = "Email is already registered.";
+
+            } elseif ($checkUsername->num_rows > 0) {
+
+                $errorMessage = "Username is already registered.";
+
+            } else {
+
+                // -------------------------------------
+                // HASH PASSWORD
+                // -------------------------------------
+
+                $password_hash = password_hash(
+                    $employee_password,
+                    PASSWORD_DEFAULT
+                );
+
+
+                // -------------------------------------
+                // INSERT EMPLOYEE
+                // -------------------------------------
+
+                $stmt = $conn->prepare(
+                    "INSERT INTO employees
+                    (
+                        employee_id,
+                        first_name,
+                        middle_name,
+                        last_name,
+                        contact_number,
+                        email,
+                        department,
+                        position,
+                        username,
+                        password_hash
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                );
+
+
+                $stmt->bind_param(
+                    "ssssssssss",
+                    $employee_id,
+                    $first_name,
+                    $middle_name,
+                    $last_name,
+                    $contact_number,
+                    $email,
+                    $department,
+                    $position,
+                    $username,
+                    $password_hash
+                );
+
+
+                // -------------------------------------
+                // EXECUTE INSERT
+                // -------------------------------------
+
+                if ($stmt->execute()) {
+
+                    $successMessage = "Employee account created successfully!";
+
+                } else {
+
+                    $errorMessage = "Employee registration failed. Please try again.";
+
+                }
+
+
+                $stmt->close();
+            }
+
+
+            $checkEmployee->close();
+            $checkEmail->close();
+            $checkUsername->close();
+        }
     }
 
 
@@ -208,12 +370,153 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     elseif ($role === "company") {
 
-        // Company database table is not yet connected.
-        // Your current database structure only contains
-        // the students table.
+        // ---------------------------------------------
+        // GET COMPANY FORM VALUES
+        // ---------------------------------------------
 
-        $errorMessage = "Company registration is not connected yet.";
+        $company_name = trim($_POST["company_name"] ?? "");
+        $rep_first_name = trim($_POST["comp_rep_firstname"] ?? "");
+        $rep_middle_name = trim($_POST["comp_rep_middlename"] ?? "");
+        $rep_last_name = trim($_POST["comp_rep_lastname"] ?? "");
+        $rep_position = trim($_POST["comp_rep_position"] ?? "");
+        $contact_number = trim($_POST["comp_rep_contact"] ?? "");
+        $representative_email = trim($_POST["comp_rep_email"] ?? "");
+        $company_username = trim($_POST["comp_account_email"] ?? "");
+        $company_password = $_POST["comp_password"] ?? "";
+        $confirm_password = $_POST["comp_confirm_password"] ?? "";
 
+
+        // ---------------------------------------------
+        // CHECK REQUIRED FIELDS
+        // ---------------------------------------------
+
+        if (
+            empty($company_name) ||
+            empty($rep_first_name) ||
+            empty($rep_last_name) ||
+            empty($rep_position) ||
+            empty($contact_number) ||
+            empty($representative_email) ||
+            empty($company_username) ||
+            empty($company_password) ||
+            empty($confirm_password)
+        ) {
+
+            $errorMessage = "Please fill in all required company fields.";
+
+        } elseif ($company_password !== $confirm_password) {
+
+            $errorMessage = "Passwords do not match.";
+
+        } else {
+
+            // -----------------------------------------
+            // CHECK COMPANY USERNAME
+            // -----------------------------------------
+
+            $checkUsername = $conn->prepare(
+                "SELECT id FROM companies WHERE company_username = ?"
+            );
+
+            $checkUsername->bind_param("s", $company_username);
+            $checkUsername->execute();
+            $checkUsername->store_result();
+
+
+            // -----------------------------------------
+            // CHECK REPRESENTATIVE EMAIL
+            // -----------------------------------------
+
+            $checkEmail = $conn->prepare(
+                "SELECT id FROM companies WHERE representative_email = ?"
+            );
+
+            $checkEmail->bind_param("s", $representative_email);
+            $checkEmail->execute();
+            $checkEmail->store_result();
+
+
+            // -----------------------------------------
+            // DUPLICATE CHECK
+            // -----------------------------------------
+
+            if ($checkUsername->num_rows > 0) {
+
+                $errorMessage = "Company username is already registered.";
+
+            } elseif ($checkEmail->num_rows > 0) {
+
+                $errorMessage = "Representative email is already registered.";
+
+            } else {
+
+                // -------------------------------------
+                // HASH PASSWORD
+                // -------------------------------------
+
+                $password_hash = password_hash(
+                    $company_password,
+                    PASSWORD_DEFAULT
+                );
+
+
+                // -------------------------------------
+                // INSERT COMPANY
+                // -------------------------------------
+
+                $stmt = $conn->prepare(
+                    "INSERT INTO companies
+                    (
+                        company_name,
+                        rep_first_name,
+                        rep_middle_name,
+                        rep_last_name,
+                        rep_position,
+                        contact_number,
+                        representative_email,
+                        company_username,
+                        password_hash
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                );
+
+
+                $stmt->bind_param(
+                    "sssssssss",
+                    $company_name,
+                    $rep_first_name,
+                    $rep_middle_name,
+                    $rep_last_name,
+                    $rep_position,
+                    $contact_number,
+                    $representative_email,
+                    $company_username,
+                    $password_hash
+                );
+
+
+                // -------------------------------------
+                // EXECUTE INSERT
+                // -------------------------------------
+
+                if ($stmt->execute()) {
+
+                    $successMessage = "Company account created successfully!";
+
+                } else {
+
+                    $errorMessage = "Company registration failed. Please try again.";
+
+                }
+
+
+                $stmt->close();
+            }
+
+
+            $checkUsername->close();
+            $checkEmail->close();
+        }
     }
 }
 
@@ -537,8 +840,9 @@ $pageTitle = "OJT360 - Create Account";
                                     inputmode="numeric"
                                     oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 7)"
                                     class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm"
-    > 
-                                </div>
+                                > 
+                            </div>
+
                             <div>
                                 <label class="block text-[10px] font-bold text-slate-700 mb-0.5">Institutional Email</label>
                                 <div class="relative">
@@ -743,6 +1047,3 @@ $pageTitle = "OJT360 - Create Account";
     </script>
 </body>
 </html>
-
-
-
