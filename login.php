@@ -619,7 +619,7 @@ body {
         height: 320px;
     }
 
-    .ring-small {
+    .ring-small {g
 
         width: 210px;
 
@@ -648,7 +648,7 @@ body {
     ====================================================== -->
 
     <section
-        class="w-full md:w-1/2 text-white flex flex-col justify-between items-start space-y-8 lg:space-y-12 relative p-2 sm:p-4"
+        class="w-full md:w-1/2 text-white relative p-2 sm:p-4"
     >
 
         <!-- =================================================
@@ -750,7 +750,7 @@ body {
         ================================================== -->
 
         <div
-            class="relative z-10"
+            class="relative z-10 flex flex-col justify-between items-start space-y-8 lg:space-y-12"
         >
 
             <!-- =================================================
