@@ -1019,6 +1019,10 @@ body {
                         placeholder="ex. 1234567"
                         required
                         class="input"
+                        pattern="[0-9]{7}"
+                        inputmode="numeric"
+                        maxlength="7"
+                        oninput="this.value = this.value.replace(/\D/g, '').slice(0, 7)"
                     >
 
                 </div>
@@ -1300,24 +1304,6 @@ body {
              ADMIN
         ================================================== -->
 
-        <div
-            class="mt-4 pt-3 border-t border-dashed border-slate-200 flex justify-between text-xs text-slate-400"
-        >
-
-            <span>
-                Prototype access
-            </span>
-
-            <a
-                href="#"
-                class="text-slate-600 font-semibold hover:text-sky-600"
-            >
-
-                Open admin demo
-
-            </a>
-
-        </div>
 
     </section>
 
