@@ -167,6 +167,48 @@
             letter-spacing:-.5px;
         }
 
+        /* Sidebar logo: match the OJT360 reference logo */
+        .sidebar .brand-mark{
+            width:30px;
+            height:30px;
+        }
+
+        .sidebar .brand-mark span{
+            width:16px;
+            height:16px;
+            border:3px solid #27b9eb;
+            border-radius:50%;
+            background:transparent;
+        }
+
+        .sidebar .brand-mark span:nth-child(1){
+            left:0;
+            top:0;
+        }
+
+        .sidebar .brand-mark span:nth-child(2){
+            right:0;
+            top:0;
+        }
+
+        .sidebar .brand-mark span:nth-child(3){
+            left:7px;
+            bottom:0;
+            border-color:#fff;
+        }
+
+        .sidebar .brand-mark span:nth-child(4){
+            display:none;
+        }
+
+        .sidebar .brand-text{
+            color:#fff;
+        }
+
+        .sidebar .brand-text .brand-blue{
+            color:#1197d2;
+        }
+
         .sidebar-nav{
             padding:18px 12px;
         }
@@ -297,13 +339,45 @@
         }
 
         .topbar-brand .brand-mark{
-            width:28px;
-            height:28px;
+            width:30px;
+            height:30px;
+        }
+
+        .topbar-brand .brand-mark span{
+            width:16px;
+            height:16px;
+            border:3px solid #27b9eb;
+            border-radius:50%;
+            background:transparent;
+        }
+
+        .topbar-brand .brand-mark span:nth-child(1){
+            left:0;
+            top:0;
+        }
+
+        .topbar-brand .brand-mark span:nth-child(2){
+            right:0;
+            top:0;
+        }
+
+        .topbar-brand .brand-mark span:nth-child(3){
+            left:7px;
+            bottom:0;
+            border-color:#000;
+        }
+
+        .topbar-brand .brand-mark span:nth-child(4){
+            display:none;
         }
 
         .topbar-brand .brand-text{
             color:#092d4c;
             font-size:20px;
+        }
+
+        .topbar-brand .brand-text .brand-blue{
+            color:#1197d2;
         }
 
         .sync{
@@ -1197,6 +1271,84 @@
             gap:8px;
         }
 
+        .assignment-modal{
+            width:462px;
+            border-radius:12px;
+        }
+
+        .assignment-head{
+            padding:22px 24px 15px;
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+        }
+
+        .assignment-kicker{
+            color:#1688ba;
+            font-size:8px;
+            font-weight:800;
+            letter-spacing:1.2px;
+            margin-bottom:8px;
+        }
+
+        .assignment-head h2{
+            margin:0;
+            color:#29465e;
+            font-size:16px;
+            font-weight:600;
+        }
+
+        .assignment-body{
+            padding:0 24px 20px;
+        }
+
+        .assignment-student{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            padding:12px;
+            margin-bottom:14px;
+            border-radius:8px;
+            background:#f1f7fa;
+        }
+
+        .assignment-student-avatar{
+            width:30px;
+            height:30px;
+            flex:none;
+            display:grid;
+            place-items:center;
+            border-radius:7px;
+            background:#e0f2fb;
+            color:#1688ba;
+            font-size:9px;
+            font-weight:800;
+        }
+
+        .assignment-student-name{
+            color:#29465e;
+            font-size:9px;
+            font-weight:700;
+        }
+
+        .assignment-student-detail{
+            margin-top:3px;
+            color:#8295a4;
+            font-size:8px;
+        }
+
+        .assignment-note{
+            margin-top:10px;
+            color:#8295a4;
+            font-size:8px;
+            line-height:1.5;
+        }
+
+        .assignment-modal .modal-foot{
+            padding:0 24px 20px;
+            border:0;
+        }
+
         .empty{
             text-align:center;
             padding:40px 20px;
@@ -1675,7 +1827,7 @@
             <div class="brand-mark">
                 <span></span><span></span><span></span><span></span>
             </div>
-            <div class="brand-text">OJT360</div>
+            <div class="brand-text">OJT<span class="brand-blue">360</span></div>
             <button class="sidebar-close" id="sidebarClose" aria-label="Close sidebar" title="Close sidebar">&times;</button>
         </div>
 
@@ -1743,7 +1895,7 @@
                 <div class="brand-mark">
                     <span></span><span></span><span></span><span></span>
                 </div>
-                <div class="brand-text">OJT360</div>
+                <div class="brand-text">OJT<span class="brand-blue">360</span></div>
             </div>
 
             <div class="sync">
@@ -2323,6 +2475,41 @@
 <div class="toast" id="toast"></div>
 
 <!-- =============================================================
+     ASSIGN STUDENT MODAL
+============================================================== -->
+<div class="modal-backdrop" id="assignmentModal">
+    <div class="modal assignment-modal">
+        <form id="assignmentForm">
+            <input type="hidden" name="studentId">
+            <div class="assignment-head">
+                <div>
+                    <div class="assignment-kicker">STUDENT PLACEMENT</div>
+                    <h2 id="assignmentModalTitle">Assign Student to Company</h2>
+                </div>
+                <button type="button" class="close" data-close="assignmentModal" aria-label="Close">&times;</button>
+            </div>
+
+            <div class="assignment-body">
+                <div class="assignment-student" id="assignmentStudentCard"></div>
+
+                <div class="form-group">
+                    <label class="form-label" for="assignmentCompany">Company</label>
+                    <select class="field" id="assignmentCompany" name="companyId" required>
+                        <option value="">Select Active Company</option>
+                    </select>
+                </div>
+                <div class="assignment-note">Only active companies are available. Department and building assignments are managed by the company.</div>
+            </div>
+
+            <div class="modal-foot">
+                <button type="button" class="btn btn-light" data-close="assignmentModal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Continue</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- =============================================================
      ADD COMPANY MODAL
 ============================================================== -->
 <div class="modal-backdrop" id="companyModal">
@@ -2762,6 +2949,14 @@ function renderAssignments(){
 }
 
 function assignCompany(id){
+    openAssignmentModal(id);
+}
+
+function manageAssignment(id){
+    openAssignmentModal(id);
+}
+
+function openAssignmentModal(id){
     const student = students.find(s => s.id === id);
     if(!student) return;
 
@@ -2772,53 +2967,60 @@ function assignCompany(id){
         return;
     }
 
-    const choices = activeCompanies.map((c,index) => `${index + 1}. ${c.name}`).join("\\n");
-    const answer = prompt(
-        "Choose an active company by number:\\n\\n" +
-        choices
+    const assignmentForm = document.getElementById("assignmentForm");
+    assignmentForm.elements.studentId.value = student.id;
+    document.getElementById("assignmentModalTitle").textContent =
+        student.status === "Assigned" ? "Manage Student Assignment" : "Assign Student to Company";
+    document.getElementById("assignmentStudentCard").innerHTML = `
+        <div class="assignment-student-avatar">${escapeHtml(initials(student.name))}</div>
+        <div>
+            <div class="assignment-student-name">${escapeHtml(student.name)}</div>
+            <div class="assignment-student-detail">Student ID: ${escapeHtml(student.studentId)}</div>
+            <div class="assignment-student-detail">${escapeHtml(student.program)}</div>
+        </div>
+    `;
+
+    const companySelect = document.getElementById("assignmentCompany");
+    companySelect.innerHTML = `<option value="">Select Active Company</option>` +
+        activeCompanies.map(company =>
+            `<option value="${company.id}">${escapeHtml(company.name)}</option>`
+        ).join("");
+    const currentCompany = activeCompanies.find(company => company.name === student.company);
+    if(currentCompany) companySelect.value = String(currentCompany.id);
+    document.getElementById("assignmentModal").classList.add("show");
+}
+
+document.getElementById("assignmentForm").addEventListener("submit", e => {
+    e.preventDefault();
+
+    const form = new FormData(e.target);
+    const student = students.find(s => s.id === Number(form.get("studentId")));
+    const company = companies.find(c =>
+        c.id === Number(form.get("companyId")) && c.status === "active"
     );
 
-    const index = Number(answer) - 1;
+    if(!student || !company){
+        alert("Select an active company for this student.");
+        return;
+    }
 
-    if(!Number.isInteger(index) || !activeCompanies[index]) return;
+    const previousCompany = companies.find(c => c.name === student.company);
+    if(student.company !== company.name){
+        if(previousCompany && previousCompany.students > 0) previousCompany.students--;
+        company.students++;
+    }
 
-    const selected = activeCompanies[index];
-
-    student.company = selected.name;
+    student.company = company.name;
     student.status = "Assigned";
 
-    selected.students += 1;
-
+    closeModal("assignmentModal");
+    e.target.reset();
     renderAssignments();
     renderInterns();
     renderCompanies();
     renderEvaluations();
     updateOverviewStats();
-}
-
-function manageAssignment(id){
-    const student = students.find(s => s.id === id);
-    if(!student) return;
-
-    if(!confirm(
-        student.name +
-        " is assigned to " +
-        student.company +
-        ".\\n\\nDo you want to remove this assignment?"
-    )) return;
-
-    const company = companies.find(c => c.name === student.company);
-    if(company && company.students > 0) company.students--;
-
-    student.company = "Not Assigned";
-    student.status = "Unassigned";
-
-    renderAssignments();
-    renderInterns();
-    renderCompanies();
-    renderEvaluations();
-    updateOverviewStats();
-}
+});
 
 /* ================================================================
    INTERN PAGE
@@ -2868,28 +3070,13 @@ function renderInterns(){
                 <td>
                     ${
                         student.status === "Assigned"
-                        ? `<button class="small-btn" onclick="viewIntern(${student.id})">Manage Assignment</button>`
+                        ? `<button class="small-btn" onclick="manageAssignment(${student.id})">Manage Assignment</button>`
                         : `<button class="small-btn primary" onclick="assignCompany(${student.id})">Assign Company</button>`
                     }
                 </td>
             </tr>
         `;
     }).join("");
-}
-
-function viewIntern(id){
-    const student = students.find(s => s.id === id);
-    if(!student) return;
-
-    alert(
-        "Student Information\\n\\n" +
-        "Name: " + student.name + "\\n" +
-        "Student ID: " + student.studentId + "\\n" +
-        "Program: " + student.program + "\\n" +
-        "Company: " + student.company + "\\n" +
-        "Status: " + student.status + "\\n" +
-        "Working Hours: " + student.completed + " / " + student.required + " hours"
-    );
 }
 
 /* ================================================================
