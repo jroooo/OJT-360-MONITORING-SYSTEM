@@ -734,6 +734,28 @@
             color:#fff;
         }
 
+        .small-btn.danger{
+            color:#b63f49;
+            border-color:#f1c8cc;
+        }
+
+        .intern-action-row{
+            display:flex;
+            align-items:center;
+            gap:6px;
+            min-width:194px;
+        }
+
+        .intern-action-row .intern-assignment-action{
+            width:124px;
+            flex:none;
+        }
+
+        .intern-action-row .intern-remove-action{
+            width:64px;
+            flex:none;
+        }
+
         /* =========================
            OVERVIEW
         ========================== */
@@ -1394,6 +1416,58 @@
             border:0;
         }
 
+        .remove-confirm-modal{
+            width:430px;
+            border-radius:12px;
+        }
+
+        .remove-confirm-head{
+            padding:22px 24px 8px;
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+        }
+
+        .remove-confirm-head h2{
+            margin:0;
+            color:#29465e;
+            font-size:16px;
+            font-weight:650;
+        }
+
+        .remove-confirm-body{
+            padding:8px 24px 18px;
+        }
+
+        .remove-confirm-student{
+            margin-bottom:10px;
+            color:#29465e;
+            font-size:12px;
+            font-weight:700;
+        }
+
+        .remove-confirm-message{
+            margin:0;
+            color:#708397;
+            font-size:10px;
+            line-height:1.6;
+        }
+
+        .remove-confirm-foot{
+            padding:0 24px 22px;
+            border:0;
+        }
+
+        .btn.btn-danger{
+            border:1px solid #b63f49;
+            background:#b63f49;
+            color:#fff;
+        }
+
+        .btn.btn-danger:hover{
+            background:#a93640;
+        }
+
         .empty{
             text-align:center;
             padding:40px 20px;
@@ -1996,7 +2070,7 @@
                         <div>
                             <div class="stat-label">Assigned Students</div>
                             <div class="stat-value" id="assignedCount">2</div>
-                            <div class="stat-sub">4 students total</div>
+                            <div class="stat-sub" id="studentTotalSummary">4 students total</div>
                         </div>
                     </div>
 
@@ -2096,7 +2170,7 @@
                         <div class="stat-icon">T</div>
                         <div>
                             <div class="stat-label">Total Interns</div>
-                            <div class="stat-value">4</div>
+                            <div class="stat-value" id="internTotalCount">4</div>
                             <div class="stat-sub">Registered internship students</div>
                         </div>
                     </div>
@@ -2105,7 +2179,7 @@
                         <div class="stat-icon green">A</div>
                         <div>
                             <div class="stat-label">Assigned Students</div>
-                            <div class="stat-value">2</div>
+                            <div class="stat-value" id="internAssignedCount">2</div>
                             <div class="stat-sub">Placed with a company</div>
                         </div>
                     </div>
@@ -2114,7 +2188,7 @@
                         <div class="stat-icon amber">U</div>
                         <div>
                             <div class="stat-label">Unassigned Students</div>
-                            <div class="stat-value">2</div>
+                            <div class="stat-value" id="internUnassignedCount">2</div>
                             <div class="stat-sub">Awaiting company placement</div>
                         </div>
                     </div>
@@ -2123,7 +2197,7 @@
                         <div class="stat-icon purple">A</div>
                         <div>
                             <div class="stat-label">Average Progress</div>
-                            <div class="stat-value">50%</div>
+                            <div class="stat-value" id="internAverageProgress">50%</div>
                             <div class="stat-sub">Across all internship hours</div>
                         </div>
                     </div>
@@ -2741,6 +2815,29 @@
     </div>
 </div>
 
+<!-- =============================================================
+     REMOVE STUDENT CONFIRMATION
+============================================================== -->
+<div class="modal-backdrop" id="removeStudentModal">
+    <div class="modal remove-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="removeStudentTitle" aria-describedby="removeStudentMessage">
+        <div class="remove-confirm-head">
+            <div>
+                <div class="assignment-kicker">STUDENT RECORD</div>
+                <h2 id="removeStudentTitle">Remove intern student?</h2>
+            </div>
+            <button type="button" class="close" data-close="removeStudentModal" aria-label="Close">&times;</button>
+        </div>
+        <div class="remove-confirm-body">
+            <div class="remove-confirm-student" id="removeStudentName"></div>
+            <p class="remove-confirm-message" id="removeStudentMessage">This will remove the student from the intern roster and delete their evaluation data. This action cannot be undone.</p>
+        </div>
+        <div class="modal-foot remove-confirm-foot">
+            <button type="button" class="btn btn-light" data-close="removeStudentModal">Cancel</button>
+            <button type="button" class="btn btn-danger" id="confirmRemoveStudentBtn">Remove Student</button>
+        </div>
+    </div>
+</div>
+
 <script>
 /* ================================================================
    SAMPLE DATA
@@ -3026,11 +3123,21 @@ function updateOverviewStats(){
     const archived = companies.filter(c => c.status === "archived").length;
     const assigned = students.filter(s => s.status === "Assigned").length;
     const unassigned = students.filter(s => s.status !== "Assigned").length;
+    const totalRequiredHours = students.reduce((total, student) => total + student.required, 0);
+    const totalCompletedHours = students.reduce((total, student) => total + student.completed, 0);
+    const averageProgress = totalRequiredHours
+        ? Math.round((totalCompletedHours / totalRequiredHours) * 100)
+        : 0;
 
     document.getElementById("activeCompanyCount").textContent = active;
     document.getElementById("archivedCompanyCount").textContent = archived;
     document.getElementById("assignedCount").textContent = assigned;
     document.getElementById("unassignedCount").textContent = unassigned;
+    document.getElementById("studentTotalSummary").textContent = `${students.length} students total`;
+    document.getElementById("internTotalCount").textContent = students.length;
+    document.getElementById("internAssignedCount").textContent = assigned;
+    document.getElementById("internUnassignedCount").textContent = unassigned;
+    document.getElementById("internAverageProgress").textContent = `${averageProgress}%`;
 }
 
 /* ================================================================
@@ -3192,16 +3299,53 @@ function renderInterns(){
                 </td>
 
                 <td>
-                    ${
-                        student.status === "Assigned"
-                        ? `<button class="small-btn" onclick="manageAssignment(${student.id})">Manage Assignment</button>`
-                        : `<button class="small-btn primary" onclick="assignCompany(${student.id})">Assign Company</button>`
-                    }
+                    <div class="intern-action-row">
+                        ${
+                            student.status === "Assigned"
+                            ? `<button class="small-btn intern-assignment-action" onclick="manageAssignment(${student.id})">Manage Assignment</button>`
+                            : `<button class="small-btn primary intern-assignment-action" onclick="assignCompany(${student.id})">Assign Company</button>`
+                        }
+                        <button class="small-btn danger intern-remove-action" onclick="removeStudent(${student.id})" aria-label="Remove ${escapeHtml(student.name)}" title="Remove student">Remove</button>
+                    </div>
                 </td>
             </tr>
         `;
     }).join("");
 }
+
+function removeStudent(id){
+    const student = students.find(item => item.id === id);
+    if(!student) return;
+
+    document.getElementById("removeStudentName").textContent =
+        `${student.name} (${student.studentId})`;
+    document.getElementById("confirmRemoveStudentBtn").dataset.studentId = String(student.id);
+    document.getElementById("removeStudentModal").classList.add("show");
+}
+
+document.getElementById("confirmRemoveStudentBtn").addEventListener("click", e => {
+    const studentId = Number(e.currentTarget.dataset.studentId);
+    const studentIndex = students.findIndex(student => student.id === studentId);
+    if(studentIndex === -1){
+        closeModal("removeStudentModal");
+        return;
+    }
+
+    const student = students[studentIndex];
+    if(student.status === "Assigned"){
+        const company = companies.find(item => item.name === student.company);
+        if(company && company.students > 0) company.students--;
+    }
+
+    students.splice(studentIndex, 1);
+    closeModal("removeStudentModal");
+    renderInterns();
+    renderAssignments();
+    renderEvaluations();
+    renderCompanies();
+    updateOverviewStats();
+    showToast(`${student.name} was removed from the intern roster.`);
+});
 
 /* ================================================================
    ADD COMPANY
