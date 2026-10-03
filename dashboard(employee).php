@@ -1,23 +1,5 @@
 <?php
-/*
-|--------------------------------------------------------------------------
-| OJT360 - Employee Dashboard
-|--------------------------------------------------------------------------
-| Single-file version: employee_dashboard.php
-| Front-end prototype based on the supplied Figma screenshots.
-|
-| IMPORTANT:
-| - Overview keeps Company Management.
-| - Interns page is student-focused only; NO Company Management there.
-| - Interns page includes completed-hours tracking (e.g. 48 hrs / 360 hrs).
-| - Employee can add an intern student.
-| - Sidebar pages: Overview, Interns, Evaluations, Messages, Reports & Analytics.
-| - Help & Support and Sign Out are included.
-|
-| Replace the sample arrays with your MySQL/PHP data when you connect this
-| page to your existing OJT360 database.
-|--------------------------------------------------------------------------
-*/
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
