@@ -1099,6 +1099,7 @@ body {
                 id="employee-form"
                 class="hidden space-y-4"
                 method="POST"
+                action="dashboard(employee).php"
             >
 
                 <!-- EMAIL -->
