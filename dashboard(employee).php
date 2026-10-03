@@ -1468,6 +1468,183 @@
             background:#a93640;
         }
 
+        .logout-confirm-modal{
+            width:420px;
+            border-radius:12px;
+        }
+
+        .logout-confirm-head{
+            padding:22px 24px 8px;
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+        }
+
+        .logout-confirm-head h2{
+            margin:0;
+            color:#29465e;
+            font-size:16px;
+            font-weight:650;
+        }
+
+        .logout-confirm-body{
+            padding:8px 24px 18px;
+        }
+
+        .logout-confirm-message{
+            margin:0;
+            color:#708397;
+            font-size:10px;
+            line-height:1.6;
+        }
+
+        .logout-confirm-foot{
+            padding:0 24px 22px;
+            border:0;
+        }
+
+        .company-confirm-modal{
+            width:382px;
+            border-radius:12px;
+        }
+
+        .company-confirm-head{
+            padding:22px 24px 8px;
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+        }
+
+        .company-confirm-head h2,
+        .company-details-head h2{
+            margin:0;
+            color:#29465e;
+            font-size:16px;
+            font-weight:600;
+        }
+
+        .company-confirm-body{
+            padding:8px 24px 18px;
+        }
+
+        .company-confirm-message{
+            margin:0;
+            color:#708397;
+            font-size:9px;
+            line-height:1.6;
+        }
+
+        .company-confirm-foot{
+            padding:0 24px 22px;
+            border:0;
+        }
+
+        .company-details-modal{
+            width:620px;
+            border-radius:12px;
+        }
+
+        .company-details-head{
+            padding:22px 24px 16px;
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+        }
+
+        .company-details-body{
+            padding:0 24px 24px;
+        }
+
+        .company-details-summary{
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:12px 28px;
+            padding:16px;
+            border-radius:8px;
+            background:#f3f8fa;
+        }
+
+        .company-detail-item label{
+            display:block;
+            margin-bottom:5px;
+            color:#8295a4;
+            font-size:8px;
+        }
+
+        .company-detail-item strong{
+            display:block;
+            color:#29465e;
+            font-size:9px;
+            font-weight:700;
+            overflow-wrap:anywhere;
+        }
+
+        .company-detail-secondary{
+            margin-top:3px;
+            color:#8295a4;
+            font-size:8px;
+        }
+
+        .company-assigned-title{
+            margin:16px 0 8px;
+            color:#29465e;
+            font-size:10px;
+            font-weight:700;
+        }
+
+        .company-student-list{
+            border-top:1px solid #eaf0f4;
+        }
+
+        .company-student-row{
+            display:grid;
+            grid-template-columns:1.3fr 1fr 1fr auto;
+            align-items:center;
+            gap:12px;
+            min-height:52px;
+            border-bottom:1px solid #edf1f4;
+        }
+
+        .company-student-name{
+            color:#29465e;
+            font-size:8px;
+            font-weight:700;
+        }
+
+        .company-student-sub{
+            margin-top:3px;
+            color:#8295a4;
+            font-size:7px;
+        }
+
+        .company-student-field label{
+            display:block;
+            margin-bottom:3px;
+            color:#8295a4;
+            font-size:7px;
+        }
+
+        .company-student-field span{
+            color:#29465e;
+            font-size:8px;
+            font-weight:600;
+        }
+
+        .company-details-empty{
+            padding:18px 0;
+            color:#8295a4;
+            font-size:9px;
+            text-align:center;
+        }
+
+        @media(max-width:520px){
+            .company-details-summary{grid-template-columns:1fr}
+            .company-student-row{
+                grid-template-columns:1fr 1fr;
+                padding:10px 0;
+            }
+        }
+
         .empty{
             text-align:center;
             padding:40px 20px;
@@ -2736,6 +2913,16 @@
                     </div>
 
                     <div class="form-group">
+                        <label class="form-label">Contact phone</label>
+                        <input class="field" type="tel" name="phone" placeholder="Optional">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Address</label>
+                        <input class="field" name="location" placeholder="Company address">
+                    </div>
+
+                    <div class="form-group">
                         <label class="form-label">Status</label>
                         <select class="field" name="status">
                             <option value="active">Active</option>
@@ -2750,6 +2937,44 @@
                 <button class="btn btn-primary">Add Company</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- =============================================================
+     ARCHIVE COMPANY CONFIRMATION
+============================================================== -->
+<div class="modal-backdrop" id="archiveCompanyModal">
+    <div class="modal company-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="archiveCompanyTitle" aria-describedby="archiveCompanyMessage">
+        <div class="company-confirm-head">
+            <div>
+                <div class="assignment-kicker">COMPANY STATUS</div>
+                <h2 id="archiveCompanyTitle">Archive Company?</h2>
+            </div>
+            <button type="button" class="close" data-close="archiveCompanyModal" aria-label="Close">&times;</button>
+        </div>
+        <div class="company-confirm-body">
+            <p class="company-confirm-message" id="archiveCompanyMessage"></p>
+        </div>
+        <div class="modal-foot company-confirm-foot">
+            <button type="button" class="btn btn-light" data-close="archiveCompanyModal">Cancel</button>
+            <button type="button" class="btn btn-danger" id="confirmArchiveCompanyBtn">Archive Company</button>
+        </div>
+    </div>
+</div>
+
+<!-- =============================================================
+     COMPANY DETAILS
+============================================================== -->
+<div class="modal-backdrop" id="companyDetailsModal">
+    <div class="modal company-details-modal" role="dialog" aria-modal="true" aria-labelledby="companyDetailsTitle">
+        <div class="company-details-head">
+            <div>
+                <div class="assignment-kicker">COMPANY DETAILS</div>
+                <h2 id="companyDetailsTitle"></h2>
+            </div>
+            <button type="button" class="close" data-close="companyDetailsModal" aria-label="Close">&times;</button>
+        </div>
+        <div class="company-details-body" id="companyDetailsBody"></div>
     </div>
 </div>
 
@@ -2834,6 +3059,28 @@
         <div class="modal-foot remove-confirm-foot">
             <button type="button" class="btn btn-light" data-close="removeStudentModal">Cancel</button>
             <button type="button" class="btn btn-danger" id="confirmRemoveStudentBtn">Remove Student</button>
+        </div>
+    </div>
+</div>
+
+<!-- =============================================================
+     SIGN OUT CONFIRMATION
+============================================================== -->
+<div class="modal-backdrop" id="signOutModal">
+    <div class="modal logout-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="signOutTitle" aria-describedby="signOutMessage">
+        <div class="logout-confirm-head">
+            <div>
+                <div class="assignment-kicker">ACCOUNT</div>
+                <h2 id="signOutTitle">Sign out of OJT360?</h2>
+            </div>
+            <button type="button" class="close" data-close="signOutModal" aria-label="Close">&times;</button>
+        </div>
+        <div class="logout-confirm-body">
+            <p class="logout-confirm-message" id="signOutMessage">You will be returned to the sign-in page. Are you sure you want to sign out?</p>
+        </div>
+        <div class="modal-foot logout-confirm-foot">
+            <button type="button" class="btn btn-light" data-close="signOutModal">Cancel</button>
+            <button type="button" class="btn btn-danger" id="confirmSignOutBtn">Sign out</button>
         </div>
     </div>
 </div>
@@ -3088,26 +3335,81 @@ function viewCompany(id){
     const company = companies.find(c => c.id === id);
     if(!company) return;
 
-    alert(
-        "Company Details\\n\\n" +
-        "Company: " + company.name + "\\n" +
-        "Contact: " + company.contact + "\\n" +
-        "Email: " + company.email + "\\n" +
-        "Students: " + company.students + "\\n" +
-        "Status: " + company.status
+    const assignedStudents = students.filter(student =>
+        student.status === "Assigned" && student.company === company.name
     );
+    const statusLabel = company.status === "active" ? "Active" : "Archived";
+
+    document.getElementById("companyDetailsTitle").textContent = company.name;
+    document.getElementById("companyDetailsBody").innerHTML = `
+        <div class="company-details-summary">
+            <div class="company-detail-item">
+                <label>Contact Person</label>
+                <strong>${escapeHtml(company.contact || "Not provided")}</strong>
+            </div>
+            <div class="company-detail-item">
+                <label>Status</label>
+                <span class="badge ${company.status === "active" ? "green" : "yellow"}">${statusLabel}</span>
+            </div>
+            <div class="company-detail-item">
+                <label>Contact Information</label>
+                <strong>${escapeHtml(company.email || "Email not provided")}</strong>
+                <div class="company-detail-secondary">${escapeHtml(company.phone || "Phone not provided")}</div>
+            </div>
+            <div class="company-detail-item">
+                <label>Assigned Students</label>
+                <strong>${assignedStudents.length}</strong>
+            </div>
+            <div class="company-detail-item">
+                <label>Address</label>
+                <strong>${escapeHtml(company.location || "Address not provided")}</strong>
+            </div>
+        </div>
+
+        <h3 class="company-assigned-title">Assigned Students</h3>
+        <div class="company-student-list">
+            ${assignedStudents.length ? assignedStudents.map(student => `
+                <div class="company-student-row">
+                    <div>
+                        <div class="company-student-name">${escapeHtml(student.name)}</div>
+                        <div class="company-student-sub">${escapeHtml(student.studentId)} · ${escapeHtml(student.program)}</div>
+                    </div>
+                    <div class="company-student-field">
+                        <label>Department</label>
+                        <span>${escapeHtml(student.department || "Managed by company")}</span>
+                    </div>
+                    <div class="company-student-field">
+                        <label>Building</label>
+                        <span>${escapeHtml(student.building || "Managed by company")}</span>
+                    </div>
+                    <span class="badge green">Assigned</span>
+                </div>
+            `).join("") : `<div class="company-details-empty">No students are assigned to this company.</div>`}
+        </div>
+    `;
+    document.getElementById("companyDetailsModal").classList.add("show");
 }
 
 function archiveCompany(id){
     const company = companies.find(c => c.id === id);
     if(!company) return;
 
-    if(!confirm("Archive " + company.name + "?")) return;
+    document.getElementById("archiveCompanyMessage").innerHTML =
+        `Are you sure you want to archive <strong>${escapeHtml(company.name)}</strong>? Archived companies cannot receive new student assignments.`;
+    document.getElementById("confirmArchiveCompanyBtn").dataset.companyId = String(company.id);
+    document.getElementById("archiveCompanyModal").classList.add("show");
+}
+
+document.getElementById("confirmArchiveCompanyBtn").addEventListener("click", e => {
+    const company = companies.find(c => c.id === Number(e.currentTarget.dataset.companyId));
+    if(!company) return;
 
     company.status = "archived";
+    closeModal("archiveCompanyModal");
     renderCompanies();
     updateOverviewStats();
-}
+    showToast(`${company.name} was archived.`);
+});
 
 function activateCompany(id){
     const company = companies.find(c => c.id === id);
@@ -3363,9 +3665,10 @@ document.getElementById("companyForm").addEventListener("submit", e => {
     const company = {
         id:Date.now(),
         name:form.get("company"),
-        location:"Location not set",
+        location:String(form.get("location") || "").trim() || "Address not provided",
         contact:form.get("contact"),
         email:form.get("email"),
+        phone:String(form.get("phone") || "").trim(),
         students:0,
         status:form.get("status")
     };
@@ -3613,10 +3916,11 @@ document.getElementById("supportBtn").addEventListener("click", () => {
 ================================================================ */
 
 document.getElementById("signOutBtn").addEventListener("click", () => {
-    if(confirm("Are you sure you want to sign out?")){
-        // Replace with your real logout URL.
-        window.location.href = "login.php";
-    }
+    document.getElementById("signOutModal").classList.add("show");
+});
+
+document.getElementById("confirmSignOutBtn").addEventListener("click", () => {
+    window.location.href = "login.php";
 });
 
 /* ================================================================
