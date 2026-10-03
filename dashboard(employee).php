@@ -1349,6 +1349,51 @@
             border:0;
         }
 
+        .evaluation-modal{
+            width:462px;
+            border-radius:12px;
+        }
+
+        .evaluation-head{
+            padding:22px 24px 14px;
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+        }
+
+        .evaluation-head .assignment-kicker{
+            margin-bottom:8px;
+        }
+
+        .evaluation-head h2{
+            margin:0;
+            color:#29465e;
+            font-size:16px;
+            font-weight:600;
+        }
+
+        .evaluation-body{
+            padding:0 24px 16px;
+        }
+
+        .evaluation-fields{
+            display:grid;
+            gap:12px;
+        }
+
+        .evaluation-fields .field{
+            min-height:35px;
+        }
+
+        .evaluation-feedback{
+            min-height:66px !important;
+        }
+
+        .evaluation-modal .modal-foot{
+            padding:0 24px 22px;
+            border:0;
+        }
+
         .empty{
             text-align:center;
             padding:40px 20px;
@@ -2124,7 +2169,6 @@
                         <p>Review intern progress and submit structured performance feedback.</p>
                     </div>
 
-                    <button class="btn btn-primary" id="startEvaluationBtn">Start evaluation</button>
                 </div>
 
                 <div class="section-card">
@@ -2147,7 +2191,7 @@
                     <div class="feedback">
                         <div>
                             <h3>Structured feedback that supports growth</h3>
-                            <p>Rate technical proficiency, communication, reliability, and initiative. Drafts are saved automatically until submission.</p>
+                            <p>Rate technical proficiency, communication, reliability, and initiative, then provide constructive feedback.</p>
                         </div>
                         <button class="btn btn-primary" id="feedbackBtn">Start evaluation</button>
                     </div>
@@ -2504,6 +2548,86 @@
             <div class="modal-foot">
                 <button type="button" class="btn btn-light" data-close="assignmentModal">Cancel</button>
                 <button type="submit" class="btn btn-primary">Continue</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- =============================================================
+     STUDENT EVALUATION MODAL
+============================================================== -->
+<div class="modal-backdrop" id="evaluationModal">
+    <div class="modal evaluation-modal">
+        <form id="evaluationForm">
+            <div class="evaluation-head">
+                <div>
+                    <div class="assignment-kicker">PERFORMANCE REVIEW</div>
+                    <h2>Student evaluation</h2>
+                </div>
+                <button type="button" class="close" data-close="evaluationModal" aria-label="Close">&times;</button>
+            </div>
+
+            <div class="evaluation-body">
+                <div class="evaluation-fields">
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationStudent">Student</label>
+                        <select class="field" id="evaluationStudent" name="studentId" required></select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationTechnical">Technical proficiency</label>
+                        <select class="field" id="evaluationTechnical" name="technical" required>
+                            <option value="5">5 — Excellent</option>
+                            <option value="4">4 — Very good</option>
+                            <option value="3">3 — Good</option>
+                            <option value="2">2 — Needs improvement</option>
+                            <option value="1">1 — Unsatisfactory</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationCommunication">Communication</label>
+                        <select class="field" id="evaluationCommunication" name="communication" required>
+                            <option value="5">5 — Excellent</option>
+                            <option value="4">4 — Very good</option>
+                            <option value="3">3 — Good</option>
+                            <option value="2">2 — Needs improvement</option>
+                            <option value="1">1 — Unsatisfactory</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationReliability">Reliability</label>
+                        <select class="field" id="evaluationReliability" name="reliability" required>
+                            <option value="5">5 — Excellent</option>
+                            <option value="4">4 — Very good</option>
+                            <option value="3">3 — Good</option>
+                            <option value="2">2 — Needs improvement</option>
+                            <option value="1">1 — Unsatisfactory</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationInitiative">Initiative</label>
+                        <select class="field" id="evaluationInitiative" name="initiative" required>
+                            <option value="5">5 — Excellent</option>
+                            <option value="4">4 — Very good</option>
+                            <option value="3">3 — Good</option>
+                            <option value="2">2 — Needs improvement</option>
+                            <option value="1">1 — Unsatisfactory</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationFeedback">Feedback</label>
+                        <textarea class="field evaluation-feedback" id="evaluationFeedback" name="feedback" placeholder="Add specific, constructive feedback..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-foot">
+                <button type="button" class="btn btn-light" data-close="evaluationModal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Submit evaluation</button>
             </div>
         </form>
     </div>
@@ -3184,15 +3308,90 @@ function renderEvaluations(){
             <div class="week">${student.week}</div>
 
             <div>
-                <span class="badge ${student.status === "Assigned" ? "green" : "yellow"}">
-                    ${student.status === "Assigned" ? "On track" : "Awaiting placement"}
+                <span class="badge ${student.evaluationData ? "green" : "yellow"}">
+                    ${student.status !== "Assigned" ? "Awaiting placement" : student.evaluationData ? `Evaluated · ${student.evaluationData.average}/5` : "Needs evaluation"}
                 </span>
             </div>
 
-            <button class="small-btn">Review</button>
+            <button class="small-btn" onclick="openEvaluationForm(${student.id})" ${student.status !== "Assigned" ? "disabled title=\"Assign this student to a company before evaluating.\"" : ""}>
+                ${student.evaluationData ? "Edit review" : "Review"}
+            </button>
         </div>
     `).join("");
 }
+
+function openEvaluationForm(studentId){
+    const assignedStudents = students.filter(student => student.status === "Assigned");
+    if(!assignedStudents.length){
+        alert("Assign a student to a company before starting an evaluation.");
+        return;
+    }
+
+    const studentSelect = document.getElementById("evaluationStudent");
+    studentSelect.innerHTML = assignedStudents.map(student =>
+        `<option value="${student.id}">${escapeHtml(student.name)}</option>`
+    ).join("");
+
+    const selectedStudent = assignedStudents.find(student => student.id === studentId) || assignedStudents[0];
+    studentSelect.value = String(selectedStudent.id);
+    loadEvaluationDraft(selectedStudent);
+    document.getElementById("evaluationModal").classList.add("show");
+}
+
+function loadEvaluationDraft(student){
+    const data = student.evaluationData || {
+        technical:5,
+        communication:5,
+        reliability:5,
+        initiative:5,
+        feedback:""
+    };
+
+    document.getElementById("evaluationTechnical").value = data.technical;
+    document.getElementById("evaluationCommunication").value = data.communication;
+    document.getElementById("evaluationReliability").value = data.reliability;
+    document.getElementById("evaluationInitiative").value = data.initiative;
+    document.getElementById("evaluationFeedback").value = data.feedback;
+}
+
+document.getElementById("evaluationStudent").addEventListener("change", e => {
+    const student = students.find(item => item.id === Number(e.target.value));
+    if(student) loadEvaluationDraft(student);
+});
+
+document.getElementById("evaluationForm").addEventListener("submit", e => {
+    e.preventDefault();
+
+    const form = new FormData(e.target);
+    const student = students.find(item => item.id === Number(form.get("studentId")));
+    if(!student || student.status !== "Assigned"){
+        alert("Select a student who is currently assigned to a company.");
+        return;
+    }
+
+    const scores = {
+        technical:Number(form.get("technical")),
+        communication:Number(form.get("communication")),
+        reliability:Number(form.get("reliability")),
+        initiative:Number(form.get("initiative"))
+    };
+    if(Object.values(scores).some(score => !Number.isInteger(score) || score < 1 || score > 5)){
+        alert("Choose a rating from 1 to 5 for every evaluation category.");
+        return;
+    }
+
+    const average = (Object.values(scores).reduce((total, score) => total + score, 0) / 4).toFixed(1);
+    student.evaluationData = {
+        ...scores,
+        average,
+        feedback:String(form.get("feedback") || "").trim(),
+        submittedAt:new Date().toISOString()
+    };
+
+    closeModal("evaluationModal");
+    renderEvaluations();
+    showToast("Evaluation submitted for " + student.name + ".");
+});
 
 document.getElementById("evalSearch").addEventListener("input", function(){
     const query = this.value.toLowerCase();
@@ -3202,12 +3401,8 @@ document.getElementById("evalSearch").addEventListener("input", function(){
     });
 });
 
-document.getElementById("startEvaluationBtn").addEventListener("click", () => {
-    alert("Evaluation workflow opened.");
-});
-
 document.getElementById("feedbackBtn").addEventListener("click", () => {
-    alert("Evaluation form opened.");
+    openEvaluationForm();
 });
 
 /* ================================================================
