@@ -1,4 +1,5 @@
 <?php
+<<<<<<< Updated upstream
 
 // =====================================================
 // DATABASE CONNECTION
@@ -525,6 +526,10 @@ $pageTitle = "OJT360 - Create Account";
 
 ?>
 
+=======
+$pageTitle = "OJT360 - Create Account";
+?>
+>>>>>>> Stashed changes
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -773,6 +778,7 @@ $pageTitle = "OJT360 - Create Account";
                 </div>
 
                 <!-- Registration Form -->
+<<<<<<< Updated upstream
 
                 <?php if (!empty($successMessage)): ?>
                     <div class="p-3 rounded-xl bg-green-50 border border-green-200 text-green-700 text-xs font-semibold">
@@ -786,6 +792,8 @@ $pageTitle = "OJT360 - Create Account";
                     </div>
                 <?php endif; ?>
 
+=======
+>>>>>>> Stashed changes
                 <form action="" method="POST" class="space-y-2.5 pt-0.5">
                     <input type="hidden" name="role" id="selected-role" value="student">
                     
@@ -829,6 +837,7 @@ $pageTitle = "OJT360 - Create Account";
 
                         <!-- Separated Student ID and Email Grid -->
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-start">
+<<<<<<< Updated upstream
                             <div> 
                                 <label class="block text-[10px] font-bold text-slate-700 mb-0.5">Student ID</label> 
                                 <input 
@@ -843,6 +852,12 @@ $pageTitle = "OJT360 - Create Account";
                                 > 
                             </div>
 
+=======
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-700 mb-0.5">Student ID</label>
+                                <input type="text" name="student_id" placeholder="ex. 1234567" class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm">
+                            </div>
+>>>>>>> Stashed changes
                             <div>
                                 <label class="block text-[10px] font-bold text-slate-700 mb-0.5">Institutional Email</label>
                                 <div class="relative">
