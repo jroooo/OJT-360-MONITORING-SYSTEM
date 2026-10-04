@@ -1,0 +1,22 @@
+OJT360 LOGIN + REGISTRATION INTEGRATION
+
+1. Import database/schema.sql into phpMyAdmin.
+2. Put this folder in C:\xampp\htdocs\
+3. Open http://localhost/ojt360-student-dashboard/register.php
+4. Register a Student. The registration creates BOTH:
+   - a record in students (your original registration table)
+   - a linked record in users (used by the existing student dashboard)
+5. After registration, sign in using the 7-digit Student ID and password.
+6. The Student Dashboard uses the linked users.id session, so attendance, journals,
+   notifications, profile, and activity data stay attached to the logged-in student.
+
+Demo student:
+Student ID: 2026001
+Password: demo123
+
+The Employee and Company registration data are also stored using the fields from
+your supplied registration form. Their authentication is checked by login.php,
+but their separate dashboards are intentionally not added to this Student Dashboard package.
+
+IMPORTANT: If you already have an older ojt360 database, back it up first. The schema
+in this package is intended for the integrated package.
