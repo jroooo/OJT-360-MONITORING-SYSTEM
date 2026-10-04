@@ -1,4 +1,33 @@
 <?php
+session_start();
+
+$employeeNameParts = array_filter(
+    [
+        $_SESSION["employee_first_name"] ?? "",
+        $_SESSION["employee_middle_name"] ?? "",
+        $_SESSION["employee_last_name"] ?? "",
+    ],
+    static function ($part) {
+        return is_string($part) && trim($part) !== "";
+    }
+);
+$employeeName = trim(implode(" ", $employeeNameParts));
+if ($employeeName === "") {
+    $employeeName = $_SESSION["employee_username"] ?? "Employee";
+}
+
+$employeePosition = $_SESSION["employee_position"] ?? "Employee";
+$employeeDepartment = $_SESSION["employee_department"] ?? "OJT Coordination Office";
+$employeeEmail = $_SESSION["employee_email"] ?? "";
+$employeeContactNumber = $_SESSION["employee_contact_number"] ?? "";
+$employeeInitials = "";
+foreach (preg_split('/\s+/', trim($employeeName)) as $namePart) {
+    if ($namePart !== "") {
+        $employeeInitials .= strtoupper(substr($namePart, 0, 1));
+    }
+}
+$employeeInitials = substr($employeeInitials, 0, 2);
+
 /*
 |--------------------------------------------------------------------------
 | OJT360 - Employee Dashboard
@@ -2166,10 +2195,10 @@
             </button>
 
             <div class="profile" id="sidebarProfile" role="button" tabindex="0" title="Open profile">
-                <div class="avatar">DE</div>
+                <div class="avatar"><?= htmlspecialchars($employeeInitials, ENT_QUOTES, "UTF-8") ?></div>
                 <div>
-                    <div class="profile-name">Dr. Elena Santos</div>
-                    <div class="profile-role">Employee</div>
+                    <div class="profile-name"><?= htmlspecialchars($employeeName, ENT_QUOTES, "UTF-8") ?></div>
+                    <div class="profile-role"><?= htmlspecialchars($employeePosition, ENT_QUOTES, "UTF-8") ?></div>
                 </div>
             </div>
         </div>
@@ -2202,10 +2231,10 @@
             <button class="icon-button" title="Notifications">♧</button>
 
             <button class="top-profile profile-trigger" id="topProfileBtn" title="Open profile">
-                <div class="avatar">DE</div>
+                <div class="avatar"><?= htmlspecialchars($employeeInitials, ENT_QUOTES, "UTF-8") ?></div>
                 <div>
-                    <div class="profile-name" style="color:#29465e">Dr. Elena Santos</div>
-                    <div class="profile-role">Employee</div>
+                    <div class="profile-name" style="color:#29465e"><?= htmlspecialchars($employeeName, ENT_QUOTES, "UTF-8") ?></div>
+                    <div class="profile-role"><?= htmlspecialchars($employeePosition, ENT_QUOTES, "UTF-8") ?></div>
                 </div>
             </button>
         </header>
@@ -2674,12 +2703,12 @@
 <div class="modal-backdrop" id="profileModal">
     <div class="modal profile-modal">
         <div class="profile-cover">
-            <div class="profile-avatar-large" id="profileAvatarLarge">DE</div>
+            <div class="profile-avatar-large" id="profileAvatarLarge"><?= htmlspecialchars($employeeInitials, ENT_QUOTES, "UTF-8") ?></div>
         </div>
 
         <div class="profile-header-info">
-            <h2 id="profileDisplayName">Dr. Elena Santos</h2>
-            <p id="profileDisplayRole">Employee • OJT360</p>
+            <h2 id="profileDisplayName"><?= htmlspecialchars($employeeName, ENT_QUOTES, "UTF-8") ?></h2>
+            <p id="profileDisplayRole"><?= htmlspecialchars($employeePosition, ENT_QUOTES, "UTF-8") ?> • OJT360</p>
         </div>
 
         <form id="profileForm">
@@ -2689,27 +2718,27 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label class="form-label">Full name</label>
-                        <input class="field" id="profileName" name="profileName" value="Dr. Elena Santos" required>
+                        <input class="field" id="profileName" name="profileName" value="<?= htmlspecialchars($employeeName, ENT_QUOTES, "UTF-8") ?>" required>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Role</label>
-                        <input class="field" id="profileRole" name="profileRole" value="Employee" required>
+                        <input class="field" id="profileRole" name="profileRole" value="<?= htmlspecialchars($employeePosition, ENT_QUOTES, "UTF-8") ?>" required>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Email</label>
-                        <input class="field" id="profileEmail" name="profileEmail" type="email" value="elena.santos@ojt360.com" required>
+                        <input class="field" id="profileEmail" name="profileEmail" type="email" value="<?= htmlspecialchars($employeeEmail, ENT_QUOTES, "UTF-8") ?>" required>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Contact number</label>
-                        <input class="field" id="profileContact" name="profileContact" value="+63 9XX XXX XXXX">
+                        <input class="field" id="profileContact" name="profileContact" value="<?= htmlspecialchars($employeeContactNumber, ENT_QUOTES, "UTF-8") ?>">
                     </div>
 
                     <div class="form-group full">
                         <label class="form-label">Department / Office</label>
-                        <input class="field" id="profileDepartment" name="profileDepartment" value="OJT Coordination Office">
+                        <input class="field" id="profileDepartment" name="profileDepartment" value="<?= htmlspecialchars($employeeDepartment, ENT_QUOTES, "UTF-8") ?>">
                     </div>
                 </div>
             </div>
