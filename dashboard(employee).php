@@ -1,5 +1,23 @@
 <?php
-
+/*
+|--------------------------------------------------------------------------
+| OJT360 - Employee Dashboard
+|--------------------------------------------------------------------------
+| Single-file version: employee_dashboard.php
+| Front-end prototype based on the supplied Figma screenshots.
+|
+| IMPORTANT:
+| - Overview keeps Company Management.
+| - Interns page is student-focused only; NO Company Management there.
+| - Interns page includes completed-hours tracking (e.g. 48 hrs / 360 hrs).
+| - Employee can add an intern student.
+| - Sidebar pages: Overview, Interns, Evaluations, Messages, Reports & Analytics.
+| - Help & Support and Sign Out are included.
+|
+| Replace the sample arrays with your MySQL/PHP data when you connect this
+| page to your existing OJT360 database.
+|--------------------------------------------------------------------------
+*/
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -149,6 +167,48 @@
             letter-spacing:-.5px;
         }
 
+        /* Sidebar logo: match the OJT360 reference logo */
+        .sidebar .brand-mark{
+            width:30px;
+            height:30px;
+        }
+
+        .sidebar .brand-mark span{
+            width:16px;
+            height:16px;
+            border:3px solid #27b9eb;
+            border-radius:50%;
+            background:transparent;
+        }
+
+        .sidebar .brand-mark span:nth-child(1){
+            left:0;
+            top:0;
+        }
+
+        .sidebar .brand-mark span:nth-child(2){
+            right:0;
+            top:0;
+        }
+
+        .sidebar .brand-mark span:nth-child(3){
+            left:7px;
+            bottom:0;
+            border-color:#fff;
+        }
+
+        .sidebar .brand-mark span:nth-child(4){
+            display:none;
+        }
+
+        .sidebar .brand-text{
+            color:#fff;
+        }
+
+        .sidebar .brand-text .brand-blue{
+            color:#1197d2;
+        }
+
         .sidebar-nav{
             padding:18px 12px;
         }
@@ -279,13 +339,45 @@
         }
 
         .topbar-brand .brand-mark{
-            width:28px;
-            height:28px;
+            width:30px;
+            height:30px;
+        }
+
+        .topbar-brand .brand-mark span{
+            width:16px;
+            height:16px;
+            border:3px solid #27b9eb;
+            border-radius:50%;
+            background:transparent;
+        }
+
+        .topbar-brand .brand-mark span:nth-child(1){
+            left:0;
+            top:0;
+        }
+
+        .topbar-brand .brand-mark span:nth-child(2){
+            right:0;
+            top:0;
+        }
+
+        .topbar-brand .brand-mark span:nth-child(3){
+            left:7px;
+            bottom:0;
+            border-color:#000;
+        }
+
+        .topbar-brand .brand-mark span:nth-child(4){
+            display:none;
         }
 
         .topbar-brand .brand-text{
             color:#092d4c;
             font-size:20px;
+        }
+
+        .topbar-brand .brand-text .brand-blue{
+            color:#1197d2;
         }
 
         .sync{
@@ -640,6 +732,28 @@
             background:#087fbd;
             border-color:#087fbd;
             color:#fff;
+        }
+
+        .small-btn.danger{
+            color:#b63f49;
+            border-color:#f1c8cc;
+        }
+
+        .intern-action-row{
+            display:flex;
+            align-items:center;
+            gap:6px;
+            min-width:194px;
+        }
+
+        .intern-action-row .intern-assignment-action{
+            width:124px;
+            flex:none;
+        }
+
+        .intern-action-row .intern-remove-action{
+            width:64px;
+            flex:none;
         }
 
         /* =========================
@@ -1179,6 +1293,358 @@
             gap:8px;
         }
 
+        .assignment-modal{
+            width:462px;
+            border-radius:12px;
+        }
+
+        .assignment-head{
+            padding:22px 24px 15px;
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+        }
+
+        .assignment-kicker{
+            color:#1688ba;
+            font-size:8px;
+            font-weight:800;
+            letter-spacing:1.2px;
+            margin-bottom:8px;
+        }
+
+        .assignment-head h2{
+            margin:0;
+            color:#29465e;
+            font-size:16px;
+            font-weight:600;
+        }
+
+        .assignment-body{
+            padding:0 24px 20px;
+        }
+
+        .assignment-student{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            padding:12px;
+            margin-bottom:14px;
+            border-radius:8px;
+            background:#f1f7fa;
+        }
+
+        .assignment-student-avatar{
+            width:30px;
+            height:30px;
+            flex:none;
+            display:grid;
+            place-items:center;
+            border-radius:7px;
+            background:#e0f2fb;
+            color:#1688ba;
+            font-size:9px;
+            font-weight:800;
+        }
+
+        .assignment-student-name{
+            color:#29465e;
+            font-size:9px;
+            font-weight:700;
+        }
+
+        .assignment-student-detail{
+            margin-top:3px;
+            color:#8295a4;
+            font-size:8px;
+        }
+
+        .assignment-note{
+            margin-top:10px;
+            color:#8295a4;
+            font-size:8px;
+            line-height:1.5;
+        }
+
+        .assignment-modal .modal-foot{
+            padding:0 24px 20px;
+            border:0;
+        }
+
+        .evaluation-modal{
+            width:462px;
+            border-radius:12px;
+        }
+
+        .evaluation-head{
+            padding:22px 24px 14px;
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+        }
+
+        .evaluation-head .assignment-kicker{
+            margin-bottom:8px;
+        }
+
+        .evaluation-head h2{
+            margin:0;
+            color:#29465e;
+            font-size:16px;
+            font-weight:600;
+        }
+
+        .evaluation-body{
+            padding:0 24px 16px;
+        }
+
+        .evaluation-fields{
+            display:grid;
+            gap:12px;
+        }
+
+        .evaluation-fields .field{
+            min-height:35px;
+        }
+
+        .evaluation-feedback{
+            min-height:66px !important;
+        }
+
+        .evaluation-modal .modal-foot{
+            padding:0 24px 22px;
+            border:0;
+        }
+
+        .remove-confirm-modal{
+            width:430px;
+            border-radius:12px;
+        }
+
+        .remove-confirm-head{
+            padding:22px 24px 8px;
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+        }
+
+        .remove-confirm-head h2{
+            margin:0;
+            color:#29465e;
+            font-size:16px;
+            font-weight:650;
+        }
+
+        .remove-confirm-body{
+            padding:8px 24px 18px;
+        }
+
+        .remove-confirm-student{
+            margin-bottom:10px;
+            color:#29465e;
+            font-size:12px;
+            font-weight:700;
+        }
+
+        .remove-confirm-message{
+            margin:0;
+            color:#708397;
+            font-size:10px;
+            line-height:1.6;
+        }
+
+        .remove-confirm-foot{
+            padding:0 24px 22px;
+            border:0;
+        }
+
+        .btn.btn-danger{
+            border:1px solid #b63f49;
+            background:#b63f49;
+            color:#fff;
+        }
+
+        .btn.btn-danger:hover{
+            background:#a93640;
+        }
+
+        .logout-confirm-modal{
+            width:420px;
+            border-radius:12px;
+        }
+
+        .logout-confirm-head{
+            padding:22px 24px 8px;
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+        }
+
+        .logout-confirm-head h2{
+            margin:0;
+            color:#29465e;
+            font-size:16px;
+            font-weight:650;
+        }
+
+        .logout-confirm-body{
+            padding:8px 24px 18px;
+        }
+
+        .logout-confirm-message{
+            margin:0;
+            color:#708397;
+            font-size:10px;
+            line-height:1.6;
+        }
+
+        .logout-confirm-foot{
+            padding:0 24px 22px;
+            border:0;
+        }
+
+        .company-confirm-modal{
+            width:382px;
+            border-radius:12px;
+        }
+
+        .company-confirm-head{
+            padding:22px 24px 8px;
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+        }
+
+        .company-confirm-head h2,
+        .company-details-head h2{
+            margin:0;
+            color:#29465e;
+            font-size:16px;
+            font-weight:600;
+        }
+
+        .company-confirm-body{
+            padding:8px 24px 18px;
+        }
+
+        .company-confirm-message{
+            margin:0;
+            color:#708397;
+            font-size:9px;
+            line-height:1.6;
+        }
+
+        .company-confirm-foot{
+            padding:0 24px 22px;
+            border:0;
+        }
+
+        .company-details-modal{
+            width:620px;
+            border-radius:12px;
+        }
+
+        .company-details-head{
+            padding:22px 24px 16px;
+            display:flex;
+            align-items:flex-start;
+            justify-content:space-between;
+        }
+
+        .company-details-body{
+            padding:0 24px 24px;
+        }
+
+        .company-details-summary{
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:12px 28px;
+            padding:16px;
+            border-radius:8px;
+            background:#f3f8fa;
+        }
+
+        .company-detail-item label{
+            display:block;
+            margin-bottom:5px;
+            color:#8295a4;
+            font-size:8px;
+        }
+
+        .company-detail-item strong{
+            display:block;
+            color:#29465e;
+            font-size:9px;
+            font-weight:700;
+            overflow-wrap:anywhere;
+        }
+
+        .company-detail-secondary{
+            margin-top:3px;
+            color:#8295a4;
+            font-size:8px;
+        }
+
+        .company-assigned-title{
+            margin:16px 0 8px;
+            color:#29465e;
+            font-size:10px;
+            font-weight:700;
+        }
+
+        .company-student-list{
+            border-top:1px solid #eaf0f4;
+        }
+
+        .company-student-row{
+            display:grid;
+            grid-template-columns:1.3fr 1fr 1fr auto;
+            align-items:center;
+            gap:12px;
+            min-height:52px;
+            border-bottom:1px solid #edf1f4;
+        }
+
+        .company-student-name{
+            color:#29465e;
+            font-size:8px;
+            font-weight:700;
+        }
+
+        .company-student-sub{
+            margin-top:3px;
+            color:#8295a4;
+            font-size:7px;
+        }
+
+        .company-student-field label{
+            display:block;
+            margin-bottom:3px;
+            color:#8295a4;
+            font-size:7px;
+        }
+
+        .company-student-field span{
+            color:#29465e;
+            font-size:8px;
+            font-weight:600;
+        }
+
+        .company-details-empty{
+            padding:18px 0;
+            color:#8295a4;
+            font-size:9px;
+            text-align:center;
+        }
+
+        @media(max-width:520px){
+            .company-details-summary{grid-template-columns:1fr}
+            .company-student-row{
+                grid-template-columns:1fr 1fr;
+                padding:10px 0;
+            }
+        }
+
         .empty{
             text-align:center;
             padding:40px 20px;
@@ -1657,7 +2123,7 @@
             <div class="brand-mark">
                 <span></span><span></span><span></span><span></span>
             </div>
-            <div class="brand-text">OJT360</div>
+            <div class="brand-text">OJT<span class="brand-blue">360</span></div>
             <button class="sidebar-close" id="sidebarClose" aria-label="Close sidebar" title="Close sidebar">&times;</button>
         </div>
 
@@ -1725,7 +2191,7 @@
                 <div class="brand-mark">
                     <span></span><span></span><span></span><span></span>
                 </div>
-                <div class="brand-text">OJT360</div>
+                <div class="brand-text">OJT<span class="brand-blue">360</span></div>
             </div>
 
             <div class="sync">
@@ -1781,7 +2247,7 @@
                         <div>
                             <div class="stat-label">Assigned Students</div>
                             <div class="stat-value" id="assignedCount">2</div>
-                            <div class="stat-sub">4 students total</div>
+                            <div class="stat-sub" id="studentTotalSummary">4 students total</div>
                         </div>
                     </div>
 
@@ -1881,7 +2347,7 @@
                         <div class="stat-icon">T</div>
                         <div>
                             <div class="stat-label">Total Interns</div>
-                            <div class="stat-value">4</div>
+                            <div class="stat-value" id="internTotalCount">4</div>
                             <div class="stat-sub">Registered internship students</div>
                         </div>
                     </div>
@@ -1890,7 +2356,7 @@
                         <div class="stat-icon green">A</div>
                         <div>
                             <div class="stat-label">Assigned Students</div>
-                            <div class="stat-value">2</div>
+                            <div class="stat-value" id="internAssignedCount">2</div>
                             <div class="stat-sub">Placed with a company</div>
                         </div>
                     </div>
@@ -1899,7 +2365,7 @@
                         <div class="stat-icon amber">U</div>
                         <div>
                             <div class="stat-label">Unassigned Students</div>
-                            <div class="stat-value">2</div>
+                            <div class="stat-value" id="internUnassignedCount">2</div>
                             <div class="stat-sub">Awaiting company placement</div>
                         </div>
                     </div>
@@ -1908,7 +2374,7 @@
                         <div class="stat-icon purple">A</div>
                         <div>
                             <div class="stat-label">Average Progress</div>
-                            <div class="stat-value">50%</div>
+                            <div class="stat-value" id="internAverageProgress">50%</div>
                             <div class="stat-sub">Across all internship hours</div>
                         </div>
                     </div>
@@ -1954,7 +2420,6 @@
                         <p>Review intern progress and submit structured performance feedback.</p>
                     </div>
 
-                    <button class="btn btn-primary" id="startEvaluationBtn">Start evaluation</button>
                 </div>
 
                 <div class="section-card">
@@ -1977,7 +2442,7 @@
                     <div class="feedback">
                         <div>
                             <h3>Structured feedback that supports growth</h3>
-                            <p>Rate technical proficiency, communication, reliability, and initiative. Drafts are saved automatically until submission.</p>
+                            <p>Rate technical proficiency, communication, reliability, and initiative, then provide constructive feedback.</p>
                         </div>
                         <button class="btn btn-primary" id="feedbackBtn">Start evaluation</button>
                     </div>
@@ -2305,6 +2770,121 @@
 <div class="toast" id="toast"></div>
 
 <!-- =============================================================
+     ASSIGN STUDENT MODAL
+============================================================== -->
+<div class="modal-backdrop" id="assignmentModal">
+    <div class="modal assignment-modal">
+        <form id="assignmentForm">
+            <input type="hidden" name="studentId">
+            <div class="assignment-head">
+                <div>
+                    <div class="assignment-kicker">STUDENT PLACEMENT</div>
+                    <h2 id="assignmentModalTitle">Assign Student to Company</h2>
+                </div>
+                <button type="button" class="close" data-close="assignmentModal" aria-label="Close">&times;</button>
+            </div>
+
+            <div class="assignment-body">
+                <div class="assignment-student" id="assignmentStudentCard"></div>
+
+                <div class="form-group">
+                    <label class="form-label" for="assignmentCompany">Company</label>
+                    <select class="field" id="assignmentCompany" name="companyId" required>
+                        <option value="">Select Active Company</option>
+                    </select>
+                </div>
+                <div class="assignment-note">Only active companies are available. Department and building assignments are managed by the company.</div>
+            </div>
+
+            <div class="modal-foot">
+                <button type="button" class="btn btn-light" data-close="assignmentModal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Continue</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- =============================================================
+     STUDENT EVALUATION MODAL
+============================================================== -->
+<div class="modal-backdrop" id="evaluationModal">
+    <div class="modal evaluation-modal">
+        <form id="evaluationForm">
+            <div class="evaluation-head">
+                <div>
+                    <div class="assignment-kicker">PERFORMANCE REVIEW</div>
+                    <h2>Student evaluation</h2>
+                </div>
+                <button type="button" class="close" data-close="evaluationModal" aria-label="Close">&times;</button>
+            </div>
+
+            <div class="evaluation-body">
+                <div class="evaluation-fields">
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationStudent">Student</label>
+                        <select class="field" id="evaluationStudent" name="studentId" required></select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationTechnical">Technical proficiency</label>
+                        <select class="field" id="evaluationTechnical" name="technical" required>
+                            <option value="5">5 — Excellent</option>
+                            <option value="4">4 — Very good</option>
+                            <option value="3">3 — Good</option>
+                            <option value="2">2 — Needs improvement</option>
+                            <option value="1">1 — Unsatisfactory</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationCommunication">Communication</label>
+                        <select class="field" id="evaluationCommunication" name="communication" required>
+                            <option value="5">5 — Excellent</option>
+                            <option value="4">4 — Very good</option>
+                            <option value="3">3 — Good</option>
+                            <option value="2">2 — Needs improvement</option>
+                            <option value="1">1 — Unsatisfactory</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationReliability">Reliability</label>
+                        <select class="field" id="evaluationReliability" name="reliability" required>
+                            <option value="5">5 — Excellent</option>
+                            <option value="4">4 — Very good</option>
+                            <option value="3">3 — Good</option>
+                            <option value="2">2 — Needs improvement</option>
+                            <option value="1">1 — Unsatisfactory</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationInitiative">Initiative</label>
+                        <select class="field" id="evaluationInitiative" name="initiative" required>
+                            <option value="5">5 — Excellent</option>
+                            <option value="4">4 — Very good</option>
+                            <option value="3">3 — Good</option>
+                            <option value="2">2 — Needs improvement</option>
+                            <option value="1">1 — Unsatisfactory</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationFeedback">Feedback</label>
+                        <textarea class="field evaluation-feedback" id="evaluationFeedback" name="feedback" placeholder="Add specific, constructive feedback..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-foot">
+                <button type="button" class="btn btn-light" data-close="evaluationModal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Submit evaluation</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- =============================================================
      ADD COMPANY MODAL
 ============================================================== -->
 <div class="modal-backdrop" id="companyModal">
@@ -2333,6 +2913,16 @@
                     </div>
 
                     <div class="form-group">
+                        <label class="form-label">Contact phone</label>
+                        <input class="field" type="tel" name="phone" placeholder="Optional">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Address</label>
+                        <input class="field" name="location" placeholder="Company address">
+                    </div>
+
+                    <div class="form-group">
                         <label class="form-label">Status</label>
                         <select class="field" name="status">
                             <option value="active">Active</option>
@@ -2347,6 +2937,44 @@
                 <button class="btn btn-primary">Add Company</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- =============================================================
+     ARCHIVE COMPANY CONFIRMATION
+============================================================== -->
+<div class="modal-backdrop" id="archiveCompanyModal">
+    <div class="modal company-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="archiveCompanyTitle" aria-describedby="archiveCompanyMessage">
+        <div class="company-confirm-head">
+            <div>
+                <div class="assignment-kicker">COMPANY STATUS</div>
+                <h2 id="archiveCompanyTitle">Archive Company?</h2>
+            </div>
+            <button type="button" class="close" data-close="archiveCompanyModal" aria-label="Close">&times;</button>
+        </div>
+        <div class="company-confirm-body">
+            <p class="company-confirm-message" id="archiveCompanyMessage"></p>
+        </div>
+        <div class="modal-foot company-confirm-foot">
+            <button type="button" class="btn btn-light" data-close="archiveCompanyModal">Cancel</button>
+            <button type="button" class="btn btn-danger" id="confirmArchiveCompanyBtn">Archive Company</button>
+        </div>
+    </div>
+</div>
+
+<!-- =============================================================
+     COMPANY DETAILS
+============================================================== -->
+<div class="modal-backdrop" id="companyDetailsModal">
+    <div class="modal company-details-modal" role="dialog" aria-modal="true" aria-labelledby="companyDetailsTitle">
+        <div class="company-details-head">
+            <div>
+                <div class="assignment-kicker">COMPANY DETAILS</div>
+                <h2 id="companyDetailsTitle"></h2>
+            </div>
+            <button type="button" class="close" data-close="companyDetailsModal" aria-label="Close">&times;</button>
+        </div>
+        <div class="company-details-body" id="companyDetailsBody"></div>
     </div>
 </div>
 
@@ -2409,6 +3037,51 @@
                 <button class="btn btn-primary">Add Intern Student</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- =============================================================
+     REMOVE STUDENT CONFIRMATION
+============================================================== -->
+<div class="modal-backdrop" id="removeStudentModal">
+    <div class="modal remove-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="removeStudentTitle" aria-describedby="removeStudentMessage">
+        <div class="remove-confirm-head">
+            <div>
+                <div class="assignment-kicker">STUDENT RECORD</div>
+                <h2 id="removeStudentTitle">Remove intern student?</h2>
+            </div>
+            <button type="button" class="close" data-close="removeStudentModal" aria-label="Close">&times;</button>
+        </div>
+        <div class="remove-confirm-body">
+            <div class="remove-confirm-student" id="removeStudentName"></div>
+            <p class="remove-confirm-message" id="removeStudentMessage">This will remove the student from the intern roster and delete their evaluation data. This action cannot be undone.</p>
+        </div>
+        <div class="modal-foot remove-confirm-foot">
+            <button type="button" class="btn btn-light" data-close="removeStudentModal">Cancel</button>
+            <button type="button" class="btn btn-danger" id="confirmRemoveStudentBtn">Remove Student</button>
+        </div>
+    </div>
+</div>
+
+<!-- =============================================================
+     SIGN OUT CONFIRMATION
+============================================================== -->
+<div class="modal-backdrop" id="signOutModal">
+    <div class="modal logout-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="signOutTitle" aria-describedby="signOutMessage">
+        <div class="logout-confirm-head">
+            <div>
+                <div class="assignment-kicker">ACCOUNT</div>
+                <h2 id="signOutTitle">Sign out of OJT360?</h2>
+            </div>
+            <button type="button" class="close" data-close="signOutModal" aria-label="Close">&times;</button>
+        </div>
+        <div class="logout-confirm-body">
+            <p class="logout-confirm-message" id="signOutMessage">You will be returned to the sign-in page. Are you sure you want to sign out?</p>
+        </div>
+        <div class="modal-foot logout-confirm-foot">
+            <button type="button" class="btn btn-light" data-close="signOutModal">Cancel</button>
+            <button type="button" class="btn btn-danger" id="confirmSignOutBtn">Sign out</button>
+        </div>
     </div>
 </div>
 
@@ -2662,26 +3335,81 @@ function viewCompany(id){
     const company = companies.find(c => c.id === id);
     if(!company) return;
 
-    alert(
-        "Company Details\\n\\n" +
-        "Company: " + company.name + "\\n" +
-        "Contact: " + company.contact + "\\n" +
-        "Email: " + company.email + "\\n" +
-        "Students: " + company.students + "\\n" +
-        "Status: " + company.status
+    const assignedStudents = students.filter(student =>
+        student.status === "Assigned" && student.company === company.name
     );
+    const statusLabel = company.status === "active" ? "Active" : "Archived";
+
+    document.getElementById("companyDetailsTitle").textContent = company.name;
+    document.getElementById("companyDetailsBody").innerHTML = `
+        <div class="company-details-summary">
+            <div class="company-detail-item">
+                <label>Contact Person</label>
+                <strong>${escapeHtml(company.contact || "Not provided")}</strong>
+            </div>
+            <div class="company-detail-item">
+                <label>Status</label>
+                <span class="badge ${company.status === "active" ? "green" : "yellow"}">${statusLabel}</span>
+            </div>
+            <div class="company-detail-item">
+                <label>Contact Information</label>
+                <strong>${escapeHtml(company.email || "Email not provided")}</strong>
+                <div class="company-detail-secondary">${escapeHtml(company.phone || "Phone not provided")}</div>
+            </div>
+            <div class="company-detail-item">
+                <label>Assigned Students</label>
+                <strong>${assignedStudents.length}</strong>
+            </div>
+            <div class="company-detail-item">
+                <label>Address</label>
+                <strong>${escapeHtml(company.location || "Address not provided")}</strong>
+            </div>
+        </div>
+
+        <h3 class="company-assigned-title">Assigned Students</h3>
+        <div class="company-student-list">
+            ${assignedStudents.length ? assignedStudents.map(student => `
+                <div class="company-student-row">
+                    <div>
+                        <div class="company-student-name">${escapeHtml(student.name)}</div>
+                        <div class="company-student-sub">${escapeHtml(student.studentId)} · ${escapeHtml(student.program)}</div>
+                    </div>
+                    <div class="company-student-field">
+                        <label>Department</label>
+                        <span>${escapeHtml(student.department || "Managed by company")}</span>
+                    </div>
+                    <div class="company-student-field">
+                        <label>Building</label>
+                        <span>${escapeHtml(student.building || "Managed by company")}</span>
+                    </div>
+                    <span class="badge green">Assigned</span>
+                </div>
+            `).join("") : `<div class="company-details-empty">No students are assigned to this company.</div>`}
+        </div>
+    `;
+    document.getElementById("companyDetailsModal").classList.add("show");
 }
 
 function archiveCompany(id){
     const company = companies.find(c => c.id === id);
     if(!company) return;
 
-    if(!confirm("Archive " + company.name + "?")) return;
+    document.getElementById("archiveCompanyMessage").innerHTML =
+        `Are you sure you want to archive <strong>${escapeHtml(company.name)}</strong>? Archived companies cannot receive new student assignments.`;
+    document.getElementById("confirmArchiveCompanyBtn").dataset.companyId = String(company.id);
+    document.getElementById("archiveCompanyModal").classList.add("show");
+}
+
+document.getElementById("confirmArchiveCompanyBtn").addEventListener("click", e => {
+    const company = companies.find(c => c.id === Number(e.currentTarget.dataset.companyId));
+    if(!company) return;
 
     company.status = "archived";
+    closeModal("archiveCompanyModal");
     renderCompanies();
     updateOverviewStats();
-}
+    showToast(`${company.name} was archived.`);
+});
 
 function activateCompany(id){
     const company = companies.find(c => c.id === id);
@@ -2697,11 +3425,21 @@ function updateOverviewStats(){
     const archived = companies.filter(c => c.status === "archived").length;
     const assigned = students.filter(s => s.status === "Assigned").length;
     const unassigned = students.filter(s => s.status !== "Assigned").length;
+    const totalRequiredHours = students.reduce((total, student) => total + student.required, 0);
+    const totalCompletedHours = students.reduce((total, student) => total + student.completed, 0);
+    const averageProgress = totalRequiredHours
+        ? Math.round((totalCompletedHours / totalRequiredHours) * 100)
+        : 0;
 
     document.getElementById("activeCompanyCount").textContent = active;
     document.getElementById("archivedCompanyCount").textContent = archived;
     document.getElementById("assignedCount").textContent = assigned;
     document.getElementById("unassignedCount").textContent = unassigned;
+    document.getElementById("studentTotalSummary").textContent = `${students.length} students total`;
+    document.getElementById("internTotalCount").textContent = students.length;
+    document.getElementById("internAssignedCount").textContent = assigned;
+    document.getElementById("internUnassignedCount").textContent = unassigned;
+    document.getElementById("internAverageProgress").textContent = `${averageProgress}%`;
 }
 
 /* ================================================================
@@ -2744,6 +3482,14 @@ function renderAssignments(){
 }
 
 function assignCompany(id){
+    openAssignmentModal(id);
+}
+
+function manageAssignment(id){
+    openAssignmentModal(id);
+}
+
+function openAssignmentModal(id){
     const student = students.find(s => s.id === id);
     if(!student) return;
 
@@ -2754,53 +3500,60 @@ function assignCompany(id){
         return;
     }
 
-    const choices = activeCompanies.map((c,index) => `${index + 1}. ${c.name}`).join("\\n");
-    const answer = prompt(
-        "Choose an active company by number:\\n\\n" +
-        choices
+    const assignmentForm = document.getElementById("assignmentForm");
+    assignmentForm.elements.studentId.value = student.id;
+    document.getElementById("assignmentModalTitle").textContent =
+        student.status === "Assigned" ? "Manage Student Assignment" : "Assign Student to Company";
+    document.getElementById("assignmentStudentCard").innerHTML = `
+        <div class="assignment-student-avatar">${escapeHtml(initials(student.name))}</div>
+        <div>
+            <div class="assignment-student-name">${escapeHtml(student.name)}</div>
+            <div class="assignment-student-detail">Student ID: ${escapeHtml(student.studentId)}</div>
+            <div class="assignment-student-detail">${escapeHtml(student.program)}</div>
+        </div>
+    `;
+
+    const companySelect = document.getElementById("assignmentCompany");
+    companySelect.innerHTML = `<option value="">Select Active Company</option>` +
+        activeCompanies.map(company =>
+            `<option value="${company.id}">${escapeHtml(company.name)}</option>`
+        ).join("");
+    const currentCompany = activeCompanies.find(company => company.name === student.company);
+    if(currentCompany) companySelect.value = String(currentCompany.id);
+    document.getElementById("assignmentModal").classList.add("show");
+}
+
+document.getElementById("assignmentForm").addEventListener("submit", e => {
+    e.preventDefault();
+
+    const form = new FormData(e.target);
+    const student = students.find(s => s.id === Number(form.get("studentId")));
+    const company = companies.find(c =>
+        c.id === Number(form.get("companyId")) && c.status === "active"
     );
 
-    const index = Number(answer) - 1;
+    if(!student || !company){
+        alert("Select an active company for this student.");
+        return;
+    }
 
-    if(!Number.isInteger(index) || !activeCompanies[index]) return;
+    const previousCompany = companies.find(c => c.name === student.company);
+    if(student.company !== company.name){
+        if(previousCompany && previousCompany.students > 0) previousCompany.students--;
+        company.students++;
+    }
 
-    const selected = activeCompanies[index];
-
-    student.company = selected.name;
+    student.company = company.name;
     student.status = "Assigned";
 
-    selected.students += 1;
-
+    closeModal("assignmentModal");
+    e.target.reset();
     renderAssignments();
     renderInterns();
     renderCompanies();
     renderEvaluations();
     updateOverviewStats();
-}
-
-function manageAssignment(id){
-    const student = students.find(s => s.id === id);
-    if(!student) return;
-
-    if(!confirm(
-        student.name +
-        " is assigned to " +
-        student.company +
-        ".\\n\\nDo you want to remove this assignment?"
-    )) return;
-
-    const company = companies.find(c => c.name === student.company);
-    if(company && company.students > 0) company.students--;
-
-    student.company = "Not Assigned";
-    student.status = "Unassigned";
-
-    renderAssignments();
-    renderInterns();
-    renderCompanies();
-    renderEvaluations();
-    updateOverviewStats();
-}
+});
 
 /* ================================================================
    INTERN PAGE
@@ -2848,31 +3601,53 @@ function renderInterns(){
                 </td>
 
                 <td>
-                    ${
-                        student.status === "Assigned"
-                        ? `<button class="small-btn" onclick="viewIntern(${student.id})">Manage Assignment</button>`
-                        : `<button class="small-btn primary" onclick="assignCompany(${student.id})">Assign Company</button>`
-                    }
+                    <div class="intern-action-row">
+                        ${
+                            student.status === "Assigned"
+                            ? `<button class="small-btn intern-assignment-action" onclick="manageAssignment(${student.id})">Manage Assignment</button>`
+                            : `<button class="small-btn primary intern-assignment-action" onclick="assignCompany(${student.id})">Assign Company</button>`
+                        }
+                        <button class="small-btn danger intern-remove-action" onclick="removeStudent(${student.id})" aria-label="Remove ${escapeHtml(student.name)}" title="Remove student">Remove</button>
+                    </div>
                 </td>
             </tr>
         `;
     }).join("");
 }
 
-function viewIntern(id){
-    const student = students.find(s => s.id === id);
+function removeStudent(id){
+    const student = students.find(item => item.id === id);
     if(!student) return;
 
-    alert(
-        "Student Information\\n\\n" +
-        "Name: " + student.name + "\\n" +
-        "Student ID: " + student.studentId + "\\n" +
-        "Program: " + student.program + "\\n" +
-        "Company: " + student.company + "\\n" +
-        "Status: " + student.status + "\\n" +
-        "Working Hours: " + student.completed + " / " + student.required + " hours"
-    );
+    document.getElementById("removeStudentName").textContent =
+        `${student.name} (${student.studentId})`;
+    document.getElementById("confirmRemoveStudentBtn").dataset.studentId = String(student.id);
+    document.getElementById("removeStudentModal").classList.add("show");
 }
+
+document.getElementById("confirmRemoveStudentBtn").addEventListener("click", e => {
+    const studentId = Number(e.currentTarget.dataset.studentId);
+    const studentIndex = students.findIndex(student => student.id === studentId);
+    if(studentIndex === -1){
+        closeModal("removeStudentModal");
+        return;
+    }
+
+    const student = students[studentIndex];
+    if(student.status === "Assigned"){
+        const company = companies.find(item => item.name === student.company);
+        if(company && company.students > 0) company.students--;
+    }
+
+    students.splice(studentIndex, 1);
+    closeModal("removeStudentModal");
+    renderInterns();
+    renderAssignments();
+    renderEvaluations();
+    renderCompanies();
+    updateOverviewStats();
+    showToast(`${student.name} was removed from the intern roster.`);
+});
 
 /* ================================================================
    ADD COMPANY
@@ -2890,9 +3665,10 @@ document.getElementById("companyForm").addEventListener("submit", e => {
     const company = {
         id:Date.now(),
         name:form.get("company"),
-        location:"Location not set",
+        location:String(form.get("location") || "").trim() || "Address not provided",
         contact:form.get("contact"),
         email:form.get("email"),
+        phone:String(form.get("phone") || "").trim(),
         students:0,
         status:form.get("status")
     };
@@ -2979,15 +3755,90 @@ function renderEvaluations(){
             <div class="week">${student.week}</div>
 
             <div>
-                <span class="badge ${student.status === "Assigned" ? "green" : "yellow"}">
-                    ${student.status === "Assigned" ? "On track" : "Awaiting placement"}
+                <span class="badge ${student.evaluationData ? "green" : "yellow"}">
+                    ${student.status !== "Assigned" ? "Awaiting placement" : student.evaluationData ? `Evaluated · ${student.evaluationData.average}/5` : "Needs evaluation"}
                 </span>
             </div>
 
-            <button class="small-btn">Review</button>
+            <button class="small-btn" onclick="openEvaluationForm(${student.id})" ${student.status !== "Assigned" ? "disabled title=\"Assign this student to a company before evaluating.\"" : ""}>
+                ${student.evaluationData ? "Edit review" : "Review"}
+            </button>
         </div>
     `).join("");
 }
+
+function openEvaluationForm(studentId){
+    const assignedStudents = students.filter(student => student.status === "Assigned");
+    if(!assignedStudents.length){
+        alert("Assign a student to a company before starting an evaluation.");
+        return;
+    }
+
+    const studentSelect = document.getElementById("evaluationStudent");
+    studentSelect.innerHTML = assignedStudents.map(student =>
+        `<option value="${student.id}">${escapeHtml(student.name)}</option>`
+    ).join("");
+
+    const selectedStudent = assignedStudents.find(student => student.id === studentId) || assignedStudents[0];
+    studentSelect.value = String(selectedStudent.id);
+    loadEvaluationDraft(selectedStudent);
+    document.getElementById("evaluationModal").classList.add("show");
+}
+
+function loadEvaluationDraft(student){
+    const data = student.evaluationData || {
+        technical:5,
+        communication:5,
+        reliability:5,
+        initiative:5,
+        feedback:""
+    };
+
+    document.getElementById("evaluationTechnical").value = data.technical;
+    document.getElementById("evaluationCommunication").value = data.communication;
+    document.getElementById("evaluationReliability").value = data.reliability;
+    document.getElementById("evaluationInitiative").value = data.initiative;
+    document.getElementById("evaluationFeedback").value = data.feedback;
+}
+
+document.getElementById("evaluationStudent").addEventListener("change", e => {
+    const student = students.find(item => item.id === Number(e.target.value));
+    if(student) loadEvaluationDraft(student);
+});
+
+document.getElementById("evaluationForm").addEventListener("submit", e => {
+    e.preventDefault();
+
+    const form = new FormData(e.target);
+    const student = students.find(item => item.id === Number(form.get("studentId")));
+    if(!student || student.status !== "Assigned"){
+        alert("Select a student who is currently assigned to a company.");
+        return;
+    }
+
+    const scores = {
+        technical:Number(form.get("technical")),
+        communication:Number(form.get("communication")),
+        reliability:Number(form.get("reliability")),
+        initiative:Number(form.get("initiative"))
+    };
+    if(Object.values(scores).some(score => !Number.isInteger(score) || score < 1 || score > 5)){
+        alert("Choose a rating from 1 to 5 for every evaluation category.");
+        return;
+    }
+
+    const average = (Object.values(scores).reduce((total, score) => total + score, 0) / 4).toFixed(1);
+    student.evaluationData = {
+        ...scores,
+        average,
+        feedback:String(form.get("feedback") || "").trim(),
+        submittedAt:new Date().toISOString()
+    };
+
+    closeModal("evaluationModal");
+    renderEvaluations();
+    showToast("Evaluation submitted for " + student.name + ".");
+});
 
 document.getElementById("evalSearch").addEventListener("input", function(){
     const query = this.value.toLowerCase();
@@ -2997,12 +3848,8 @@ document.getElementById("evalSearch").addEventListener("input", function(){
     });
 });
 
-document.getElementById("startEvaluationBtn").addEventListener("click", () => {
-    alert("Evaluation workflow opened.");
-});
-
 document.getElementById("feedbackBtn").addEventListener("click", () => {
-    alert("Evaluation form opened.");
+    openEvaluationForm();
 });
 
 /* ================================================================
@@ -3069,10 +3916,11 @@ document.getElementById("supportBtn").addEventListener("click", () => {
 ================================================================ */
 
 document.getElementById("signOutBtn").addEventListener("click", () => {
-    if(confirm("Are you sure you want to sign out?")){
-        // Replace with your real logout URL.
-        window.location.href = "login.php";
-    }
+    document.getElementById("signOutModal").classList.add("show");
+});
+
+document.getElementById("confirmSignOutBtn").addEventListener("click", () => {
+    window.location.href = "login.php";
 });
 
 /* ================================================================
