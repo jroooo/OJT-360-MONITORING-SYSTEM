@@ -1,33 +1,4 @@
 <?php
-session_start();
-
-$employeeNameParts = array_filter(
-    [
-        $_SESSION["employee_first_name"] ?? "",
-        $_SESSION["employee_middle_name"] ?? "",
-        $_SESSION["employee_last_name"] ?? "",
-    ],
-    static function ($part) {
-        return is_string($part) && trim($part) !== "";
-    }
-);
-$employeeName = trim(implode(" ", $employeeNameParts));
-if ($employeeName === "") {
-    $employeeName = $_SESSION["employee_username"] ?? "Employee";
-}
-
-$employeePosition = $_SESSION["employee_position"] ?? "Employee";
-$employeeDepartment = $_SESSION["employee_department"] ?? "OJT Coordination Office";
-$employeeEmail = $_SESSION["employee_email"] ?? "";
-$employeeContactNumber = $_SESSION["employee_contact_number"] ?? "";
-$employeeInitials = "";
-foreach (preg_split('/\s+/', trim($employeeName)) as $namePart) {
-    if ($namePart !== "") {
-        $employeeInitials .= strtoupper(substr($namePart, 0, 1));
-    }
-}
-$employeeInitials = substr($employeeInitials, 0, 2);
-
 /*
 |--------------------------------------------------------------------------
 | OJT360 - Employee Dashboard
@@ -196,48 +167,6 @@ $employeeInitials = substr($employeeInitials, 0, 2);
             letter-spacing:-.5px;
         }
 
-        /* Sidebar logo: match the OJT360 reference logo */
-        .sidebar .brand-mark{
-            width:30px;
-            height:30px;
-        }
-
-        .sidebar .brand-mark span{
-            width:16px;
-            height:16px;
-            border:3px solid #27b9eb;
-            border-radius:50%;
-            background:transparent;
-        }
-
-        .sidebar .brand-mark span:nth-child(1){
-            left:0;
-            top:0;
-        }
-
-        .sidebar .brand-mark span:nth-child(2){
-            right:0;
-            top:0;
-        }
-
-        .sidebar .brand-mark span:nth-child(3){
-            left:7px;
-            bottom:0;
-            border-color:#fff;
-        }
-
-        .sidebar .brand-mark span:nth-child(4){
-            display:none;
-        }
-
-        .sidebar .brand-text{
-            color:#fff;
-        }
-
-        .sidebar .brand-text .brand-blue{
-            color:#1197d2;
-        }
-
         .sidebar-nav{
             padding:18px 12px;
         }
@@ -368,45 +297,13 @@ $employeeInitials = substr($employeeInitials, 0, 2);
         }
 
         .topbar-brand .brand-mark{
-            width:30px;
-            height:30px;
-        }
-
-        .topbar-brand .brand-mark span{
-            width:16px;
-            height:16px;
-            border:3px solid #27b9eb;
-            border-radius:50%;
-            background:transparent;
-        }
-
-        .topbar-brand .brand-mark span:nth-child(1){
-            left:0;
-            top:0;
-        }
-
-        .topbar-brand .brand-mark span:nth-child(2){
-            right:0;
-            top:0;
-        }
-
-        .topbar-brand .brand-mark span:nth-child(3){
-            left:7px;
-            bottom:0;
-            border-color:#000;
-        }
-
-        .topbar-brand .brand-mark span:nth-child(4){
-            display:none;
+            width:28px;
+            height:28px;
         }
 
         .topbar-brand .brand-text{
             color:#092d4c;
             font-size:20px;
-        }
-
-        .topbar-brand .brand-text .brand-blue{
-            color:#1197d2;
         }
 
         .sync{
@@ -761,28 +658,6 @@ $employeeInitials = substr($employeeInitials, 0, 2);
             background:#087fbd;
             border-color:#087fbd;
             color:#fff;
-        }
-
-        .small-btn.danger{
-            color:#b63f49;
-            border-color:#f1c8cc;
-        }
-
-        .intern-action-row{
-            display:flex;
-            align-items:center;
-            gap:6px;
-            min-width:194px;
-        }
-
-        .intern-action-row .intern-assignment-action{
-            width:124px;
-            flex:none;
-        }
-
-        .intern-action-row .intern-remove-action{
-            width:64px;
-            flex:none;
         }
 
         /* =========================
@@ -1322,358 +1197,6 @@ $employeeInitials = substr($employeeInitials, 0, 2);
             gap:8px;
         }
 
-        .assignment-modal{
-            width:462px;
-            border-radius:12px;
-        }
-
-        .assignment-head{
-            padding:22px 24px 15px;
-            display:flex;
-            align-items:flex-start;
-            justify-content:space-between;
-        }
-
-        .assignment-kicker{
-            color:#1688ba;
-            font-size:8px;
-            font-weight:800;
-            letter-spacing:1.2px;
-            margin-bottom:8px;
-        }
-
-        .assignment-head h2{
-            margin:0;
-            color:#29465e;
-            font-size:16px;
-            font-weight:600;
-        }
-
-        .assignment-body{
-            padding:0 24px 20px;
-        }
-
-        .assignment-student{
-            display:flex;
-            align-items:center;
-            gap:10px;
-            padding:12px;
-            margin-bottom:14px;
-            border-radius:8px;
-            background:#f1f7fa;
-        }
-
-        .assignment-student-avatar{
-            width:30px;
-            height:30px;
-            flex:none;
-            display:grid;
-            place-items:center;
-            border-radius:7px;
-            background:#e0f2fb;
-            color:#1688ba;
-            font-size:9px;
-            font-weight:800;
-        }
-
-        .assignment-student-name{
-            color:#29465e;
-            font-size:9px;
-            font-weight:700;
-        }
-
-        .assignment-student-detail{
-            margin-top:3px;
-            color:#8295a4;
-            font-size:8px;
-        }
-
-        .assignment-note{
-            margin-top:10px;
-            color:#8295a4;
-            font-size:8px;
-            line-height:1.5;
-        }
-
-        .assignment-modal .modal-foot{
-            padding:0 24px 20px;
-            border:0;
-        }
-
-        .evaluation-modal{
-            width:462px;
-            border-radius:12px;
-        }
-
-        .evaluation-head{
-            padding:22px 24px 14px;
-            display:flex;
-            align-items:flex-start;
-            justify-content:space-between;
-        }
-
-        .evaluation-head .assignment-kicker{
-            margin-bottom:8px;
-        }
-
-        .evaluation-head h2{
-            margin:0;
-            color:#29465e;
-            font-size:16px;
-            font-weight:600;
-        }
-
-        .evaluation-body{
-            padding:0 24px 16px;
-        }
-
-        .evaluation-fields{
-            display:grid;
-            gap:12px;
-        }
-
-        .evaluation-fields .field{
-            min-height:35px;
-        }
-
-        .evaluation-feedback{
-            min-height:66px !important;
-        }
-
-        .evaluation-modal .modal-foot{
-            padding:0 24px 22px;
-            border:0;
-        }
-
-        .remove-confirm-modal{
-            width:430px;
-            border-radius:12px;
-        }
-
-        .remove-confirm-head{
-            padding:22px 24px 8px;
-            display:flex;
-            align-items:flex-start;
-            justify-content:space-between;
-        }
-
-        .remove-confirm-head h2{
-            margin:0;
-            color:#29465e;
-            font-size:16px;
-            font-weight:650;
-        }
-
-        .remove-confirm-body{
-            padding:8px 24px 18px;
-        }
-
-        .remove-confirm-student{
-            margin-bottom:10px;
-            color:#29465e;
-            font-size:12px;
-            font-weight:700;
-        }
-
-        .remove-confirm-message{
-            margin:0;
-            color:#708397;
-            font-size:10px;
-            line-height:1.6;
-        }
-
-        .remove-confirm-foot{
-            padding:0 24px 22px;
-            border:0;
-        }
-
-        .btn.btn-danger{
-            border:1px solid #b63f49;
-            background:#b63f49;
-            color:#fff;
-        }
-
-        .btn.btn-danger:hover{
-            background:#a93640;
-        }
-
-        .logout-confirm-modal{
-            width:420px;
-            border-radius:12px;
-        }
-
-        .logout-confirm-head{
-            padding:22px 24px 8px;
-            display:flex;
-            align-items:flex-start;
-            justify-content:space-between;
-        }
-
-        .logout-confirm-head h2{
-            margin:0;
-            color:#29465e;
-            font-size:16px;
-            font-weight:650;
-        }
-
-        .logout-confirm-body{
-            padding:8px 24px 18px;
-        }
-
-        .logout-confirm-message{
-            margin:0;
-            color:#708397;
-            font-size:10px;
-            line-height:1.6;
-        }
-
-        .logout-confirm-foot{
-            padding:0 24px 22px;
-            border:0;
-        }
-
-        .company-confirm-modal{
-            width:382px;
-            border-radius:12px;
-        }
-
-        .company-confirm-head{
-            padding:22px 24px 8px;
-            display:flex;
-            align-items:flex-start;
-            justify-content:space-between;
-        }
-
-        .company-confirm-head h2,
-        .company-details-head h2{
-            margin:0;
-            color:#29465e;
-            font-size:16px;
-            font-weight:600;
-        }
-
-        .company-confirm-body{
-            padding:8px 24px 18px;
-        }
-
-        .company-confirm-message{
-            margin:0;
-            color:#708397;
-            font-size:9px;
-            line-height:1.6;
-        }
-
-        .company-confirm-foot{
-            padding:0 24px 22px;
-            border:0;
-        }
-
-        .company-details-modal{
-            width:620px;
-            border-radius:12px;
-        }
-
-        .company-details-head{
-            padding:22px 24px 16px;
-            display:flex;
-            align-items:flex-start;
-            justify-content:space-between;
-        }
-
-        .company-details-body{
-            padding:0 24px 24px;
-        }
-
-        .company-details-summary{
-            display:grid;
-            grid-template-columns:1fr 1fr;
-            gap:12px 28px;
-            padding:16px;
-            border-radius:8px;
-            background:#f3f8fa;
-        }
-
-        .company-detail-item label{
-            display:block;
-            margin-bottom:5px;
-            color:#8295a4;
-            font-size:8px;
-        }
-
-        .company-detail-item strong{
-            display:block;
-            color:#29465e;
-            font-size:9px;
-            font-weight:700;
-            overflow-wrap:anywhere;
-        }
-
-        .company-detail-secondary{
-            margin-top:3px;
-            color:#8295a4;
-            font-size:8px;
-        }
-
-        .company-assigned-title{
-            margin:16px 0 8px;
-            color:#29465e;
-            font-size:10px;
-            font-weight:700;
-        }
-
-        .company-student-list{
-            border-top:1px solid #eaf0f4;
-        }
-
-        .company-student-row{
-            display:grid;
-            grid-template-columns:1.3fr 1fr 1fr auto;
-            align-items:center;
-            gap:12px;
-            min-height:52px;
-            border-bottom:1px solid #edf1f4;
-        }
-
-        .company-student-name{
-            color:#29465e;
-            font-size:8px;
-            font-weight:700;
-        }
-
-        .company-student-sub{
-            margin-top:3px;
-            color:#8295a4;
-            font-size:7px;
-        }
-
-        .company-student-field label{
-            display:block;
-            margin-bottom:3px;
-            color:#8295a4;
-            font-size:7px;
-        }
-
-        .company-student-field span{
-            color:#29465e;
-            font-size:8px;
-            font-weight:600;
-        }
-
-        .company-details-empty{
-            padding:18px 0;
-            color:#8295a4;
-            font-size:9px;
-            text-align:center;
-        }
-
-        @media(max-width:520px){
-            .company-details-summary{grid-template-columns:1fr}
-            .company-student-row{
-                grid-template-columns:1fr 1fr;
-                padding:10px 0;
-            }
-        }
-
         .empty{
             text-align:center;
             padding:40px 20px;
@@ -2138,7 +1661,386 @@ $employeeInitials = substr($employeeInitials, 0, 2);
             .form-grid{grid-template-columns:1fr}
             .form-group.full{grid-column:auto}
         }
+    
+/* =====================================================================
+   OJT360 FIGMA THEME (merged)
+   ===================================================================== */
+
+:root{
+    --navy:#0a2147;
+    --blue:#1a8fd8;
+    --page:#f6f8fb;
+    --border:#e3eaf1;
+    --text:#14304d;
+    --muted:#6f8294;
+    --shadow:0 2px 12px rgba(15,40,70,.055);
+
+    /* line icons (used as masks) */
+    --i-overview:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='7' rx='1.5'/%3E%3Crect x='14' y='3' width='7' height='7' rx='1.5'/%3E%3Crect x='3' y='14' width='7' height='7' rx='1.5'/%3E%3Crect x='14' y='14' width='7' height='7' rx='1.5'/%3E%3C/svg%3E");
+    --i-interns:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='9' cy='8' r='3.5'/%3E%3Cpath d='M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6'/%3E%3Ccircle cx='17.5' cy='9' r='2.5'/%3E%3Cpath d='M17 14.2c2.6.3 4.5 2.2 4.5 5.3'/%3E%3C/svg%3E");
+    --i-evaluations:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 6.5C10.5 5 8 4.5 3.5 4.5v14c4.5 0 7 .5 8.5 2 1.5-1.5 4-2 8.5-2v-14c-4.5 0-7 .5-8.5 2z'/%3E%3Cpath d='M12 6.5v14'/%3E%3C/svg%3E");
+    --i-messages:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 3L10 14'/%3E%3Cpath d='M21 3l-7 18-4-7-7-4z'/%3E%3C/svg%3E");
+    --i-reports:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 4v16h16'/%3E%3Cpath d='M9 16v-5'/%3E%3Cpath d='M13 16V8'/%3E%3Cpath d='M17 16v-3'/%3E%3C/svg%3E");
+    --i-help:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7'/%3E%3Cpath d='M12 17h.01'/%3E%3C/svg%3E");
+    --i-signout:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4'/%3E%3Cpath d='M10 17l5-5-5-5'/%3E%3Cpath d='M15 12H3'/%3E%3C/svg%3E");
+    --i-bell:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9'/%3E%3Cpath d='M10.3 21a1.9 1.9 0 0 0 3.4 0'/%3E%3C/svg%3E");
+}
+
+html,body{
+    font-family:"Sora", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background:var(--page);
+}
+
+/* =========================
+   TOPBAR
+========================== */
+.topbar{
+    height:86px;
+    padding:0 30px;
+    gap:16px;
+    background:#fff;
+    border-bottom:1px solid #e8eef3;
+}
+
+.menu-toggle{
+    width:38px;
+    height:38px;
+    border-radius:9px;
+    border:1px solid #dbe5ed;
+    color:#0a2147;
+}
+
+.topbar-brand{margin-left:4px}
+.topbar-brand .brand-text{
+    font-size:23px;
+    font-weight:700;
+    letter-spacing:-.6px;
+    color:#0a2147;
+}
+.topbar-brand .brand-text .brand-blue{color:var(--blue)}
+.topbar-brand .brand-mark span:nth-child(3){border-color:#0a2147}
+
+.sync{
+    font-size:11.5px;
+    color:#6f8294;
+    margin-right:6px;
+}
+.sync-dot{width:7px;height:7px;background:#2bb37f}
+
+/* bell with badge */
+.icon-button{
+    position:relative;
+    width:38px;
+    height:38px;
+    border-radius:10px;
+    border:1px solid #e1e9f0;
+    color:#5d7388;
+    font-size:0;               /* hides the old ♧ glyph */
+    display:grid;
+    place-items:center;
+}
+.icon-button::before{
+    content:"";
+    width:18px;
+    height:18px;
+    background:currentColor;
+    -webkit-mask:var(--i-bell) center/contain no-repeat;
+            mask:var(--i-bell) center/contain no-repeat;
+}
+.icon-button::after{
+    content:"3";                /* change/remove when you wire real notifications */
+    position:absolute;
+    top:-6px;
+    right:-6px;
+    min-width:16px;
+    height:16px;
+    padding:0 4px;
+    border-radius:10px;
+    background:#e5484d;
+    color:#fff;
+    font-size:9px;
+    font-weight:700;
+    line-height:16px;
+    text-align:center;
+    border:1.5px solid #fff;
+    box-sizing:content-box;
+}
+
+.top-profile{gap:11px}
+.top-profile .avatar{
+    width:38px;
+    height:38px;
+    background:#1b7bc8;
+    color:#fff;
+    font-size:12px;
+}
+.top-profile .profile-name{font-size:12px;font-weight:700}
+.top-profile .profile-role{font-size:10px;color:#8396a8}
+
+/* =========================
+   SIDEBAR
+========================== */
+.sidebar{
+    width:240px;
+    background:#0a2147;
+    box-shadow:14px 0 40px rgba(4,16,40,.22);
+}
+
+.sidebar-overlay{
+    background:rgba(10,24,48,.38);
+    -webkit-backdrop-filter:blur(2px);
+            backdrop-filter:blur(2px);
+}
+
+.brand{
+    height:86px;
+    padding:0 20px 0 24px;
+    border-bottom:0;
+}
+.sidebar .brand-text{font-size:23px;font-weight:700;letter-spacing:-.6px}
+.sidebar .brand-text .brand-blue{color:#1fa3e6}
+.sidebar-close{color:#a9bbd4;font-size:24px}
+
+.sidebar-nav{padding:14px 12px}
+
+.nav-link{
+    min-height:44px;
+    padding:0 14px;
+    gap:14px;
+    border-radius:8px;
+    font-size:13.5px;
+    font-weight:500;
+    color:#d3deee;
+    margin-bottom:6px;
+}
+.nav-link:hover{background:rgba(255,255,255,.06);color:#fff;transform:none}
+.nav-link.active{
+    background:#163f78;
+    color:#fff;
+    box-shadow:inset 3px 0 0 #2aa7e6;
+}
+.nav-link.active .nav-icon{color:#4ab8f0}
+
+/* line icons instead of text glyphs */
+.nav-icon{
+    width:20px;
+    height:20px;
+    font-size:0;                /* hides the old glyph */
+    background:currentColor;
+    -webkit-mask-repeat:no-repeat;        mask-repeat:no-repeat;
+    -webkit-mask-position:center;         mask-position:center;
+    -webkit-mask-size:contain;            mask-size:contain;
+}
+.nav-link[data-page="overview"]    .nav-icon{-webkit-mask-image:var(--i-overview);    mask-image:var(--i-overview)}
+.nav-link[data-page="interns"]     .nav-icon{-webkit-mask-image:var(--i-interns);     mask-image:var(--i-interns)}
+.nav-link[data-page="evaluations"] .nav-icon{-webkit-mask-image:var(--i-evaluations); mask-image:var(--i-evaluations)}
+.nav-link[data-page="messages"]    .nav-icon{-webkit-mask-image:var(--i-messages);    mask-image:var(--i-messages)}
+.nav-link[data-page="reports"]     .nav-icon{-webkit-mask-image:var(--i-reports);     mask-image:var(--i-reports)}
+.nav-link[data-page="support"]     .nav-icon{-webkit-mask-image:var(--i-help);        mask-image:var(--i-help)}
+#signOutBtn .nav-icon              {-webkit-mask-image:var(--i-signout);              mask-image:var(--i-signout)}
+
+.sidebar-bottom{padding:12px 12px 14px}
+.help-link{border-top:0;padding-top:0}
+
+.profile{
+    margin-top:12px;
+    padding:16px 10px 4px;
+    border-top:1px solid rgba(255,255,255,.1);
+    border-radius:0;
+    gap:12px;
+}
+.profile:hover{background:transparent}
+.profile .avatar{width:38px;height:38px;background:#1b7bc8;font-size:12px}
+.profile-name{font-size:12.5px;font-weight:700}
+.profile-role{font-size:10px;color:#a9bdd6}
+.profile::after{
+    content:"›";
+    margin-left:auto;
+    color:#cbd8ea;
+    font-size:22px;
+    line-height:1;
+}
+
+/* =========================
+   CONTENT / HERO
+========================== */
+.content{
+    max-width:1292px;
+    padding:28px 24px 44px;
+}
+
+.hero{
+    background:linear-gradient(110deg,#0a2a4d 0%,#0b3b63 50%,#0c4f7e 100%);
+    border-radius:14px;
+    padding:30px 34px;
+    min-height:148px;
+    margin-bottom:18px;
+    box-shadow:0 6px 20px rgba(8,36,70,.14);
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+}
+.eyebrow{
+    font-size:9px;
+    letter-spacing:2px;
+    font-weight:700;
+    color:#34b8b0;
+    margin-bottom:12px;
+}
+.hero h1{
+    font-size:28px;
+    font-weight:500;
+    letter-spacing:-.5px;
+    margin:0 0 8px;
+}
+.hero p{
+    font-size:11.5px;
+    color:#d6e6f1;
+}
+
+/* =========================
+   STAT CARDS
+========================== */
+.stat-grid{gap:16px;margin-bottom:18px}
+
+.stat-card{
+    min-height:88px;
+    padding:18px 20px;
+    gap:14px;
+    align-items:center;
+    border-radius:14px;
+    border:1px solid #e6edf3;
+    box-shadow:var(--shadow);
+}
+.stat-icon{
+    width:38px;
+    height:38px;
+    border-radius:11px;
+    font-size:16px;
+    font-weight:600;
+    background:#e3f1fb;
+    color:#1a8fd8;
+}
+.stat-icon.amber{background:#fdf1df;color:#d88a1b}
+.stat-icon.green{background:#dff6ec;color:#11a074}
+.stat-icon.purple{background:#ede9fc;color:#6b4fc9}
+
+.stat-label{font-size:8.5px;letter-spacing:.8px;color:#74879a;margin-bottom:5px}
+.stat-value{font-size:19px;font-weight:700;color:#0e2a47}
+.stat-sub{font-size:8.5px;color:#8294a6;margin-top:6px}
+
+/* =========================
+   SECTION CARDS + TABLES
+========================== */
+.section-card{
+    border-radius:14px;
+    border:1px solid #e6edf3;
+    box-shadow:var(--shadow);
+    margin-bottom:18px;
+}
+.section-head{padding:26px 24px 18px}
+.section-kicker{font-size:9px;letter-spacing:1.6px;font-weight:700;color:#1a8fd8;margin-bottom:8px}
+.section-title{font-size:18px;font-weight:500;letter-spacing:-.2px;color:#0e2a47}
+.section-sub{font-size:9.5px;color:#7d90a2;margin-top:6px}
+
+.btn{border-radius:8px;min-height:38px;padding:0 18px;font-size:10.5px;font-weight:600}
+.btn-primary{
+    background:#1a8fd8;
+    box-shadow:0 6px 14px rgba(26,143,216,.28);
+}
+.btn-primary:hover{background:#1280c4}
+
+.toolbar{
+    padding:14px 24px;
+    background:#f9fbfd;
+    border-top:1px solid #edf2f6;
+}
+.search{
+    width:280px;
+    height:36px;
+    border-radius:8px;
+    background:#fff;
+    font-size:10.5px;
+}
+.filter-group{gap:6px}
+.filter{
+    height:30px;
+    padding:0 13px;
+    border-radius:6px;
+    font-size:9px;
+    color:#6f8294;
+}
+.filter.active{background:#e4f2fb;border-color:#b9ddf2;color:#1a8fd8}
+
+table{min-width:820px}
+th,td{padding:20px 24px;border-top:1px solid #edf2f6}
+th{
+    padding-top:14px;
+    padding-bottom:14px;
+    font-size:8.5px;
+    letter-spacing:.9px;
+    color:#6f8294;
+    background:#f9fbfd;
+}
+td{font-size:10.5px;color:#2f4b64}
+
+.mini-avatar{width:30px;height:30px;border-radius:9px;font-size:9px}
+.person-name{font-size:11px;font-weight:700;color:#14304d}
+.person-sub{font-size:8.5px;color:#8a9bab;margin-top:3px}
+
+.badge{min-height:22px;padding:0 10px;font-size:9px;font-weight:700}
+.badge.green{background:#dcf6ea;color:#12875e}
+.badge.yellow{background:#fff3d6;color:#a97712}
+
+.small-btn{
+    min-height:32px;
+    padding:0 13px;
+    border-radius:6px;
+    font-size:9px;
+    font-weight:600;
+    color:#5b7388;
+}
+.action-row .small-btn:first-child:not(.primary):not(.danger){color:#1a7fb8}
+.small-btn.primary{background:#1a8fd8;border-color:#1a8fd8;color:#fff}
+.small-btn:hover{background:#f3f8fc}
+.small-btn.primary:hover{background:#1280c4}
+
+.progress span{background:#1a8fd8}
+
+/* =========================
+   AI LAUNCHER
+========================== */
+.ai-launcher{
+    width:52px;
+    height:52px;
+    right:28px;
+    bottom:26px;
+    background:#1a8fd8;
+    border:3px solid #fff;
+    box-shadow:0 0 0 1px #d3e8f6, 0 10px 26px rgba(26,143,216,.38);
+}
+.ai-head{background:linear-gradient(135deg,#0a2a4d,#0c5a85)}
+.ai-send,.ai-row.user .ai-bubble{background:#1a8fd8;border-color:#1a8fd8}
+
+/* =========================
+   RESPONSIVE TWEAKS
+========================== */
+@media(max-width:780px){
+    .topbar{height:72px;padding:0 16px}
+    .topbar-brand .brand-text{font-size:19px}
+    .sync{display:none}
+    .content{padding:20px 14px 36px}
+    .hero{padding:24px 22px}
+    .hero h1{font-size:22px}
+    th,td{padding:16px 16px}
+}
+@media(max-width:520px){
+    .top-profile > div:last-child{display:none}
+}
+
     </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 
 <body>
@@ -2152,7 +2054,7 @@ $employeeInitials = substr($employeeInitials, 0, 2);
             <div class="brand-mark">
                 <span></span><span></span><span></span><span></span>
             </div>
-            <div class="brand-text">OJT<span class="brand-blue">360</span></div>
+            <div class="brand-text">OJT360</div>
             <button class="sidebar-close" id="sidebarClose" aria-label="Close sidebar" title="Close sidebar">&times;</button>
         </div>
 
@@ -2195,10 +2097,10 @@ $employeeInitials = substr($employeeInitials, 0, 2);
             </button>
 
             <div class="profile" id="sidebarProfile" role="button" tabindex="0" title="Open profile">
-                <div class="avatar"><?= htmlspecialchars($employeeInitials, ENT_QUOTES, "UTF-8") ?></div>
+                <div class="avatar">DE</div>
                 <div>
-                    <div class="profile-name"><?= htmlspecialchars($employeeName, ENT_QUOTES, "UTF-8") ?></div>
-                    <div class="profile-role"><?= htmlspecialchars($employeePosition, ENT_QUOTES, "UTF-8") ?></div>
+                    <div class="profile-name">Dr. Elena Santos</div>
+                    <div class="profile-role">Employee</div>
                 </div>
             </div>
         </div>
@@ -2220,7 +2122,7 @@ $employeeInitials = substr($employeeInitials, 0, 2);
                 <div class="brand-mark">
                     <span></span><span></span><span></span><span></span>
                 </div>
-                <div class="brand-text">OJT<span class="brand-blue">360</span></div>
+                <div class="brand-text">OJT360</div>
             </div>
 
             <div class="sync">
@@ -2231,10 +2133,10 @@ $employeeInitials = substr($employeeInitials, 0, 2);
             <button class="icon-button" title="Notifications">♧</button>
 
             <button class="top-profile profile-trigger" id="topProfileBtn" title="Open profile">
-                <div class="avatar"><?= htmlspecialchars($employeeInitials, ENT_QUOTES, "UTF-8") ?></div>
+                <div class="avatar">DE</div>
                 <div>
-                    <div class="profile-name" style="color:#29465e"><?= htmlspecialchars($employeeName, ENT_QUOTES, "UTF-8") ?></div>
-                    <div class="profile-role"><?= htmlspecialchars($employeePosition, ENT_QUOTES, "UTF-8") ?></div>
+                    <div class="profile-name" style="color:#29465e">Dr. Elena Santos</div>
+                    <div class="profile-role">Employee</div>
                 </div>
             </button>
         </header>
@@ -2276,7 +2178,7 @@ $employeeInitials = substr($employeeInitials, 0, 2);
                         <div>
                             <div class="stat-label">Assigned Students</div>
                             <div class="stat-value" id="assignedCount">2</div>
-                            <div class="stat-sub" id="studentTotalSummary">4 students total</div>
+                            <div class="stat-sub">4 students total</div>
                         </div>
                     </div>
 
@@ -2376,7 +2278,7 @@ $employeeInitials = substr($employeeInitials, 0, 2);
                         <div class="stat-icon">T</div>
                         <div>
                             <div class="stat-label">Total Interns</div>
-                            <div class="stat-value" id="internTotalCount">4</div>
+                            <div class="stat-value">4</div>
                             <div class="stat-sub">Registered internship students</div>
                         </div>
                     </div>
@@ -2385,7 +2287,7 @@ $employeeInitials = substr($employeeInitials, 0, 2);
                         <div class="stat-icon green">A</div>
                         <div>
                             <div class="stat-label">Assigned Students</div>
-                            <div class="stat-value" id="internAssignedCount">2</div>
+                            <div class="stat-value">2</div>
                             <div class="stat-sub">Placed with a company</div>
                         </div>
                     </div>
@@ -2394,7 +2296,7 @@ $employeeInitials = substr($employeeInitials, 0, 2);
                         <div class="stat-icon amber">U</div>
                         <div>
                             <div class="stat-label">Unassigned Students</div>
-                            <div class="stat-value" id="internUnassignedCount">2</div>
+                            <div class="stat-value">2</div>
                             <div class="stat-sub">Awaiting company placement</div>
                         </div>
                     </div>
@@ -2403,7 +2305,7 @@ $employeeInitials = substr($employeeInitials, 0, 2);
                         <div class="stat-icon purple">A</div>
                         <div>
                             <div class="stat-label">Average Progress</div>
-                            <div class="stat-value" id="internAverageProgress">50%</div>
+                            <div class="stat-value">50%</div>
                             <div class="stat-sub">Across all internship hours</div>
                         </div>
                     </div>
@@ -2449,6 +2351,7 @@ $employeeInitials = substr($employeeInitials, 0, 2);
                         <p>Review intern progress and submit structured performance feedback.</p>
                     </div>
 
+                    <button class="btn btn-primary" id="startEvaluationBtn">Start evaluation</button>
                 </div>
 
                 <div class="section-card">
@@ -2471,7 +2374,7 @@ $employeeInitials = substr($employeeInitials, 0, 2);
                     <div class="feedback">
                         <div>
                             <h3>Structured feedback that supports growth</h3>
-                            <p>Rate technical proficiency, communication, reliability, and initiative, then provide constructive feedback.</p>
+                            <p>Rate technical proficiency, communication, reliability, and initiative. Drafts are saved automatically until submission.</p>
                         </div>
                         <button class="btn btn-primary" id="feedbackBtn">Start evaluation</button>
                     </div>
@@ -2703,12 +2606,12 @@ $employeeInitials = substr($employeeInitials, 0, 2);
 <div class="modal-backdrop" id="profileModal">
     <div class="modal profile-modal">
         <div class="profile-cover">
-            <div class="profile-avatar-large" id="profileAvatarLarge"><?= htmlspecialchars($employeeInitials, ENT_QUOTES, "UTF-8") ?></div>
+            <div class="profile-avatar-large" id="profileAvatarLarge">DE</div>
         </div>
 
         <div class="profile-header-info">
-            <h2 id="profileDisplayName"><?= htmlspecialchars($employeeName, ENT_QUOTES, "UTF-8") ?></h2>
-            <p id="profileDisplayRole"><?= htmlspecialchars($employeePosition, ENT_QUOTES, "UTF-8") ?> • OJT360</p>
+            <h2 id="profileDisplayName">Dr. Elena Santos</h2>
+            <p id="profileDisplayRole">Employee • OJT360</p>
         </div>
 
         <form id="profileForm">
@@ -2718,27 +2621,27 @@ $employeeInitials = substr($employeeInitials, 0, 2);
                 <div class="form-grid">
                     <div class="form-group">
                         <label class="form-label">Full name</label>
-                        <input class="field" id="profileName" name="profileName" value="<?= htmlspecialchars($employeeName, ENT_QUOTES, "UTF-8") ?>" required>
+                        <input class="field" id="profileName" name="profileName" value="Dr. Elena Santos" required>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Role</label>
-                        <input class="field" id="profileRole" name="profileRole" value="<?= htmlspecialchars($employeePosition, ENT_QUOTES, "UTF-8") ?>" required>
+                        <input class="field" id="profileRole" name="profileRole" value="Employee" required>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Email</label>
-                        <input class="field" id="profileEmail" name="profileEmail" type="email" value="<?= htmlspecialchars($employeeEmail, ENT_QUOTES, "UTF-8") ?>" required>
+                        <input class="field" id="profileEmail" name="profileEmail" type="email" value="elena.santos@ojt360.com" required>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Contact number</label>
-                        <input class="field" id="profileContact" name="profileContact" value="<?= htmlspecialchars($employeeContactNumber, ENT_QUOTES, "UTF-8") ?>">
+                        <input class="field" id="profileContact" name="profileContact" value="+63 9XX XXX XXXX">
                     </div>
 
                     <div class="form-group full">
                         <label class="form-label">Department / Office</label>
-                        <input class="field" id="profileDepartment" name="profileDepartment" value="<?= htmlspecialchars($employeeDepartment, ENT_QUOTES, "UTF-8") ?>">
+                        <input class="field" id="profileDepartment" name="profileDepartment" value="OJT Coordination Office">
                     </div>
                 </div>
             </div>
@@ -2799,121 +2702,6 @@ $employeeInitials = substr($employeeInitials, 0, 2);
 <div class="toast" id="toast"></div>
 
 <!-- =============================================================
-     ASSIGN STUDENT MODAL
-============================================================== -->
-<div class="modal-backdrop" id="assignmentModal">
-    <div class="modal assignment-modal">
-        <form id="assignmentForm">
-            <input type="hidden" name="studentId">
-            <div class="assignment-head">
-                <div>
-                    <div class="assignment-kicker">STUDENT PLACEMENT</div>
-                    <h2 id="assignmentModalTitle">Assign Student to Company</h2>
-                </div>
-                <button type="button" class="close" data-close="assignmentModal" aria-label="Close">&times;</button>
-            </div>
-
-            <div class="assignment-body">
-                <div class="assignment-student" id="assignmentStudentCard"></div>
-
-                <div class="form-group">
-                    <label class="form-label" for="assignmentCompany">Company</label>
-                    <select class="field" id="assignmentCompany" name="companyId" required>
-                        <option value="">Select Active Company</option>
-                    </select>
-                </div>
-                <div class="assignment-note">Only active companies are available. Department and building assignments are managed by the company.</div>
-            </div>
-
-            <div class="modal-foot">
-                <button type="button" class="btn btn-light" data-close="assignmentModal">Cancel</button>
-                <button type="submit" class="btn btn-primary">Continue</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- =============================================================
-     STUDENT EVALUATION MODAL
-============================================================== -->
-<div class="modal-backdrop" id="evaluationModal">
-    <div class="modal evaluation-modal">
-        <form id="evaluationForm">
-            <div class="evaluation-head">
-                <div>
-                    <div class="assignment-kicker">PERFORMANCE REVIEW</div>
-                    <h2>Student evaluation</h2>
-                </div>
-                <button type="button" class="close" data-close="evaluationModal" aria-label="Close">&times;</button>
-            </div>
-
-            <div class="evaluation-body">
-                <div class="evaluation-fields">
-                    <div class="form-group">
-                        <label class="form-label" for="evaluationStudent">Student</label>
-                        <select class="field" id="evaluationStudent" name="studentId" required></select>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="evaluationTechnical">Technical proficiency</label>
-                        <select class="field" id="evaluationTechnical" name="technical" required>
-                            <option value="5">5 — Excellent</option>
-                            <option value="4">4 — Very good</option>
-                            <option value="3">3 — Good</option>
-                            <option value="2">2 — Needs improvement</option>
-                            <option value="1">1 — Unsatisfactory</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="evaluationCommunication">Communication</label>
-                        <select class="field" id="evaluationCommunication" name="communication" required>
-                            <option value="5">5 — Excellent</option>
-                            <option value="4">4 — Very good</option>
-                            <option value="3">3 — Good</option>
-                            <option value="2">2 — Needs improvement</option>
-                            <option value="1">1 — Unsatisfactory</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="evaluationReliability">Reliability</label>
-                        <select class="field" id="evaluationReliability" name="reliability" required>
-                            <option value="5">5 — Excellent</option>
-                            <option value="4">4 — Very good</option>
-                            <option value="3">3 — Good</option>
-                            <option value="2">2 — Needs improvement</option>
-                            <option value="1">1 — Unsatisfactory</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="evaluationInitiative">Initiative</label>
-                        <select class="field" id="evaluationInitiative" name="initiative" required>
-                            <option value="5">5 — Excellent</option>
-                            <option value="4">4 — Very good</option>
-                            <option value="3">3 — Good</option>
-                            <option value="2">2 — Needs improvement</option>
-                            <option value="1">1 — Unsatisfactory</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" for="evaluationFeedback">Feedback</label>
-                        <textarea class="field evaluation-feedback" id="evaluationFeedback" name="feedback" placeholder="Add specific, constructive feedback..."></textarea>
-                    </div>
-                </div>
-            </div>
-
-            <div class="modal-foot">
-                <button type="button" class="btn btn-light" data-close="evaluationModal">Cancel</button>
-                <button type="submit" class="btn btn-primary">Submit evaluation</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- =============================================================
      ADD COMPANY MODAL
 ============================================================== -->
 <div class="modal-backdrop" id="companyModal">
@@ -2942,16 +2730,6 @@ $employeeInitials = substr($employeeInitials, 0, 2);
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Contact phone</label>
-                        <input class="field" type="tel" name="phone" placeholder="Optional">
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Address</label>
-                        <input class="field" name="location" placeholder="Company address">
-                    </div>
-
-                    <div class="form-group">
                         <label class="form-label">Status</label>
                         <select class="field" name="status">
                             <option value="active">Active</option>
@@ -2966,44 +2744,6 @@ $employeeInitials = substr($employeeInitials, 0, 2);
                 <button class="btn btn-primary">Add Company</button>
             </div>
         </form>
-    </div>
-</div>
-
-<!-- =============================================================
-     ARCHIVE COMPANY CONFIRMATION
-============================================================== -->
-<div class="modal-backdrop" id="archiveCompanyModal">
-    <div class="modal company-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="archiveCompanyTitle" aria-describedby="archiveCompanyMessage">
-        <div class="company-confirm-head">
-            <div>
-                <div class="assignment-kicker">COMPANY STATUS</div>
-                <h2 id="archiveCompanyTitle">Archive Company?</h2>
-            </div>
-            <button type="button" class="close" data-close="archiveCompanyModal" aria-label="Close">&times;</button>
-        </div>
-        <div class="company-confirm-body">
-            <p class="company-confirm-message" id="archiveCompanyMessage"></p>
-        </div>
-        <div class="modal-foot company-confirm-foot">
-            <button type="button" class="btn btn-light" data-close="archiveCompanyModal">Cancel</button>
-            <button type="button" class="btn btn-danger" id="confirmArchiveCompanyBtn">Archive Company</button>
-        </div>
-    </div>
-</div>
-
-<!-- =============================================================
-     COMPANY DETAILS
-============================================================== -->
-<div class="modal-backdrop" id="companyDetailsModal">
-    <div class="modal company-details-modal" role="dialog" aria-modal="true" aria-labelledby="companyDetailsTitle">
-        <div class="company-details-head">
-            <div>
-                <div class="assignment-kicker">COMPANY DETAILS</div>
-                <h2 id="companyDetailsTitle"></h2>
-            </div>
-            <button type="button" class="close" data-close="companyDetailsModal" aria-label="Close">&times;</button>
-        </div>
-        <div class="company-details-body" id="companyDetailsBody"></div>
     </div>
 </div>
 
@@ -3066,51 +2806,6 @@ $employeeInitials = substr($employeeInitials, 0, 2);
                 <button class="btn btn-primary">Add Intern Student</button>
             </div>
         </form>
-    </div>
-</div>
-
-<!-- =============================================================
-     REMOVE STUDENT CONFIRMATION
-============================================================== -->
-<div class="modal-backdrop" id="removeStudentModal">
-    <div class="modal remove-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="removeStudentTitle" aria-describedby="removeStudentMessage">
-        <div class="remove-confirm-head">
-            <div>
-                <div class="assignment-kicker">STUDENT RECORD</div>
-                <h2 id="removeStudentTitle">Remove intern student?</h2>
-            </div>
-            <button type="button" class="close" data-close="removeStudentModal" aria-label="Close">&times;</button>
-        </div>
-        <div class="remove-confirm-body">
-            <div class="remove-confirm-student" id="removeStudentName"></div>
-            <p class="remove-confirm-message" id="removeStudentMessage">This will remove the student from the intern roster and delete their evaluation data. This action cannot be undone.</p>
-        </div>
-        <div class="modal-foot remove-confirm-foot">
-            <button type="button" class="btn btn-light" data-close="removeStudentModal">Cancel</button>
-            <button type="button" class="btn btn-danger" id="confirmRemoveStudentBtn">Remove Student</button>
-        </div>
-    </div>
-</div>
-
-<!-- =============================================================
-     SIGN OUT CONFIRMATION
-============================================================== -->
-<div class="modal-backdrop" id="signOutModal">
-    <div class="modal logout-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="signOutTitle" aria-describedby="signOutMessage">
-        <div class="logout-confirm-head">
-            <div>
-                <div class="assignment-kicker">ACCOUNT</div>
-                <h2 id="signOutTitle">Sign out of OJT360?</h2>
-            </div>
-            <button type="button" class="close" data-close="signOutModal" aria-label="Close">&times;</button>
-        </div>
-        <div class="logout-confirm-body">
-            <p class="logout-confirm-message" id="signOutMessage">You will be returned to the sign-in page. Are you sure you want to sign out?</p>
-        </div>
-        <div class="modal-foot logout-confirm-foot">
-            <button type="button" class="btn btn-light" data-close="signOutModal">Cancel</button>
-            <button type="button" class="btn btn-danger" id="confirmSignOutBtn">Sign out</button>
-        </div>
     </div>
 </div>
 
@@ -3364,81 +3059,26 @@ function viewCompany(id){
     const company = companies.find(c => c.id === id);
     if(!company) return;
 
-    const assignedStudents = students.filter(student =>
-        student.status === "Assigned" && student.company === company.name
+    alert(
+        "Company Details\\n\\n" +
+        "Company: " + company.name + "\\n" +
+        "Contact: " + company.contact + "\\n" +
+        "Email: " + company.email + "\\n" +
+        "Students: " + company.students + "\\n" +
+        "Status: " + company.status
     );
-    const statusLabel = company.status === "active" ? "Active" : "Archived";
-
-    document.getElementById("companyDetailsTitle").textContent = company.name;
-    document.getElementById("companyDetailsBody").innerHTML = `
-        <div class="company-details-summary">
-            <div class="company-detail-item">
-                <label>Contact Person</label>
-                <strong>${escapeHtml(company.contact || "Not provided")}</strong>
-            </div>
-            <div class="company-detail-item">
-                <label>Status</label>
-                <span class="badge ${company.status === "active" ? "green" : "yellow"}">${statusLabel}</span>
-            </div>
-            <div class="company-detail-item">
-                <label>Contact Information</label>
-                <strong>${escapeHtml(company.email || "Email not provided")}</strong>
-                <div class="company-detail-secondary">${escapeHtml(company.phone || "Phone not provided")}</div>
-            </div>
-            <div class="company-detail-item">
-                <label>Assigned Students</label>
-                <strong>${assignedStudents.length}</strong>
-            </div>
-            <div class="company-detail-item">
-                <label>Address</label>
-                <strong>${escapeHtml(company.location || "Address not provided")}</strong>
-            </div>
-        </div>
-
-        <h3 class="company-assigned-title">Assigned Students</h3>
-        <div class="company-student-list">
-            ${assignedStudents.length ? assignedStudents.map(student => `
-                <div class="company-student-row">
-                    <div>
-                        <div class="company-student-name">${escapeHtml(student.name)}</div>
-                        <div class="company-student-sub">${escapeHtml(student.studentId)} · ${escapeHtml(student.program)}</div>
-                    </div>
-                    <div class="company-student-field">
-                        <label>Department</label>
-                        <span>${escapeHtml(student.department || "Managed by company")}</span>
-                    </div>
-                    <div class="company-student-field">
-                        <label>Building</label>
-                        <span>${escapeHtml(student.building || "Managed by company")}</span>
-                    </div>
-                    <span class="badge green">Assigned</span>
-                </div>
-            `).join("") : `<div class="company-details-empty">No students are assigned to this company.</div>`}
-        </div>
-    `;
-    document.getElementById("companyDetailsModal").classList.add("show");
 }
 
 function archiveCompany(id){
     const company = companies.find(c => c.id === id);
     if(!company) return;
 
-    document.getElementById("archiveCompanyMessage").innerHTML =
-        `Are you sure you want to archive <strong>${escapeHtml(company.name)}</strong>? Archived companies cannot receive new student assignments.`;
-    document.getElementById("confirmArchiveCompanyBtn").dataset.companyId = String(company.id);
-    document.getElementById("archiveCompanyModal").classList.add("show");
-}
-
-document.getElementById("confirmArchiveCompanyBtn").addEventListener("click", e => {
-    const company = companies.find(c => c.id === Number(e.currentTarget.dataset.companyId));
-    if(!company) return;
+    if(!confirm("Archive " + company.name + "?")) return;
 
     company.status = "archived";
-    closeModal("archiveCompanyModal");
     renderCompanies();
     updateOverviewStats();
-    showToast(`${company.name} was archived.`);
-});
+}
 
 function activateCompany(id){
     const company = companies.find(c => c.id === id);
@@ -3454,21 +3094,11 @@ function updateOverviewStats(){
     const archived = companies.filter(c => c.status === "archived").length;
     const assigned = students.filter(s => s.status === "Assigned").length;
     const unassigned = students.filter(s => s.status !== "Assigned").length;
-    const totalRequiredHours = students.reduce((total, student) => total + student.required, 0);
-    const totalCompletedHours = students.reduce((total, student) => total + student.completed, 0);
-    const averageProgress = totalRequiredHours
-        ? Math.round((totalCompletedHours / totalRequiredHours) * 100)
-        : 0;
 
     document.getElementById("activeCompanyCount").textContent = active;
     document.getElementById("archivedCompanyCount").textContent = archived;
     document.getElementById("assignedCount").textContent = assigned;
     document.getElementById("unassignedCount").textContent = unassigned;
-    document.getElementById("studentTotalSummary").textContent = `${students.length} students total`;
-    document.getElementById("internTotalCount").textContent = students.length;
-    document.getElementById("internAssignedCount").textContent = assigned;
-    document.getElementById("internUnassignedCount").textContent = unassigned;
-    document.getElementById("internAverageProgress").textContent = `${averageProgress}%`;
 }
 
 /* ================================================================
@@ -3511,14 +3141,6 @@ function renderAssignments(){
 }
 
 function assignCompany(id){
-    openAssignmentModal(id);
-}
-
-function manageAssignment(id){
-    openAssignmentModal(id);
-}
-
-function openAssignmentModal(id){
     const student = students.find(s => s.id === id);
     if(!student) return;
 
@@ -3529,60 +3151,53 @@ function openAssignmentModal(id){
         return;
     }
 
-    const assignmentForm = document.getElementById("assignmentForm");
-    assignmentForm.elements.studentId.value = student.id;
-    document.getElementById("assignmentModalTitle").textContent =
-        student.status === "Assigned" ? "Manage Student Assignment" : "Assign Student to Company";
-    document.getElementById("assignmentStudentCard").innerHTML = `
-        <div class="assignment-student-avatar">${escapeHtml(initials(student.name))}</div>
-        <div>
-            <div class="assignment-student-name">${escapeHtml(student.name)}</div>
-            <div class="assignment-student-detail">Student ID: ${escapeHtml(student.studentId)}</div>
-            <div class="assignment-student-detail">${escapeHtml(student.program)}</div>
-        </div>
-    `;
-
-    const companySelect = document.getElementById("assignmentCompany");
-    companySelect.innerHTML = `<option value="">Select Active Company</option>` +
-        activeCompanies.map(company =>
-            `<option value="${company.id}">${escapeHtml(company.name)}</option>`
-        ).join("");
-    const currentCompany = activeCompanies.find(company => company.name === student.company);
-    if(currentCompany) companySelect.value = String(currentCompany.id);
-    document.getElementById("assignmentModal").classList.add("show");
-}
-
-document.getElementById("assignmentForm").addEventListener("submit", e => {
-    e.preventDefault();
-
-    const form = new FormData(e.target);
-    const student = students.find(s => s.id === Number(form.get("studentId")));
-    const company = companies.find(c =>
-        c.id === Number(form.get("companyId")) && c.status === "active"
+    const choices = activeCompanies.map((c,index) => `${index + 1}. ${c.name}`).join("\\n");
+    const answer = prompt(
+        "Choose an active company by number:\\n\\n" +
+        choices
     );
 
-    if(!student || !company){
-        alert("Select an active company for this student.");
-        return;
-    }
+    const index = Number(answer) - 1;
 
-    const previousCompany = companies.find(c => c.name === student.company);
-    if(student.company !== company.name){
-        if(previousCompany && previousCompany.students > 0) previousCompany.students--;
-        company.students++;
-    }
+    if(!Number.isInteger(index) || !activeCompanies[index]) return;
 
-    student.company = company.name;
+    const selected = activeCompanies[index];
+
+    student.company = selected.name;
     student.status = "Assigned";
 
-    closeModal("assignmentModal");
-    e.target.reset();
+    selected.students += 1;
+
     renderAssignments();
     renderInterns();
     renderCompanies();
     renderEvaluations();
     updateOverviewStats();
-});
+}
+
+function manageAssignment(id){
+    const student = students.find(s => s.id === id);
+    if(!student) return;
+
+    if(!confirm(
+        student.name +
+        " is assigned to " +
+        student.company +
+        ".\\n\\nDo you want to remove this assignment?"
+    )) return;
+
+    const company = companies.find(c => c.name === student.company);
+    if(company && company.students > 0) company.students--;
+
+    student.company = "Not Assigned";
+    student.status = "Unassigned";
+
+    renderAssignments();
+    renderInterns();
+    renderCompanies();
+    renderEvaluations();
+    updateOverviewStats();
+}
 
 /* ================================================================
    INTERN PAGE
@@ -3630,53 +3245,31 @@ function renderInterns(){
                 </td>
 
                 <td>
-                    <div class="intern-action-row">
-                        ${
-                            student.status === "Assigned"
-                            ? `<button class="small-btn intern-assignment-action" onclick="manageAssignment(${student.id})">Manage Assignment</button>`
-                            : `<button class="small-btn primary intern-assignment-action" onclick="assignCompany(${student.id})">Assign Company</button>`
-                        }
-                        <button class="small-btn danger intern-remove-action" onclick="removeStudent(${student.id})" aria-label="Remove ${escapeHtml(student.name)}" title="Remove student">Remove</button>
-                    </div>
+                    ${
+                        student.status === "Assigned"
+                        ? `<button class="small-btn" onclick="viewIntern(${student.id})">Manage Assignment</button>`
+                        : `<button class="small-btn primary" onclick="assignCompany(${student.id})">Assign Company</button>`
+                    }
                 </td>
             </tr>
         `;
     }).join("");
 }
 
-function removeStudent(id){
-    const student = students.find(item => item.id === id);
+function viewIntern(id){
+    const student = students.find(s => s.id === id);
     if(!student) return;
 
-    document.getElementById("removeStudentName").textContent =
-        `${student.name} (${student.studentId})`;
-    document.getElementById("confirmRemoveStudentBtn").dataset.studentId = String(student.id);
-    document.getElementById("removeStudentModal").classList.add("show");
+    alert(
+        "Student Information\\n\\n" +
+        "Name: " + student.name + "\\n" +
+        "Student ID: " + student.studentId + "\\n" +
+        "Program: " + student.program + "\\n" +
+        "Company: " + student.company + "\\n" +
+        "Status: " + student.status + "\\n" +
+        "Working Hours: " + student.completed + " / " + student.required + " hours"
+    );
 }
-
-document.getElementById("confirmRemoveStudentBtn").addEventListener("click", e => {
-    const studentId = Number(e.currentTarget.dataset.studentId);
-    const studentIndex = students.findIndex(student => student.id === studentId);
-    if(studentIndex === -1){
-        closeModal("removeStudentModal");
-        return;
-    }
-
-    const student = students[studentIndex];
-    if(student.status === "Assigned"){
-        const company = companies.find(item => item.name === student.company);
-        if(company && company.students > 0) company.students--;
-    }
-
-    students.splice(studentIndex, 1);
-    closeModal("removeStudentModal");
-    renderInterns();
-    renderAssignments();
-    renderEvaluations();
-    renderCompanies();
-    updateOverviewStats();
-    showToast(`${student.name} was removed from the intern roster.`);
-});
 
 /* ================================================================
    ADD COMPANY
@@ -3694,10 +3287,9 @@ document.getElementById("companyForm").addEventListener("submit", e => {
     const company = {
         id:Date.now(),
         name:form.get("company"),
-        location:String(form.get("location") || "").trim() || "Address not provided",
+        location:"Location not set",
         contact:form.get("contact"),
         email:form.get("email"),
-        phone:String(form.get("phone") || "").trim(),
         students:0,
         status:form.get("status")
     };
@@ -3784,90 +3376,15 @@ function renderEvaluations(){
             <div class="week">${student.week}</div>
 
             <div>
-                <span class="badge ${student.evaluationData ? "green" : "yellow"}">
-                    ${student.status !== "Assigned" ? "Awaiting placement" : student.evaluationData ? `Evaluated · ${student.evaluationData.average}/5` : "Needs evaluation"}
+                <span class="badge ${student.status === "Assigned" ? "green" : "yellow"}">
+                    ${student.status === "Assigned" ? "On track" : "Awaiting placement"}
                 </span>
             </div>
 
-            <button class="small-btn" onclick="openEvaluationForm(${student.id})" ${student.status !== "Assigned" ? "disabled title=\"Assign this student to a company before evaluating.\"" : ""}>
-                ${student.evaluationData ? "Edit review" : "Review"}
-            </button>
+            <button class="small-btn">Review</button>
         </div>
     `).join("");
 }
-
-function openEvaluationForm(studentId){
-    const assignedStudents = students.filter(student => student.status === "Assigned");
-    if(!assignedStudents.length){
-        alert("Assign a student to a company before starting an evaluation.");
-        return;
-    }
-
-    const studentSelect = document.getElementById("evaluationStudent");
-    studentSelect.innerHTML = assignedStudents.map(student =>
-        `<option value="${student.id}">${escapeHtml(student.name)}</option>`
-    ).join("");
-
-    const selectedStudent = assignedStudents.find(student => student.id === studentId) || assignedStudents[0];
-    studentSelect.value = String(selectedStudent.id);
-    loadEvaluationDraft(selectedStudent);
-    document.getElementById("evaluationModal").classList.add("show");
-}
-
-function loadEvaluationDraft(student){
-    const data = student.evaluationData || {
-        technical:5,
-        communication:5,
-        reliability:5,
-        initiative:5,
-        feedback:""
-    };
-
-    document.getElementById("evaluationTechnical").value = data.technical;
-    document.getElementById("evaluationCommunication").value = data.communication;
-    document.getElementById("evaluationReliability").value = data.reliability;
-    document.getElementById("evaluationInitiative").value = data.initiative;
-    document.getElementById("evaluationFeedback").value = data.feedback;
-}
-
-document.getElementById("evaluationStudent").addEventListener("change", e => {
-    const student = students.find(item => item.id === Number(e.target.value));
-    if(student) loadEvaluationDraft(student);
-});
-
-document.getElementById("evaluationForm").addEventListener("submit", e => {
-    e.preventDefault();
-
-    const form = new FormData(e.target);
-    const student = students.find(item => item.id === Number(form.get("studentId")));
-    if(!student || student.status !== "Assigned"){
-        alert("Select a student who is currently assigned to a company.");
-        return;
-    }
-
-    const scores = {
-        technical:Number(form.get("technical")),
-        communication:Number(form.get("communication")),
-        reliability:Number(form.get("reliability")),
-        initiative:Number(form.get("initiative"))
-    };
-    if(Object.values(scores).some(score => !Number.isInteger(score) || score < 1 || score > 5)){
-        alert("Choose a rating from 1 to 5 for every evaluation category.");
-        return;
-    }
-
-    const average = (Object.values(scores).reduce((total, score) => total + score, 0) / 4).toFixed(1);
-    student.evaluationData = {
-        ...scores,
-        average,
-        feedback:String(form.get("feedback") || "").trim(),
-        submittedAt:new Date().toISOString()
-    };
-
-    closeModal("evaluationModal");
-    renderEvaluations();
-    showToast("Evaluation submitted for " + student.name + ".");
-});
 
 document.getElementById("evalSearch").addEventListener("input", function(){
     const query = this.value.toLowerCase();
@@ -3877,8 +3394,12 @@ document.getElementById("evalSearch").addEventListener("input", function(){
     });
 });
 
+document.getElementById("startEvaluationBtn").addEventListener("click", () => {
+    alert("Evaluation workflow opened.");
+});
+
 document.getElementById("feedbackBtn").addEventListener("click", () => {
-    openEvaluationForm();
+    alert("Evaluation form opened.");
 });
 
 /* ================================================================
@@ -3945,11 +3466,10 @@ document.getElementById("supportBtn").addEventListener("click", () => {
 ================================================================ */
 
 document.getElementById("signOutBtn").addEventListener("click", () => {
-    document.getElementById("signOutModal").classList.add("show");
-});
-
-document.getElementById("confirmSignOutBtn").addEventListener("click", () => {
-    window.location.href = "login.php";
+    if(confirm("Are you sure you want to sign out?")){
+        // Replace with your real logout URL.
+        window.location.href = "login.php";
+    }
 });
 
 /* ================================================================
