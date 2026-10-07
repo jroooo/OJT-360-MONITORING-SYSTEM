@@ -1,0 +1,18 @@
+<?php
+declare(strict_types=1); require_once __DIR__.'/../includes/auth.php'; require_once __DIR__.'/../includes/helpers.php'; require_login(); header('Content-Type: application/json; charset=utf-8');
+function clean_compilation_html(string $html, int $uid): string {
+    $html=trim($html); if($html==='') return '';
+    $html=strip_tags($html,'<p><br><strong><b><em><i><u><s><ul><ol><li><h1><h2><h3><blockquote><div><span><a><img><section>');
+    $html=preg_replace('/\s+on[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i','',$html)??$html;
+    $html=preg_replace_callback('/\s(href|src)\s*=\s*(["\'])(.*?)\2/i',function($m)use($uid){$attr=strtolower($m[1]);$url=trim($m[3]);if($attr==='src'){ $local='uploads/journal/'.$uid.'/'; if(str_starts_with($url,$local)||preg_match('#^https?://#i',$url)) return ' src='.$m[2].htmlspecialchars($url,ENT_QUOTES,'UTF-8').$m[2]; return ''; } if(preg_match('#^(https?://|mailto:)#i',$url)) return ' href='.$m[2].htmlspecialchars($url,ENT_QUOTES,'UTF-8').$m[2]; return '';},$html)??$html;
+    $html=preg_replace_callback('/\sstyle\s*=\s*([\"\'])(.*?)\1/i',function($m){$allowed=['text-align','font-family','font-size','line-height','float','width','height','vertical-align','margin','display','transform','page-break-before','page-break-after'];$out=[];foreach(explode(';',$m[2]) as $decl){$parts=explode(':',$decl,2);if(count($parts)!==2)continue;$prop=strtolower(trim($parts[0]));$val=trim($parts[1]);if(!in_array($prop,$allowed,true)||preg_match('/[<>`]/',$val))continue;$out[]=$prop.':'.$val;}return $out?' style="'.htmlspecialchars(implode(';',$out),ENT_QUOTES,'UTF-8').'"':'';},$html)??$html;
+    return trim($html);
+}
+try { $cols=db()->query("SHOW COLUMNS FROM journal_compilations LIKE 'orientation'")->fetchAll(); if(!$cols){db()->exec("ALTER TABLE journal_compilations ADD COLUMN orientation ENUM('portrait','landscape') NOT NULL DEFAULT 'portrait' AFTER content");} $cols=db()->query("SHOW COLUMNS FROM journal_compilations LIKE 'page_size'")->fetchAll(); if(!$cols){db()->exec("ALTER TABLE journal_compilations ADD COLUMN page_size ENUM('A4','Letter') NOT NULL DEFAULT 'A4' AFTER orientation");} } catch(Throwable $e) {}
+if($_SERVER['REQUEST_METHOD']!=='POST'){http_response_code(405);echo json_encode(['ok'=>false,'message'=>'POST required.']);exit;} verify_csrf();$uid=(int)$_SESSION['user_id'];$orientation=($_POST['orientation']??'portrait')==='landscape'?'landscape':'portrait';$pageSize=($_POST['page_size']??'A4')==='Letter'?'Letter':'A4';$title=trim((string)($_POST['title']??''));$content=clean_compilation_html((string)($_POST['content']??''),$uid);
+if($title===''||$content===''){http_response_code(422);echo json_encode(['ok'=>false,'message'=>'Title and compilation content are required.']);exit;}
+if(mb_strlen($title)>180){http_response_code(422);echo json_encode(['ok'=>false,'message'=>'The document title is too long.']);exit;}
+if(mb_strlen($content)>250000){http_response_code(422);echo json_encode(['ok'=>false,'message'=>'The compilation is too large.']);exit;}
+$find=db()->prepare('SELECT id FROM journal_compilations WHERE user_id=?');$find->execute([$uid]);$id=$find->fetchColumn();
+if($id){db()->prepare('UPDATE journal_compilations SET title=?,content=?,orientation=?,page_size=?,updated_at=NOW() WHERE id=? AND user_id=?')->execute([$title,$content,$orientation,$pageSize,$id,$uid]);}else{db()->prepare('INSERT INTO journal_compilations(user_id,title,content,orientation,page_size) VALUES(?,?,?,?,?)')->execute([$uid,$title,$content,$orientation,$pageSize]);$id=db()->lastInsertId();}
+db()->prepare('INSERT INTO activity_logs(user_id,action_text) VALUES(?,?)')->execute([$uid,'Saved final journal compilation']);echo json_encode(['ok'=>true,'message'=>'Final compilation saved.','id'=>$id]);
