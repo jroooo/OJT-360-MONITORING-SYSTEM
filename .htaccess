@@ -1,0 +1,10 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /OJT-360-MONITORING-SYSTEM/
+
+    # Friendly Employee Settings URL
+    RewriteRule ^Employee-Settings/?$ settings.php [L]
+
+    # Friendly Employee Dashboard URL
+    RewriteRule ^Employee-Dashboard/?$ dashboard(employee).php [L]
+</IfModule>
