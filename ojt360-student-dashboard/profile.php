@@ -1,25 +1,68 @@
 <?php
-$page_title='My Profile'; require_once 'includes/header.php'; $uid=(int)$user['id'];
-if($_SERVER['REQUEST_METHOD']==='POST'){
- verify_csrf(); $full=trim($_POST['full_name']??'');$phone=trim($_POST['phone']??'');$address=trim($_POST['address']??'');
- if($full===''){flash('error','Full name is required.');}else{
-  $imageName=$user['profile_image']??null;
-  if(isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error']!==UPLOAD_ERR_NO_FILE){
-   $f=$_FILES['profile_picture'];
-   if($f['error']!==UPLOAD_ERR_OK || $f['size']>3*1024*1024){flash('error','Profile picture must be a valid image under 3 MB.');header('Location: profile.php');exit;}
-   $mime=(new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']); $allowed=['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];
-   if(!isset($allowed[$mime])){flash('error','Only JPG, PNG, or WEBP profile pictures are allowed.');header('Location: profile.php');exit;}
-   $imageName='student_'.$uid.'_'.bin2hex(random_bytes(8)).'.'.$allowed[$mime]; $dir=__DIR__.'/uploads/profile'; if(!is_dir($dir))mkdir($dir,0755,true);
-   if(!move_uploaded_file($f['tmp_name'],$dir.'/'.$imageName)){flash('error','The profile picture could not be saved.');header('Location: profile.php');exit;}
-  }
-  db()->prepare('UPDATE users SET full_name=?,phone=?,address=?,profile_image=? WHERE id=?')->execute([$full,$phone,$address,$imageName,$uid]);
-  db()->prepare('INSERT INTO activity_logs(user_id,action_text) VALUES(?,?)')->execute([$uid,'Updated profile information']);flash('success','Profile saved successfully.');
- }
- header('Location: profile.php');exit;
-}
-$intern=db()->prepare('SELECT i.*,c.name company_name FROM internships i JOIN companies c ON c.id=i.company_id WHERE i.user_id=? ORDER BY i.id DESC LIMIT 1');$intern->execute([$uid]);$i=$intern->fetch();$img=''; if(!empty($user['profile_image'])){ $imgFile=__DIR__.'/uploads/profile/'.basename($user['profile_image']); if(is_file($imgFile)) $img='uploads/profile/'.basename($user['profile_image']).'?v='.filemtime($imgFile); }
+$page_title = 'Profile';
+$page_scripts = ['profile.js'];
+require_once 'includes/header.php';
+$internship = internship_for($uid);
+$stats = db()->prepare("SELECT (SELECT COUNT(*) FROM attendance WHERE student_pk=? AND time_out IS NOT NULL) sessions, (SELECT COUNT(*) FROM daily_logs WHERE student_pk=?) logs, (SELECT COUNT(*) FROM journals WHERE student_pk=?) journals");
+$stats->execute([$uid, $uid, $uid]);
+$st = $stats->fetch();
+$progress = $internship && (float)$internship['required_hours'] > 0 ? min(100, round($internship['completed_hours'] / $internship['required_hours'] * 100, 1)) : 0;
 ?>
-<div class="page-intro"><div><span class="eyebrow">ACCOUNT</span><h2>My Profile</h2><p>Keep your student information accurate for OJT records.</p></div></div>
-<div class="profile-grid"><section class="panel profile-card"><div class="profile-hero"><div class="profile-avatar-wrap profile-avatar-action"><button type="button" class="profile-page-avatar-button" id="profilePageAvatarButton" aria-label="Profile picture options" aria-haspopup="true" aria-expanded="false"><div class="avatar large"><?php if($img):?><img src="<?=e($img)?>" alt="Profile picture"><?php else:?><?=e(initials($user['full_name']))?><?php endif;?></div><span class="profile-photo-camera" aria-hidden="true">✎</span></button><span class="profile-status">● Active</span><div class="profile-page-menu" id="profilePageMenu" role="menu"><button type="button" id="profilePageView" role="menuitem">View Profile <span>›</span></button><button type="button" id="profilePageUpload" role="menuitem">Upload Profile <span>↑</span></button><button type="button" id="profilePageDelete" class="profile-delete" role="menuitem">Delete Profile <span>×</span></button></div><input type="file" id="profilePageInput" accept="image/jpeg,image/png,image/webp" hidden></div><div><h3><?=e($user['full_name'])?></h3><span><?=e($user['student_no'])?></span></div></div><div class="info-list"><div><span>Email</span><strong><?=e($user['email'])?></strong></div><div><span>Course</span><strong><?=e($user['course'])?></strong></div><div><span>Section</span><strong><?=e($user['section'])?></strong></div><div><span>Company</span><strong><?=e($i['company_name']??'Not assigned')?></strong></div></div></section>
-<section class="panel"><div class="panel-head"><div><span class="eyebrow">PERSONAL DETAILS</span><h3>Edit Information</h3></div></div><form method="post" class="form"><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><label>Full name<input name="full_name" value="<?=e($user['full_name'])?>" required></label><label>Email<input value="<?=e($user['email'])?>" disabled></label><div class="form-row"><label>Phone<input name="phone" value="<?=e($user['phone'])?>"></label><label>Student No.<input value="<?=e($user['student_no'])?>" disabled></label></div><label>Address<textarea name="address" rows="4"><?=e($user['address'])?></textarea></label><button class="btn primary">Save Changes</button></form></section></div>
-<?php require_once 'includes/footer.php';?>
+<div class="profile-cover"><div class="cover-art"></div></div>
+<section class="profile-hero">
+  <div class="profile-avatar-wrap">
+    <button type="button" class="avatar xl" id="profileAvatarBtn" data-avatar-menu="avatarMenu" data-avatar-xl aria-label="Profile picture options"><?= $avatarInner ?></button>
+    <button type="button" class="avatar-cam" data-avatar-menu="avatarMenu" aria-label="Change profile picture"><?= icon('camera') ?></button>
+    <div class="avatar-menu" id="avatarMenu" role="menu">
+      <button type="button" data-photo-action="view" role="menuitem"><?= icon('eye') ?> View photo</button>
+      <button type="button" data-photo-action="upload" role="menuitem"><?= icon('upload') ?> Upload new photo</button>
+      <button type="button" data-photo-action="delete" class="danger" role="menuitem"><?= icon('trash') ?> Delete photo</button>
+    </div>
+    <input type="file" id="profilePageInput" accept="image/jpeg,image/png,image/webp" hidden>
+  </div>
+  <div class="profile-id">
+    <h1><?= e($user['full_name']) ?></h1>
+    <p class="muted"><?= e($user['course']) ?> · <?= e($user['school_name']) ?></p>
+    <div class="profile-tags"><span class="pill blue-pill"><?= icon('user') ?> Student</span><span class="pill gray-pill"><?= e($user['student_no']) ?></span><?php if ($internship): ?><span class="pill green-pill"><?= icon('building') ?> <?= e($internship['company_name']) ?></span><?php endif; ?></div>
+  </div>
+  <div class="profile-actions"><button class="btn secondary" type="button" data-photo-action="upload"><?= icon('camera') ?> Change photo</button></div>
+</section>
+
+<div class="grid-4 profile-stats">
+  <article class="stat"><div class="stat-ic"><?= icon('target') ?></div><span>OJT progress</span><strong><b><?= $progress ?></b><em>%</em></strong><small><?= number_format((float)($internship['completed_hours'] ?? 0), 1) ?> of <?= number_format((float)($internship['required_hours'] ?? 480), 0) ?> hours</small></article>
+  <article class="stat"><div class="stat-ic"><?= icon('clock') ?></div><span>Attendance</span><strong><b><?= (int)$st['sessions'] ?></b></strong><small>completed sessions</small></article>
+  <article class="stat"><div class="stat-ic"><?= icon('logs') ?></div><span>Daily logs</span><strong><b><?= (int)$st['logs'] ?></b></strong><small>entries recorded</small></article>
+  <article class="stat"><div class="stat-ic"><?= icon('journal') ?></div><span>Journals</span><strong><b><?= (int)$st['journals'] ?></b></strong><small>weekly drafts</small></article>
+</div>
+
+<div class="grid-main">
+  <section class="panel">
+    <div class="panel-head"><div><span class="eyebrow">PERSONAL DETAILS</span><h3>Edit information</h3></div></div>
+    <form class="form" id="profileForm" autocomplete="off">
+      <div class="form-grid-3">
+        <label>First name<input name="first_name" value="<?= e($user['first_name']) ?>" maxlength="50" required></label>
+        <label>Middle name<input name="middle_name" value="<?= e($user['middle_name'] ?? '') ?>" maxlength="50"></label>
+        <label>Last name<input name="last_name" value="<?= e($user['last_name']) ?>" maxlength="50" required></label>
+      </div>
+      <div class="form-grid-2"><label>Institutional email<input value="<?= e($user['institutional_email']) ?>" disabled></label><label>Student ID<input value="<?= e($user['student_id']) ?>" disabled></label></div>
+      <div class="form-grid-2"><label>Mobile number<input name="mobile_number" value="<?= e($user['mobile_number']) ?>" maxlength="20" inputmode="tel" required></label><label>Course<input value="<?= e($user['course']) ?>" disabled></label></div>
+      <label>School<input value="<?= e($user['school_name']) ?>" disabled></label>
+      <label>Complete address<textarea name="complete_address" rows="3" maxlength="1000" required><?= e($user['complete_address']) ?></textarea></label>
+      <div class="form-actions"><span class="form-state" id="profileState"></span><button class="btn primary">Save changes</button></div>
+    </form>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><div><span class="eyebrow">INTERNSHIP</span><h3>OJT assignment</h3></div></div>
+    <?php if ($internship): ?>
+    <div class="ov-list">
+      <div><span>Company</span><b><?= e($internship['company_name']) ?></b></div>
+      <div><span>Address</span><b><?= e($internship['company_address'] ?? '—') ?></b></div>
+      <div><span>Start date</span><b><?= $internship['start_date'] ? e(date('M d, Y', strtotime($internship['start_date']))) : '—' ?></b></div>
+      <div><span>Expected end</span><b><?= $internship['end_date'] ? e(date('M d, Y', strtotime($internship['end_date']))) : '—' ?></b></div>
+      <div><span>Required hours</span><b><?= number_format((float)$internship['required_hours'], 0) ?> h</b></div>
+    </div>
+    <?php else: ?><div class="dash-empty">Your internship record is created the first time you time in with your company QR.</div><?php endif; ?>
+    <div class="photo-help"><b>Profile picture tips</b><p class="muted small">Use a clear, front-facing photo. JPG, PNG or WEBP. You can drag and zoom to crop it before saving.</p></div>
+  </section>
+</div>
+<?php require_once 'includes/footer.php'; ?>

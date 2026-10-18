@@ -1,29 +1,69 @@
 <?php
-$page_title='Journal Compilation'; require_once 'includes/header.php'; $uid=(int)$user['id'];
-$j=db()->prepare('SELECT week_start,title,content,status FROM journals WHERE user_id=? ORDER BY week_start ASC');$j->execute([$uid]);$journals=$j->fetchAll();
-$c=db()->prepare('SELECT * FROM journal_compilations WHERE user_id=? LIMIT 1');$c->execute([$uid]);$comp=$c->fetch();
-function journal_block_html(array $x): string {
-    $date='WEEK OF '.strtoupper(date('F d, Y',strtotime($x['week_start'])));
-    $title=htmlspecialchars($x['title'],ENT_QUOTES,'UTF-8');
-    $content=trim((string)$x['content']);
-    if ($content==='') $content='<p></p>';
-    if (strip_tags($content)===$content) {
-        $parts=preg_split('/\R\s*\R/', $content) ?: [$content];
-        $content=''; foreach($parts as $part) $content.='<p>'.nl2br(htmlspecialchars(trim($part),ENT_QUOTES,'UTF-8')).'</p>';
-    }
-    return '<section class="compiled-week"><div class="compiled-week-label">'.htmlspecialchars($date,ENT_QUOTES,'UTF-8').'</div><h2>'.$title.'</h2>'.$content.'</section>';
+$page_title = 'Final Compilation';
+$page_scripts = ['editor.js', 'compilation.js'];
+require_once 'includes/header.php';
+require_once 'includes/editor_shell.php';
+
+$j = db()->prepare('SELECT week_start,title,content FROM journals WHERE student_pk=? ORDER BY week_start ASC');
+$j->execute([$uid]);
+$drafts = $j->fetchAll();
+$c = db()->prepare('SELECT * FROM journal_compilations WHERE student_pk=? LIMIT 1');
+$c->execute([$uid]);
+$comp = $c->fetch();
+$title = $comp['title'] ?? 'OJT Weekly Journal Compilation';
+$compiled = $comp ? (string)$comp['content'] : compilation_from_drafts($drafts);
+if ($compiled === '') $compiled = '<p><br></p>';
+$orientation = $comp['orientation'] ?? 'portrait';
+$size = $comp['page_size'] ?? 'A4';
+$margin = $comp['margin_preset'] ?? 'normal';
+$subs = db()->prepare('SELECT id,title,status,submitted_at,adviser_remarks FROM journal_submissions WHERE student_pk=? ORDER BY submitted_at DESC LIMIT 6');
+$subs->execute([$uid]);
+$submissions = $subs->fetchAll();
+$newerDrafts = 0;
+if ($comp) {
+    $n = db()->prepare('SELECT COUNT(*) FROM journals WHERE student_pk=? AND updated_at > ?');
+    $n->execute([$uid, $comp['updated_at']]);
+    $newerDrafts = (int)$n->fetchColumn();
 }
-if(!$comp){$blocks=[];foreach($journals as $x)$blocks[]=journal_block_html($x);$compiled=implode('<div class="compiled-divider"></div>',$blocks);$title='OJT Weekly Journal Compilation';}else{$compiled=$comp['content'];$title=$comp['title'];}
 ?>
-<div class="page-intro"><div><span class="eyebrow">FINAL DOCUMENT</span><h2>Journal Compilation</h2><p>Edit your complete journal like a document, add supporting images, then print or save it as PDF.</p></div><div class="compilation-actions"><button class="btn secondary" id="printCompilation">Print</button><button class="btn primary" id="pdfCompilation">Save as PDF</button></div></div>
-<section class="panel compilation-editor"><div class="document-preview-head"><div class="document-brand"><div class="brand-mark logo-orbit" aria-label="OJT360 logo"><span class="orbit-dot orbit-dot-a"></span><span class="orbit-dot orbit-dot-b"></span><span class="orbit-dot orbit-dot-c"></span></div><div><strong>OJT360</strong><span>Student Weekly Journal</span></div></div><span class="pill blue-pill">Editable final copy</span></div>
-<form id="compilationForm"><input type="hidden" name="csrf" value="<?=e(csrf_token())?>"><div class="document-settings"><label>Document title<input name="title" value="<?=e($title)?>" required></label><label>Orientation<select id="documentOrientation" name="orientation"><option value="portrait" <?=($comp['orientation']??'portrait')==='portrait'?'selected':''?>>Portrait</option><option value="landscape" <?=($comp['orientation']??'portrait')==='landscape'?'selected':''?>>Landscape</option></select></label><label>Page size<select id="documentPageSize" name="page_size"><option value="A4" <?=($comp['page_size']??'A4')==='A4'?'selected':''?>>A4</option><option value="Letter" <?=($comp['page_size']??'A4')==='Letter'?'selected':''?>>Letter</option></select></label></div>
-<div class="compilation-workspace"><aside class="document-pages-panel"><div class="pages-panel-head"><div><span class="eyebrow">PAGES</span><strong>Document pages</strong></div><div class="page-panel-actions"><button type="button" class="btn secondary small" id="addDocumentPage">+ Page</button><button type="button" class="btn secondary small" id="removeDocumentPage">− Page</button></div></div><div id="documentPages" class="document-pages"></div></aside><div class="document-editor-wrap compilation-document-wrap"><div class="editor-toolbar" data-editor="compilationContent" role="toolbar" aria-label="Compilation formatting tools">
-<select class="editor-select" data-command="fontName" title="Font"><option value="Arial">Arial</option><option value="Calibri">Calibri</option><option value="Cambria">Cambria</option><option value="Georgia">Georgia</option><option value="Times New Roman">Times New Roman</option><option value="Verdana">Verdana</option><option value="Tahoma">Tahoma</option><option value="Trebuchet MS">Trebuchet MS</option><option value="Courier New">Courier New</option><option value="Palatino Linotype">Palatino</option></select><select class="editor-select editor-size" data-command="fontSize" title="Font size"><option value="2">10</option><option value="3" selected>12</option><option value="4">14</option><option value="5">18</option><option value="6">24</option><option value="7">32</option></select><button type="button" data-command="undo" title="Undo">↶</button><button type="button" data-command="redo" title="Redo">↷</button><span class="toolbar-divider"></span><button type="button" data-command="bold" title="Bold"><b>B</b></button><button type="button" data-command="italic" title="Italic"><i>I</i></button><button type="button" data-command="underline" title="Underline"><u>U</u></button><button type="button" data-command="strikeThrough" title="Strikethrough"><s>S</s></button><span class="toolbar-divider"></span>
-<select class="editor-select editor-block" data-command="formatBlock" title="Paragraph style"><option value="p">Paragraph</option><option value="h1">Title</option><option value="h2">Heading 1</option><option value="h3">Heading 2</option><option value="blockquote">Quote</option></select><button type="button" data-command="insertUnorderedList" title="Bulleted list">• List</button><button type="button" data-command="insertOrderedList" title="Numbered list">1. List</button><button type="button" data-command="insertHorizontalRule" title="Horizontal line">―</button><span class="toolbar-divider"></span>
-<button type="button" data-command="justifyLeft" title="Align left">≡</button><button type="button" data-command="justifyCenter" title="Center">≡</button><button type="button" data-command="justifyRight" title="Align right">≡</button><button type="button" data-command="justifyFull" title="Justify">☰</button><span class="toolbar-divider"></span>
-<button type="button" data-editor-action="link" title="Insert link">↗ Link</button><button type="button" data-editor-action="image" title="Attach image">▧ Image</button><button type="button" data-editor-action="image-edit" title="Edit selected image">✎ Image</button><span class="toolbar-divider"></span><button type="button" data-image-layout="inline" title="Keep image in the text flow">↔ Inline</button><button type="button" data-image-layout="left" title="Wrap text to the right of the image">◀ Wrap</button><button type="button" data-image-layout="right" title="Wrap text to the left of the image">Wrap ▶</button><button type="button" data-image-layout="center" title="Center image on its own line">↔ Center</button><button type="button" data-command="removeFormat" title="Clear formatting">Tx</button><input type="file" id="compilationImageInput" accept="image/png,image/jpeg,image/webp,image/gif" hidden></div>
-<div id="compilationContent" class="rich-editor compilation-rich-editor" contenteditable="true" role="textbox" aria-multiline="true"><?= $compiled ?></div></div>
-<div class="editor-meta"><span id="compilationCount">0 words</span><span id="compilationSaveState">Not saved</span></div><div class="editor-tip">This is your final working document. Edit text, move images, add photos, and format the compilation before saving or printing.</div><div class="form-actions"><button type="submit" class="btn primary">Save Final Compilation</button><a class="btn secondary" href="journal.php">Back to Journal</a></div></form></div></section>
-<section class="panel print-document" id="printDocument"><div class="print-header"><div><span class="eyebrow">OJT360</span><h2 id="printTitle"><?=e($title)?></h2><p><?=e($user['full_name'])?> · <?=e($user['student_no'])?> · <?=e($user['course'])?></p></div></div><div id="printContent"></div></section>
-<?php require_once 'includes/footer.php';?>
+<div class="page-head">
+  <div>
+    <span class="eyebrow">FINAL DOCUMENT</span>
+    <h1>Journal Compilation<span class="title-dot">.</span></h1>
+    <p>Every weekly draft in one document. Edit it like Word, then print, save as PDF, or submit it to your adviser.</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn secondary" href="journal.php"><?= icon('chevL') ?> Back to Journal</a>
+    <button class="btn secondary" id="printCompilation" type="button"><?= icon('print') ?> Print</button>
+    <button class="btn secondary" id="pdfCompilation" type="button"><?= icon('file') ?> Save as PDF</button>
+    <button class="btn primary" id="submitCompilation" type="button"><?= icon('send') ?> Submit to Adviser</button>
+  </div>
+</div>
+
+<?php if ($newerDrafts > 0): ?>
+<div class="notice"><?= icon('alert') ?><div><strong><?= $newerDrafts ?> weekly draft<?= $newerDrafts > 1 ? 's were' : ' was' ?> updated after you last saved this compilation.</strong><span>Use “Rebuild from drafts” to bring them in. This replaces the text below with the latest drafts.</span></div></div>
+<?php endif; ?>
+
+<section class="panel compilation-panel">
+  <div class="comp-head">
+    <div class="doc-brand"><?= logo_mark() ?><div><strong>OJT360</strong><span><?= e($user['full_name']) ?> · <?= e($user['student_no']) ?></span></div></div>
+    <div class="comp-tools">
+      <label class="comp-title">Document title<input id="compTitle" value="<?= e($title) ?>" maxlength="180"></label>
+      <button type="button" class="btn secondary small" id="rebuildBtn"><?= icon('refresh') ?> Rebuild from drafts</button>
+      <button type="button" class="btn primary small" id="saveCompilation"><?= icon('check') ?> Save</button>
+    </div>
+  </div>
+  <?php render_editor_shell('compEditor', $compiled, $orientation, $size, $margin); ?>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><div><span class="eyebrow">ADVISER</span><h3>Submission history</h3></div><span class="muted small"><?= count($drafts) ?> weekly draft<?= count($drafts) === 1 ? '' : 's' ?> in your journal</span></div>
+  <?php if (!$submissions): ?><div class="dash-empty">You have not submitted a compilation yet. When you submit, a snapshot is sent to your adviser's dashboard for review.</div><?php endif; ?>
+  <div class="mini-list">
+    <?php foreach ($submissions as $s): $cls = $s['status'] === 'reviewed' ? 'green-pill' : ($s['status'] === 'returned' ? 'red-pill' : 'amber-pill'); ?>
+      <div class="mini-row"><div class="mini-check"><?= icon('send') ?></div><div class="mini-main"><strong><?= e($s['title']) ?></strong><small>Submitted <?= e(date('M d, Y · g:i A', strtotime($s['submitted_at']))) ?><?= $s['adviser_remarks'] ? ' · “' . e(mb_strimwidth($s['adviser_remarks'], 0, 90, '…')) . '”' : '' ?></small></div><span class="pill <?= $cls ?>"><?= $s['status'] === 'pending' ? 'Awaiting review' : e(ucfirst($s['status'])) ?></span></div>
+    <?php endforeach; ?>
+  </div>
+</section>
+<?php render_editor_modals(); ?>
+<?php require_once 'includes/footer.php'; ?>

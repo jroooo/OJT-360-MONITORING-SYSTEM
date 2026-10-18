@@ -1,260 +1,282 @@
-CREATE DATABASE IF NOT EXISTS ojt360 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE ojt360;
+-- OJT360 Student Dashboard v18 — student-only database
+-- Import into the database named in config.php (default: ojt360).
+-- The app also creates any missing table automatically on first load.
+-- Table `students` is your registration/login table; every other table points to students.id
+-- through the column `student_pk` (named this way so it is never confused with students.student_id,
+-- which is the 7-digit school ID number).
+
+SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS students (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- first_name VARCHAR(80) NOT NULL,
- middle_name VARCHAR(80) DEFAULT '',
- last_name VARCHAR(80) NOT NULL,
- course VARCHAR(120) NOT NULL,
- mobile_number VARCHAR(40) NOT NULL,
- school_name VARCHAR(180) NOT NULL,
- complete_address VARCHAR(255) NOT NULL,
- student_id VARCHAR(20) NOT NULL UNIQUE,
- institutional_email VARCHAR(160) NOT NULL UNIQUE,
- password_hash VARCHAR(255) NOT NULL,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  first_name VARCHAR(50) NOT NULL,
+  middle_name VARCHAR(50) DEFAULT NULL,
+  last_name VARCHAR(50) NOT NULL,
+  course VARCHAR(100) NOT NULL,
+  mobile_number VARCHAR(20) NOT NULL,
+  school_name VARCHAR(150) NOT NULL,
+  complete_address TEXT NOT NULL,
+  profile_image VARCHAR(255) DEFAULT NULL,
+  student_id VARCHAR(50) NOT NULL,
+  institutional_email VARCHAR(100) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY institutional_email (institutional_email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS employees (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- employee_id VARCHAR(50) NOT NULL UNIQUE,
- first_name VARCHAR(80) NOT NULL,
- middle_name VARCHAR(80) DEFAULT '',
- last_name VARCHAR(80) NOT NULL,
- contact_number VARCHAR(40) NOT NULL,
- email VARCHAR(160) NOT NULL UNIQUE,
- department VARCHAR(120) NOT NULL,
- position VARCHAR(120) NOT NULL,
- username VARCHAR(160) NOT NULL UNIQUE,
- password_hash VARCHAR(255) NOT NULL,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
-
-CREATE TABLE IF NOT EXISTS users (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- full_name VARCHAR(120) NOT NULL,
- email VARCHAR(160) NOT NULL UNIQUE,
- password_hash VARCHAR(255) NOT NULL,
- student_no VARCHAR(50) NOT NULL UNIQUE,
- course VARCHAR(120) NOT NULL DEFAULT 'BS Information Technology',
- section VARCHAR(80) NOT NULL DEFAULT 'AI23',
- phone VARCHAR(40) DEFAULT '',
- address VARCHAR(255) DEFAULT '',
- profile_image VARCHAR(255) DEFAULT NULL,
- role ENUM('student','adviser','admin') NOT NULL DEFAULT 'student',
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
-
-CREATE TABLE IF NOT EXISTS companies (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- name VARCHAR(160) NOT NULL,
- company_name VARCHAR(160) DEFAULT NULL,
- rep_first_name VARCHAR(80) DEFAULT '',
- rep_middle_name VARCHAR(80) DEFAULT '',
- rep_last_name VARCHAR(80) DEFAULT '',
- rep_position VARCHAR(120) DEFAULT '',
- contact_number VARCHAR(40) DEFAULT '',
- representative_email VARCHAR(160) DEFAULT '',
- company_username VARCHAR(160) DEFAULT NULL UNIQUE,
- password_hash VARCHAR(255) DEFAULT NULL,
- address VARCHAR(255) DEFAULT '',
- contact_email VARCHAR(160) DEFAULT '',
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
-
-CREATE TABLE IF NOT EXISTS company_qr_codes (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- company_id INT UNSIGNED NOT NULL,
- qr_value VARCHAR(255) NOT NULL UNIQUE,
- is_active TINYINT(1) NOT NULL DEFAULT 1,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS qr_codes (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  qr_value VARCHAR(120) NOT NULL,
+  company_name VARCHAR(150) NOT NULL,
+  company_address VARCHAR(255) DEFAULT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY qr_value (qr_value)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS internships (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- user_id INT UNSIGNED NOT NULL,
- company_id INT UNSIGNED NOT NULL,
- required_hours DECIMAL(8,2) NOT NULL DEFAULT 480,
- completed_hours DECIMAL(8,2) NOT NULL DEFAULT 0,
- start_date DATE DEFAULT NULL,
- end_date DATE DEFAULT NULL,
- status ENUM('pending','active','completed') NOT NULL DEFAULT 'active',
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
- FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  student_pk INT(11) NOT NULL,
+  company_name VARCHAR(150) DEFAULT NULL,
+  company_address VARCHAR(255) DEFAULT NULL,
+  required_hours DECIMAL(8,2) NOT NULL DEFAULT 480,
+  completed_hours DECIMAL(8,2) NOT NULL DEFAULT 0,
+  start_date DATE DEFAULT NULL,
+  end_date DATE DEFAULT NULL,
+  status ENUM('pending','active','completed') NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY student_pk (student_pk),
+  CONSTRAINT fk_internships_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS attendance (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- user_id INT UNSIGNED NOT NULL,
- company_id INT UNSIGNED NOT NULL,
- time_in DATETIME NOT NULL,
- time_out DATETIME DEFAULT NULL,
- duration_minutes INT UNSIGNED DEFAULT NULL,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
- FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
- INDEX(user_id,time_in)
-) ENGINE=InnoDB;
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  student_pk INT(11) NOT NULL,
+  qr_id INT(11) DEFAULT NULL,
+  company_name VARCHAR(150) DEFAULT NULL,
+  time_in DATETIME NOT NULL,
+  time_out DATETIME DEFAULT NULL,
+  duration_minutes INT(10) UNSIGNED DEFAULT NULL,
+  break_seconds INT(10) UNSIGNED NOT NULL DEFAULT 0,
+  break_started_at DATETIME DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY student_time (student_pk,time_in),
+  CONSTRAINT fk_attendance_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS attendance_events (
+  id BIGINT(20) NOT NULL AUTO_INCREMENT,
+  attendance_id INT(11) NOT NULL,
+  student_pk INT(11) NOT NULL,
+  event_type ENUM('time_in','break_start','break_end','time_out') NOT NULL,
+  event_time DATETIME NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY student_event (student_pk,event_time),
+  KEY attendance_id (attendance_id),
+  CONSTRAINT fk_events_attendance FOREIGN KEY (attendance_id) REFERENCES attendance(id) ON DELETE CASCADE,
+  CONSTRAINT fk_events_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS daily_logs (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  student_pk INT(11) NOT NULL,
+  log_date DATE NOT NULL,
+  title VARCHAR(180) NOT NULL DEFAULT '',
+  description TEXT DEFAULT NULL,
+  hours DECIMAL(5,2) NOT NULL DEFAULT 0,
+  evidence_image VARCHAR(255) DEFAULT NULL,
+  time_in TIME DEFAULT NULL,
+  time_out TIME DEFAULT NULL,
+  break_minutes INT(10) UNSIGNED NOT NULL DEFAULT 0,
+  attendance_id INT(11) DEFAULT NULL,
+  is_auto TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY student_date (student_pk,log_date),
+  CONSTRAINT fk_logs_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS journals (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- user_id INT UNSIGNED NOT NULL,
- week_start DATE NOT NULL,
- title VARCHAR(180) NOT NULL,
- content TEXT NOT NULL,
- status ENUM('draft','submitted','reviewed') NOT NULL DEFAULT 'draft',
- orientation ENUM('portrait','landscape') NOT NULL DEFAULT 'portrait',
- updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- UNIQUE KEY user_week(user_id,week_start),
- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
-
-CREATE TABLE IF NOT EXISTS notifications (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- user_id INT UNSIGNED NOT NULL,
- title VARCHAR(180) NOT NULL,
- message TEXT NOT NULL,
- icon VARCHAR(10) DEFAULT '•',
- is_read TINYINT(1) NOT NULL DEFAULT 0,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
- INDEX(user_id,is_read)
-) ENGINE=InnoDB;
-
-CREATE TABLE IF NOT EXISTS announcements (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- title VARCHAR(180) NOT NULL,
- message TEXT NOT NULL,
- category VARCHAR(50) DEFAULT 'General',
- is_active TINYINT(1) NOT NULL DEFAULT 1,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
-
-CREATE TABLE IF NOT EXISTS activity_logs (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- user_id INT UNSIGNED NOT NULL,
- action_text VARCHAR(255) NOT NULL,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
- INDEX(user_id,created_at)
-) ENGINE=InnoDB;
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  student_pk INT(11) NOT NULL,
+  week_start DATE NOT NULL,
+  title VARCHAR(180) NOT NULL,
+  content MEDIUMTEXT NOT NULL,
+  status ENUM('draft','submitted','reviewed') NOT NULL DEFAULT 'draft',
+  orientation ENUM('portrait','landscape') NOT NULL DEFAULT 'portrait',
+  page_size ENUM('A4','Letter') NOT NULL DEFAULT 'A4',
+  margin_preset VARCHAR(10) NOT NULL DEFAULT 'normal',
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY student_week (student_pk,week_start),
+  CONSTRAINT fk_journals_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS journal_compilations (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- user_id INT UNSIGNED NOT NULL UNIQUE,
- title VARCHAR(180) NOT NULL DEFAULT 'OJT Weekly Journal Compilation',
- content LONGTEXT NOT NULL,
- orientation ENUM('portrait','landscape') NOT NULL DEFAULT 'portrait',
- page_size ENUM('A4','Letter') NOT NULL DEFAULT 'A4',
- updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  student_pk INT(11) NOT NULL,
+  title VARCHAR(180) NOT NULL DEFAULT 'OJT Weekly Journal Compilation',
+  content LONGTEXT NOT NULL,
+  orientation ENUM('portrait','landscape') NOT NULL DEFAULT 'portrait',
+  page_size ENUM('A4','Letter') NOT NULL DEFAULT 'A4',
+  margin_preset VARCHAR(10) NOT NULL DEFAULT 'normal',
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY student_pk (student_pk),
+  CONSTRAINT fk_compilations_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS journal_submissions (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  student_pk INT(11) NOT NULL,
+  adviser_id INT(11) DEFAULT NULL,
+  title VARCHAR(180) NOT NULL,
+  content LONGTEXT NOT NULL,
+  orientation ENUM('portrait','landscape') NOT NULL DEFAULT 'portrait',
+  page_size ENUM('A4','Letter') NOT NULL DEFAULT 'A4',
+  margin_preset VARCHAR(10) NOT NULL DEFAULT 'normal',
+  status ENUM('pending','reviewed','returned') NOT NULL DEFAULT 'pending',
+  adviser_remarks TEXT DEFAULT NULL,
+  submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at DATETIME DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY student_submitted (student_pk,submitted_at),
+  KEY adviser_status (adviser_id,status),
+  CONSTRAINT fk_submissions_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS tasks (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- user_id INT UNSIGNED NULL,
- company_id INT UNSIGNED NULL,
- title VARCHAR(180) NOT NULL,
- description TEXT DEFAULT NULL,
- due_date DATE DEFAULT NULL,
- status ENUM('pending','in_progress','completed') NOT NULL DEFAULT 'pending',
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- INDEX(user_id,status,due_date),
- INDEX(company_id,status),
- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
- FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL
-) ENGINE=InnoDB;
-
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  student_pk INT(11) NOT NULL,
+  title VARCHAR(180) NOT NULL,
+  description TEXT DEFAULT NULL,
+  due_date DATE DEFAULT NULL,
+  status ENUM('pending','in_progress','completed') NOT NULL DEFAULT 'pending',
+  source VARCHAR(12) NOT NULL DEFAULT 'company',
+  company_name VARCHAR(150) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY student_status (student_pk,status,due_date),
+  CONSTRAINT fk_tasks_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS task_updates (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- task_id INT UNSIGNED NOT NULL,
- user_id INT UNSIGNED NOT NULL,
- status ENUM('pending','in_progress','completed') NOT NULL,
- comment TEXT DEFAULT NULL,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- UNIQUE KEY task_user(task_id,user_id),
- FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  task_id INT(11) NOT NULL,
+  student_pk INT(11) NOT NULL,
+  status ENUM('pending','in_progress','completed') NOT NULL,
+  comment TEXT DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY task_student (task_id,student_pk),
+  CONSTRAINT fk_taskupd_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+  CONSTRAINT fk_taskupd_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS company_notifications (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- company_id INT UNSIGNED NOT NULL,
- task_id INT UNSIGNED NULL,
- user_id INT UNSIGNED NULL,
- title VARCHAR(180) NOT NULL,
- message TEXT NOT NULL,
- is_read TINYINT(1) NOT NULL DEFAULT 0,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- INDEX(company_id,is_read),
- FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
- FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL,
- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS notifications (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  student_pk INT(11) NOT NULL,
+  title VARCHAR(180) NOT NULL,
+  message TEXT NOT NULL,
+  icon VARCHAR(10) DEFAULT NULL,
+  is_read TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY student_read (student_pk,is_read),
+  CONSTRAINT fk_notifications_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS announcements (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  title VARCHAR(180) NOT NULL,
+  message TEXT NOT NULL,
+  category VARCHAR(50) DEFAULT 'General',
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS activity_logs (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  student_pk INT(11) NOT NULL,
+  action_text VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY student_created (student_pk,created_at),
+  CONSTRAINT fk_activity_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS assistant_messages (
- id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- user_id INT UNSIGNED NOT NULL,
- role ENUM('user','assistant') NOT NULL,
- message TEXT NOT NULL,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
- INDEX(user_id,created_at)
-) ENGINE=InnoDB;
+  id BIGINT(20) NOT NULL AUTO_INCREMENT,
+  student_pk INT(11) NOT NULL,
+  role ENUM('user','assistant') NOT NULL,
+  message TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY student_created (student_pk,created_at),
+  CONSTRAINT fk_assistant_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS support_requests (
- id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
- user_id INT UNSIGNED NOT NULL,
- subject VARCHAR(180) NOT NULL,
- message TEXT NOT NULL,
- status ENUM('open','in_progress','resolved') NOT NULL DEFAULT 'open',
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  student_pk INT(11) NOT NULL,
+  subject VARCHAR(180) NOT NULL,
+  message TEXT NOT NULL,
+  status ENUM('open','in_progress','resolved') NOT NULL DEFAULT 'open',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY student_pk (student_pk),
+  CONSTRAINT fk_support_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO companies (id,name,company_name,address,contact_email)
-SELECT 1,'OJT360 Demo Company','OJT360 Demo Company','Tacloban City, Leyte','demo@ojt360.local'
-WHERE NOT EXISTS (SELECT 1 FROM companies WHERE id=1);
+CREATE TABLE IF NOT EXISTS student_settings (
+  student_pk INT(11) NOT NULL,
+  shift_start TIME NOT NULL DEFAULT '08:00:00',
+  grace_minutes SMALLINT(5) UNSIGNED NOT NULL DEFAULT 15,
+  daily_target DECIMAL(4,2) NOT NULL DEFAULT 8.00,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (student_pk),
+  CONSTRAINT fk_settings_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO company_qr_codes (company_id,qr_value,is_active)
-SELECT 1,'OJT360-COMPANY-001',1
-WHERE NOT EXISTS (SELECT 1 FROM company_qr_codes WHERE qr_value='OJT360-COMPANY-001');
+-- Reference data: the QR code(s) students scan to Time In / Time Out
 
-INSERT INTO users (full_name,email,password_hash,student_no,course,section,phone,address,role)
-SELECT 'James Demo','james@example.com', '$2y$12$pe7k.R.pTKtebGEF1xUj0elUQXALg5d6x3QqZIw3C2PCjNQlCZ./6', '2026001','BS Information Technology','AI23','09171234567','Leyte, Philippines','student'
-WHERE NOT EXISTS (SELECT 1 FROM users WHERE email='james@example.com');
+INSERT INTO qr_codes (qr_value,company_name,company_address,is_active)
+SELECT 'OJT360-COMPANY-001','OJT360 Demo Company','Tacloban City, Leyte',1
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM qr_codes WHERE qr_value='OJT360-COMPANY-001');
+
+-- Demo student (Student ID 2026001, password: the same demo password as before)
 
 INSERT INTO students (first_name,middle_name,last_name,course,mobile_number,school_name,complete_address,student_id,institutional_email,password_hash)
-SELECT 'James','','Demo','BS Information Technology','09171234567','OJT360 Demo School','Leyte, Philippines','2026001','james@example.com', '$2y$12$pe7k.R.pTKtebGEF1xUj0elUQXALg5d6x3QqZIw3C2PCjNQlCZ./6'
-WHERE NOT EXISTS (SELECT 1 FROM students WHERE student_id='2026001');
+SELECT 'James',NULL,'Demo','BS Information Technology','09171234567','OJT360 Demo School','Leyte, Philippines','2026001','james@example.com','$2y$12$pe7k.R.pTKtebGEF1xUj0elUQXALg5d6x3QqZIw3C2PCjNQlCZ./6'
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM students WHERE student_id='2026001');
 
-INSERT INTO internships (user_id,company_id,required_hours,completed_hours,start_date,end_date,status)
-SELECT u.id,1,480,124.5,CURDATE(),DATE_ADD(CURDATE(),INTERVAL 60 DAY),'active'
-FROM users u
-WHERE u.email='james@example.com'
-AND NOT EXISTS (SELECT 1 FROM internships i WHERE i.user_id=u.id);
+INSERT INTO internships (student_pk,company_name,company_address,required_hours,completed_hours,start_date,end_date,status)
+SELECT s.id,'OJT360 Demo Company','Tacloban City, Leyte',480,0,CURDATE(),DATE_ADD(CURDATE(),INTERVAL 60 DAY),'active'
+FROM students s WHERE s.student_id='2026001' AND NOT EXISTS (SELECT 1 FROM internships i WHERE i.student_pk=s.id);
 
-INSERT INTO tasks (user_id,company_id,title,description,due_date,status)
-SELECT u.id,1,'Prepare weekly OJT progress update','Review your attendance and journal records and prepare a short progress update for your company supervisor.',DATE_ADD(CURDATE(),INTERVAL 3 DAY),'pending'
-FROM users u WHERE u.email='james@example.com' AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.user_id=u.id AND t.title='Prepare weekly OJT progress update');
+INSERT INTO tasks (student_pk,title,description,due_date,status,source,company_name)
+SELECT s.id,'Prepare weekly OJT progress update','Review your attendance and journal records and prepare a short progress update for your supervisor.',DATE_ADD(CURDATE(),INTERVAL 3 DAY),'pending','company','OJT360 Demo Company'
+FROM students s WHERE s.student_id='2026001' AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.student_pk=s.id AND t.title='Prepare weekly OJT progress update');
 
-INSERT INTO tasks (user_id,company_id,title,description,due_date,status)
-SELECT u.id,1,'Complete weekly journal','Finish and submit the journal entry for your current OJT week.',DATE_ADD(CURDATE(),INTERVAL 5 DAY),'in_progress'
-FROM users u WHERE u.email='james@example.com' AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.user_id=u.id AND t.title='Complete weekly journal');
+INSERT INTO tasks (student_pk,title,description,due_date,status,source,company_name)
+SELECT s.id,'Complete weekly journal','Finish the journal entry for your current OJT week.',DATE_ADD(CURDATE(),INTERVAL 5 DAY),'in_progress','company','OJT360 Demo Company'
+FROM students s WHERE s.student_id='2026001' AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.student_pk=s.id AND t.title='Complete weekly journal');
 
 INSERT INTO announcements (title,message,category,is_active)
-SELECT 'Weekly Journal Reminder','Please submit your weekly journal before the end of your assigned week.','Reminder',1
-WHERE NOT EXISTS (SELECT 1 FROM announcements WHERE title='Weekly Journal Reminder');
+SELECT 'Weekly Journal Reminder','Please finish your weekly journal before the end of your assigned week.','Reminder',1
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM announcements WHERE title='Weekly Journal Reminder');
 
-INSERT INTO notifications (user_id,title,message,icon)
-SELECT u.id,'Welcome to OJT360','Your student dashboard is ready. Complete your profile and start tracking your OJT attendance.','✦'
-FROM users u WHERE u.email='james@example.com'
-AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.user_id=u.id AND n.title='Welcome to OJT360');
+INSERT INTO notifications (student_pk,title,message,icon)
+SELECT s.id,'Welcome to OJT360','Your student dashboard is ready. Time in with your company QR to start tracking your OJT hours.','✦'
+FROM students s WHERE s.student_id='2026001' AND NOT EXISTS (SELECT 1 FROM notifications n WHERE n.student_pk=s.id AND n.title='Welcome to OJT360');

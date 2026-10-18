@@ -1,15 +1,23 @@
 <?php
 $page_title = 'Notifications';
+$page_scripts = ['notifications.js'];
 require_once 'includes/header.php';
-$uid=(int)$user['id'];
-if ($_SERVER['REQUEST_METHOD']==='POST') { verify_csrf(); db()->prepare('UPDATE notifications SET is_read=1 WHERE user_id=?')->execute([$uid]); flash('success','All notifications marked as read.'); header('Location: notifications.php'); exit; }
-$stmt=db()->prepare('SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC'); $stmt->execute([$uid]); $items=$stmt->fetchAll();
+$stmt = db()->prepare('SELECT * FROM notifications WHERE student_pk=? ORDER BY created_at DESC LIMIT 200');
+$stmt->execute([$uid]);
+$items = $stmt->fetchAll();
 ?>
-<div class="page-intro"><div><span class="eyebrow">UPDATES</span><h2>Notifications</h2><p>Stay updated with attendance, journals, and adviser announcements.</p></div><form method="post"><input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>"><button class="btn secondary">Mark all as read</button></form></div>
+<div class="page-head">
+  <div><span class="eyebrow">UPDATES</span><h1>Notifications<span class="title-dot">.</span></h1><p>Attendance, journals, tasks, and adviser announcements.</p></div>
+  <div class="page-actions"><button class="btn secondary" id="readAll" type="button"><?= icon('check') ?> Mark all as read</button></div>
+</div>
 <section class="panel notification-list">
-<?php foreach ($items as $n): ?>
-<div class="notification-item <?= !$n['is_read']?'unread':'' ?>"><div class="notification-icon"><?= e($n['icon'] ?: '•') ?></div><div><strong><?= e($n['title']) ?></strong><p><?= e($n['message']) ?></p><small><?= e(date('M d, Y · h:i A', strtotime($n['created_at']))) ?></small></div></div>
-<?php endforeach; ?>
-<?php if (!$items): ?><div class="empty">No notifications yet.</div><?php endif; ?>
+  <?php foreach ($items as $n): ?>
+    <div class="notification-item <?= !$n['is_read'] ? 'unread' : '' ?>" data-id="<?= (int)$n['id'] ?>">
+      <div class="notification-icon"><?= icon('bell') ?></div>
+      <div class="notif-body"><strong><?= e($n['title']) ?></strong><p><?= e($n['message']) ?></p><small><?= e(date('M d, Y · h:i A', strtotime($n['created_at']))) ?></small></div>
+      <?php if (!$n['is_read']): ?><i class="unread-dot" title="Unread"></i><?php endif; ?>
+    </div>
+  <?php endforeach; ?>
+  <?php if (!$items): ?><div class="empty-state"><div class="empty-icon"><?= icon('bell') ?></div><h3>You're all caught up</h3><p>New notifications will appear here.</p></div><?php endif; ?>
 </section>
 <?php require_once 'includes/footer.php'; ?>

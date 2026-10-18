@@ -1,191 +1,346 @@
-document.addEventListener('DOMContentLoaded',()=>{
- const $=(s,p=document)=>p.querySelector(s), $$=(s,p=document)=>[...p.querySelectorAll(s)];
- const ojtHoursCard=document.querySelector('[data-ojt-hours-card]');
-if(ojtHoursCard?.dataset.timeIn){
-  const liveEl=ojtHoursCard.querySelector('[data-ojt-live]');
-  const totalEl=ojtHoursCard.querySelector('[data-ojt-total]');
-  const progressEl=ojtHoursCard.querySelector('[data-ojt-progress]');
-  const completed=Number(ojtHoursCard.dataset.completedHours||0);
-  const required=Number(ojtHoursCard.dataset.requiredHours||480);
-  const startedAt=new Date(ojtHoursCard.dataset.timeIn.replace(' ','T')).getTime();
-  const updateOjtLive=()=>{
-    const elapsed=Math.max(0,Math.floor((Date.now()-startedAt)/1000));
-    const h=Math.floor(elapsed/3600), m=Math.floor((elapsed%3600)/60), sec=elapsed%60;
-    if(liveEl) liveEl.textContent=`${h}h ${String(m).padStart(2,'0')}m ${String(sec).padStart(2,'0')}s`;
-    const liveHours=elapsed/3600;
-    const total=Math.min(required,completed+liveHours);
-    if(totalEl) totalEl.textContent=`${total.toFixed(1)} / ${required.toFixed(0)} hrs`;
-    if(progressEl) progressEl.textContent=`${required>0?Math.min(100,(total/required)*100).toFixed(1):'0.0'}% completed`;
-  };
-  updateOjtLive();
-  setInterval(updateOjtLive,1000);
+/* OJT360 core: theme, shell, toasts, modals, profile photo, assistant, time tracker. */
+(function(){
+'use strict';
+const C = window.OJT360 || {};
+const $ = (s, p = document) => p.querySelector(s);
+const $$ = (s, p = document) => [...p.querySelectorAll(s)];
+const pad = n => String(n).padStart(2, '0');
+const hms = sec => { sec = Math.max(0, Math.floor(sec)); return pad(Math.floor(sec / 3600)) + ':' + pad(Math.floor(sec % 3600 / 60)) + ':' + pad(sec % 60); };
+const hm = sec => { sec = Math.max(0, Math.floor(sec)); return Math.floor(sec / 3600) + 'h ' + pad(Math.floor(sec % 3600 / 60)) + 'm'; };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const icon = (name, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${(C.icons || {})[name] || ''}</svg>`;
+
+/* ---------- tiny event bus ---------- */
+const bus = {}; 
+const on = (ev, fn) => { (bus[ev] = bus[ev] || []).push(fn); };
+const emit = (ev, data) => (bus[ev] || []).forEach(fn => { try { fn(data); } catch (e) { console.error(e); } });
+
+/* ---------- API helper ---------- */
+async function api(url, data, opts = {}) {
+  const fd = data instanceof FormData ? data : new FormData();
+  if (!(data instanceof FormData) && data) Object.entries(data).forEach(([k, v]) => fd.append(k, v));
+  if (!fd.has('csrf')) fd.append('csrf', C.csrf);
+  let res, json;
+  try {
+    res = await fetch(url, { method: 'POST', body: fd, cache: 'no-store', credentials: 'same-origin' });
+    const text = await res.text();
+    try { json = JSON.parse(text); } catch (e) { json = { ok: false, message: 'The server returned an unexpected response.' }; console.error(text); }
+  } catch (e) { json = { ok: false, message: 'Could not reach the server. Check that Apache and MySQL are running.' }; }
+  if (!json.message && json.error) json.message = json.error;
+  return json;
 }
-const shell=$('#appShell'), sidebar=$('#sidebar'), backdrop=$('#sidebarBackdrop'), reveal=$('#sidebarToggle');
- const applyPrefs=()=>{document.body.classList.toggle('dark-mode',localStorage.getItem('ojt360-dark')==='1');const keepOpen=localStorage.getItem('ojt360-sidebar-open')==='1';if(keepOpen){sidebar?.classList.add('open');backdrop?.classList.add('show');reveal?.classList.add('hidden');}else{sidebar?.classList.remove('open');backdrop?.classList.remove('show');reveal?.classList.remove('hidden');}};
- applyPrefs();
- const closeSidebar=()=>{sidebar?.classList.remove('open');backdrop?.classList.remove('show');reveal?.classList.remove('hidden');};
- const openSidebar=()=>{sidebar?.classList.add('open');backdrop?.classList.add('show');reveal?.classList.add('hidden');};
- reveal?.addEventListener('click',openSidebar);
- backdrop?.addEventListener('click',closeSidebar);
- $('#menuBtn')?.addEventListener('click',()=>sidebar?.classList.contains('open')?closeSidebar():openSidebar());
- $$('.sidebar a').forEach(a=>a.addEventListener('click',()=>setTimeout(closeSidebar,80)));
- $$('.logout-link,[data-logout]').forEach(b=>b.addEventListener('click',()=>$('#logoutModal')?.classList.add('show')));
- $$('[data-close-modal]').forEach(b=>b.addEventListener('click',()=>$('#logoutModal')?.classList.remove('show')));
- // Profile menu / picture actions with Facebook-style crop adjustment
- const profileMenuButton=$('#profileMenuButton'),profileDropdown=$('#profileDropdown'),profileInput=$('#headerProfileInput'),uploadProfileButton=$('#headerUploadProfile'),deleteProfileButton=$('#headerDeleteProfile');
- const pageAvatarButton=$('#profilePageAvatarButton'),pageMenu=$('#profilePageMenu'),pageUpload=$('#profilePageUpload'),pageDelete=$('#profilePageDelete'),pageInput=$('#profilePageInput');
- const cropModal=$('#profileCropModal'),cropImage=$('#profileCropImage'),cropStage=$('#profileCropStage'),cropZoom=$('#profileCropZoom'),cropSave=$('#profileCropSave'),cropCancel=$('#profileCropCancel'),cropClose=$('#profileCropClose');
- let cropFile=null,cropScale=1,cropBaseScale=1,cropX=0,cropY=0,cropStartX=0,cropStartY=0,draggingCrop=false,cropImageReady=false,cropSourceButton=null;
- const closeProfileMenu=()=>{profileDropdown?.classList.remove('show');profileMenuButton?.setAttribute('aria-expanded','false');};
- const closePageProfileMenu=()=>{pageMenu?.classList.remove('show');pageAvatarButton?.setAttribute('aria-expanded','false');};
- profileMenuButton?.addEventListener('click',e=>{e.stopPropagation();closePageProfileMenu();const show=!profileDropdown?.classList.contains('show');profileDropdown?.classList.toggle('show',show);profileMenuButton?.setAttribute('aria-expanded',show?'true':'false');});
- profileDropdown?.addEventListener('click',e=>e.stopPropagation());
- pageAvatarButton?.addEventListener('click',e=>{e.stopPropagation();closeProfileMenu();const show=!pageMenu?.classList.contains('show');pageMenu?.classList.toggle('show',show);pageAvatarButton?.setAttribute('aria-expanded',show?'true':'false');});
- pageMenu?.addEventListener('click',e=>e.stopPropagation());
- document.addEventListener('click',()=>{closeProfileMenu();closePageProfileMenu();});
- document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeProfileMenu();closePageProfileMenu();closeProfileViewer();if(cropModal?.classList.contains('show'))closeCropModal();if($('#journalImageEditorModal')?.classList.contains('show'))imageEditorClose();}});
- const positionCropImage=()=>{if(!cropImageReady||!cropImage)return;cropImage.style.transform=`translate(-50%, -50%) translate(${cropX}px, ${cropY}px) scale(${cropBaseScale*cropScale})`;};
- const openCropModal=file=>{
-   if(!file)return;
-   if(!/^image\/(jpeg|png|webp)$/.test(file.type)){alert('Only JPG, PNG, or WEBP images are allowed.');return;}
-   if(file.size>3*1024*1024){alert('Profile picture must be 3 MB or smaller.');return;}
-   cropFile=file;cropScale=1;cropBaseScale=1;cropX=0;cropY=0;cropImageReady=false;
-   const url=URL.createObjectURL(file);cropImage.src=url;cropModal?.classList.add('show');cropModal?.setAttribute('aria-hidden','false');
-   if(cropZoom)cropZoom.value='1';
-   cropImage.onload=()=>{const stageW=cropStage?.clientWidth||380,stageH=cropStage?.clientHeight||380;cropBaseScale=Math.min(stageW/cropImage.naturalWidth,stageH/cropImage.naturalHeight);cropImageReady=true;positionCropImage();URL.revokeObjectURL(url);};
- };
- const closeCropModal=()=>{cropModal?.classList.remove('show');cropModal?.setAttribute('aria-hidden','true');cropFile=null;cropImageReady=false;if(cropImage)cropImage.removeAttribute('src');};
- const saveCroppedProfile=async()=>{
-   if(!cropFile||!cropImageReady||!cropImage.naturalWidth)return;
-   const size=600,canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;const ctx=canvas.getContext('2d');
-   const stageW=cropStage.clientWidth,stageH=cropStage.clientHeight;
-   const fit=Math.max(stageW/cropImage.naturalWidth,stageH/cropImage.naturalHeight);
-   const drawScale=cropBaseScale*cropScale;const drawW=cropImage.naturalWidth*drawScale,drawH=cropImage.naturalHeight*drawScale;
-   const left=(stageW-drawW)/2+cropX,top=(stageH-drawH)/2+cropY;
-   const sx=Math.max(0,Math.min(cropImage.naturalWidth,(0-left)/drawScale)),sy=Math.max(0,Math.min(cropImage.naturalHeight,(0-top)/drawScale));
-   const sw=Math.min(cropImage.naturalWidth-sx,size/drawScale),sh=Math.min(cropImage.naturalHeight-sy,size/drawScale);
-   ctx.fillStyle='#ffffff';ctx.fillRect(0,0,size,size);
-   const sourceSize=Math.min(sw,sh);const sourceX=sx+(sw-sourceSize)/2;const sourceY=sy+(sh-sourceSize)/2;
-   ctx.drawImage(cropImage,sourceX,sourceY,sourceSize,sourceSize,0,0,size,size);
-   canvas.toBlob(async blob=>{
-     if(!blob)return;
-     const fd=new FormData();fd.append('csrf',window.OJT360.csrf);fd.append('profile_picture',blob,'profile-cropped.jpg');
-     try{if(cropSave)cropSave.disabled=true;const r=await fetch('api/profile_picture.php',{method:'POST',body:fd});const j=await r.json();if(!j.ok)throw new Error(j.message||'Upload failed.');closeCropModal();location.reload();}
-     catch(e){alert(e.message||'Profile picture upload failed.');}
-     finally{if(cropSave)cropSave.disabled=false;}
-   },'image/jpeg',.92);
- };
- cropZoom?.addEventListener('input',()=>{cropScale=parseFloat(cropZoom.value||'1');positionCropImage();});
- cropStage?.addEventListener('pointerdown',e=>{if(!cropImageReady)return;e.preventDefault();draggingCrop=true;cropStartX=e.clientX-cropX;cropStartY=e.clientY-cropY;cropStage.setPointerCapture?.(e.pointerId);});
- cropStage?.addEventListener('pointermove',e=>{if(!draggingCrop)return;cropX=e.clientX-cropStartX;cropY=e.clientY-cropStartY;positionCropImage();});
- cropStage?.addEventListener('pointerup',()=>{draggingCrop=false;});cropStage?.addEventListener('pointercancel',()=>{draggingCrop=false;});
- cropSave?.addEventListener('click',saveCroppedProfile);cropCancel?.addEventListener('click',closeCropModal);cropClose?.addEventListener('click',closeCropModal);cropModal?.addEventListener('click',e=>{if(e.target===cropModal)closeCropModal();}); const profileViewModal=$('#profilePictureViewModal'),profileViewImage=$('#profileViewImage');const openProfileViewer=()=>{if(!profileViewModal)return;const src=window.OJT360.profileImage;if(src){profileViewImage.src=src;profileViewImage.style.display='block';}else{profileViewImage.removeAttribute('src');profileViewImage.style.display='none';}profileViewModal.classList.add('show');profileViewModal.setAttribute('aria-hidden','false');};const closeProfileViewer=()=>{profileViewModal?.classList.remove('show');profileViewModal?.setAttribute('aria-hidden','true');};$('#profileViewClose')?.addEventListener('click',closeProfileViewer);profileViewModal?.addEventListener('click',e=>{if(e.target===profileViewModal)closeProfileViewer();});
- const bindProfileInput=input=>input?.addEventListener('change',()=>{const file=input.files?.[0];if(file)openCropModal(file);input.value='';});
- bindProfileInput(profileInput);bindProfileInput(pageInput);
- uploadProfileButton?.addEventListener('click',()=>profileInput?.click());pageUpload?.addEventListener('click',()=>pageInput?.click());
- $('#profilePageView')?.addEventListener('click',()=>{closePageProfileMenu();openProfileViewer();});
- deleteProfileButton?.addEventListener('click',async()=>{if(!window.OJT360.profileImage){closeProfileMenu();return;}if(!confirm('Delete your current profile picture?'))return;const fd=new FormData();fd.append('csrf',window.OJT360.csrf);fd.append('action','delete');try{deleteProfileButton.disabled=true;const r=await fetch('api/profile_picture.php',{method:'POST',body:fd});const j=await r.json();if(!j.ok)throw new Error(j.message||'Delete failed.');location.reload();}catch(e){alert(e.message||'Could not delete profile picture.');}finally{deleteProfileButton.disabled=false;}});
- pageDelete?.addEventListener('click',async()=>{if(!window.OJT360.profileImage){closePageProfileMenu();return;}if(!confirm('Delete your current profile picture?'))return;const fd=new FormData();fd.append('csrf',window.OJT360.csrf);fd.append('action','delete');try{pageDelete.disabled=true;const r=await fetch('api/profile_picture.php',{method:'POST',body:fd});const j=await r.json();if(!j.ok)throw new Error(j.message||'Delete failed.');location.reload();}catch(e){alert(e.message||'Could not delete profile picture.');}finally{pageDelete.disabled=false;}});
- $('#logoutModal')?.addEventListener('click',e=>{if(e.target.id==='logoutModal')e.currentTarget.classList.remove('show');});
- const dark=$('#darkModeToggle'),compact=$('#compactSidebarToggle'); if(dark){dark.checked=localStorage.getItem('ojt360-dark')==='1';dark.addEventListener('change',()=>{localStorage.setItem('ojt360-dark',dark.checked?'1':'0');applyPrefs();});} if(compact){compact.checked=localStorage.getItem('ojt360-sidebar-open')==='1';compact.addEventListener('change',()=>{localStorage.setItem('ojt360-sidebar-open',compact.checked?'1':'0');applyPrefs();});}
- // Assistant
- const fab=$('#assistantFab'),panel=$('#assistantPanel'),messages=$('#assistantMessages'),form=$('#assistantForm'),input=$('#assistantInput'),status=$('#assistantStatus');let loaded=false,busy=false;const greeting=messages?.innerHTML||'';
- fab?.addEventListener('click',async()=>{panel?.classList.toggle('show');if(panel?.classList.contains('show'))await loadHistory();});$('#assistantClose')?.addEventListener('click',()=>panel?.classList.remove('show'));
- const addMsg=(text,who,replace=false)=>{if(!messages)return null;const d=document.createElement('div');d.className=who==='user'?'user-bubble':'assistant-bubble';d.textContent=text;if(replace&&messages.lastElementChild)messages.lastElementChild.replaceWith(d);else messages.appendChild(d);messages.scrollTop=messages.scrollHeight;return d;};
- async function loadHistory(){if(loaded||!messages)return;try{const r=await fetch('api/assistant.php?action=history',{cache:'no-store'}),j=await r.json();messages.innerHTML='';if(j.ok&&j.history?.length)j.history.forEach(m=>addMsg(m.message,m.role));else messages.innerHTML=greeting;loaded=true;}catch(e){status&&(status.textContent='AI Assistant · history unavailable');}}
- async function ask(text){if(busy)return;busy=true;addMsg(text,'user');const thinking=addMsg('Thinking…','assistant');status&&(status.textContent='AI Assistant · thinking');const fd=new FormData();fd.append('csrf',window.OJT360.csrf);fd.append('message',text);try{const r=await fetch('api/assistant.php',{method:'POST',body:fd}),j=await r.json();if(j.ok){thinking&&(thinking.textContent=j.reply||'No response returned.');status&&(status.textContent=j.mode==='openai'?'AI Assistant · online':'AI Assistant · setup mode');}else{thinking&&(thinking.textContent=j.error||'I could not process that request.');status&&(status.textContent='AI Assistant · error');}}catch(e){thinking&&(thinking.textContent='Assistant connection failed. Check your PHP/API configuration and try again.');status&&(status.textContent='AI Assistant · connection error');}finally{busy=false;messages&&(messages.scrollTop=messages.scrollHeight);}}
- form?.addEventListener('submit',e=>{e.preventDefault();const v=input.value.trim();if(v){input.value='';ask(v);}});$$('[data-assist]').forEach(b=>b.addEventListener('click',()=>ask(b.dataset.assist)));
- // Attendance QR
- let scanner=null;const reader=$('#reader'),scanStatus=$('#scanStatus');async function validateQR(value){if(scanStatus)scanStatus.textContent='Validating QR on server…';const fd=new FormData();fd.append('csrf',window.OJT360.csrf);fd.append('qr_value',value);try{const r=await fetch('api/attendance.php',{method:'POST',body:fd}),j=await r.json();if(scanStatus)scanStatus.textContent=j.message||'Done.';if(j.ok)setTimeout(()=>location.reload(),700);}catch(e){if(scanStatus)scanStatus.textContent='Could not contact the server.';}}
- $('#manualScan')?.addEventListener('click',()=>{const v=$('#manualQr')?.value.trim();if(v)validateQR(v);});$('#startScan')?.addEventListener('click',async()=>{if(!window.Html5Qrcode){if(scanStatus)scanStatus.textContent='QR library is still loading. Try again.';return;}if(scanner)return;scanner=new Html5Qrcode('reader');try{await scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:220,height:220}},async text=>{if(scanStatus)scanStatus.textContent='QR detected.';try{await scanner.stop();}catch(e){}scanner=null;await validateQR(text);});if(scanStatus)scanStatus.textContent='Camera active. Point it at the QR code.';}catch(e){if(scanStatus)scanStatus.textContent='Camera could not start. Use manual QR testing or check browser permissions.';scanner=null;}});$('#stopScan')?.addEventListener('click',async()=>{if(scanner){try{await scanner.stop();}catch(e){}scanner=null;if(scanStatus)scanStatus.textContent='Scanner stopped.';}});
- // Journal editor and timeline edit
- const journalEditor=$('#journalEditor'),journalOrientation=$('#journalForm [name=orientation]'),journalValue=$('#journalContentValue'),count=$('#wordCount'),saveState=$('#saveState'),imageInput=$('#journalImageInput');
- const compilationEditor=$('#compilationContent'),ccount=$('#compilationCount'),cstate=$('#compilationSaveState'),compilationImageInput=$('#compilationImageInput');
- let savedSelection=null;
- const plainWords=el=>{const text=el?.innerText?.replace(/\s+/g,' ').trim()||'';return text?text.split(' ').length:0;};
- const updateJournalCount=()=>{if(journalEditor&&count)count.textContent=`${plainWords(journalEditor)} words`;};const applyJournalOrientation=()=>{if(journalEditor)journalEditor.classList.toggle('page-landscape',journalOrientation?.value==='landscape');};journalOrientation?.addEventListener('change',applyJournalOrientation);applyJournalOrientation();
- const updateCompilationCount=()=>{if(compilationEditor&&ccount)ccount.textContent=`${plainWords(compilationEditor)} words`;};
- const editorHistories=new WeakMap();
- const historyFor=editor=>{if(!editor)return null;if(!editorHistories.has(editor))editorHistories.set(editor,{undo:[],redo:[],last:editor.innerHTML,timer:null,restoring:false});return editorHistories.get(editor);};
- const pushEditorHistory=editor=>{if(!editor)return;const h=historyFor(editor);if(h.last===editor.innerHTML)return;h.undo.push(h.last);if(h.undo.length>80)h.undo.shift();h.redo=[];h.last=editor.innerHTML;};
- const scheduleEditorHistory=editor=>{if(!editor)return;const h=historyFor(editor);clearTimeout(h.timer);h.timer=setTimeout(()=>pushEditorHistory(editor),450);};
- const restoreEditorSnapshot=(editor,html,historyPush=true)=>{if(!editor)return;const h=historyFor(editor);if(historyPush)pushEditorHistory(editor);h.restoring=true;editor.innerHTML=html;h.last=html;h.restoring=false;editor.dispatchEvent(new Event('input',{bubbles:true}));};
- const undoEditor=editor=>{const h=historyFor(editor);if(!h)return;clearTimeout(h.timer);pushEditorHistory(editor);if(!h.undo.length)return;const prev=h.undo.pop();h.redo.push(editor.innerHTML);restoreEditorSnapshot(editor,prev,false);};
- const redoEditor=editor=>{const h=historyFor(editor);if(!h||!h.redo.length)return;clearTimeout(h.timer);h.undo.push(editor.innerHTML);const next=h.redo.pop();restoreEditorSnapshot(editor,next,false);h.last=next;};
- const initEditorHistory=editor=>{if(!editor)return;historyFor(editor);editor.addEventListener('input',()=>{const h=historyFor(editor);if(!h.restoring)scheduleEditorHistory(editor);});editor.addEventListener('keydown',e=>{if(!(e.ctrlKey||e.metaKey))return;if(e.key.toLowerCase()==='z'){e.preventDefault();if(e.shiftKey)redoEditor(editor);else undoEditor(editor);}else if(e.key.toLowerCase()==='y'){e.preventDefault();redoEditor(editor);}});};
- initEditorHistory(journalEditor);initEditorHistory(compilationEditor);
- const saveSelection=editor=>{if(!editor)return;const sel=window.getSelection();if(sel&&sel.rangeCount&&editor.contains(sel.anchorNode)){savedSelection=sel.getRangeAt(0).cloneRange();}};
- const restoreSelection=editor=>{if(!editor)return;editor.focus();if(savedSelection){const sel=window.getSelection();sel.removeAllRanges();sel.addRange(savedSelection);}};
- const execEditorCommand=(editor,cmd,value=null)=>{if(cmd==='undo'){undoEditor(editor);return;}if(cmd==='redo'){redoEditor(editor);return;}restoreSelection(editor);document.execCommand(cmd,false,value);editor.dispatchEvent(new Event('input',{bubbles:true}));saveSelection(editor);};
- const uploadEditorImage=async(editor,input,file,stateEl)=>{
-   if(!file)return;
-   if(!/^image\/(jpeg|png|webp|gif)$/.test(file.type)){if(stateEl)stateEl.textContent='Use JPG, PNG, WEBP, or GIF images.';return;}
-   if(file.size>5*1024*1024){if(stateEl)stateEl.textContent='Image must be 5 MB or smaller.';return;}
-   pushEditorHistory(editor);const fd=new FormData();fd.append('csrf',window.OJT360.csrf);fd.append('image',file);
-   if(stateEl)stateEl.textContent='Uploading image…';
-   try{const r=await fetch('api/journal_image.php',{method:'POST',body:fd});const j=await r.json();if(!j.ok){if(stateEl)stateEl.textContent=j.message||'Image upload failed.';return;}restoreSelection(editor);const img=document.createElement('img');img.src=j.url;img.alt=file.name.replace(/\.[^.]+$/,'');img.loading='lazy';img.setAttribute('draggable','true');img.classList.add('image-centered');img.style.display='block';img.style.margin='16px auto';const sel=window.getSelection();if(sel&&sel.rangeCount){const range=sel.getRangeAt(0);range.collapse(false);range.insertNode(img);range.setStartAfter(img);range.collapse(true);sel.removeAllRanges();sel.addRange(range);}else editor.appendChild(img);editor.dispatchEvent(new Event('input',{bubbles:true}));saveSelection(editor);if(stateEl)stateEl.textContent='Image added.';}catch(e){if(stateEl)stateEl.textContent='Image upload failed.';}finally{if(input)input.value='';}
- };
- const selectedImages=new WeakMap();
- const imageSelection=(editor,img)=>{if(!editor||!img)return;editor.querySelectorAll('img.editor-image-selected').forEach(x=>x.classList.remove('editor-image-selected'));img.classList.add('editor-image-selected');selectedImages.set(editor,img);showImageOverlay(editor,img);};
- let imageOverlay=null;
- const hideImageOverlay=()=>{if(imageOverlay){if(imageOverlay._cleanup)imageOverlay._cleanup();imageOverlay.remove();imageOverlay=null;}};
- const showImageOverlay=(editor,img)=>{hideImageOverlay();if(!img?.isConnected)return;const overlay=document.createElement('div');overlay.className='image-edit-overlay';overlay.innerHTML='<button type="button" data-image-overlay="inline" title="Inline">↔</button><button type="button" data-image-overlay="left" title="Wrap left">◀</button><button type="button" data-image-overlay="right" title="Wrap right">▶</button><button type="button" data-image-overlay="center" title="Center">↔</button><span class="image-size-readout"></span><span class="image-resize-handle" title="Resize"></span>';document.body.appendChild(overlay);imageOverlay=overlay;const place=()=>{if(!img.isConnected){hideImageOverlay();return;}const r=img.getBoundingClientRect();overlay.style.left=`${window.scrollX+r.left}px`;overlay.style.top=`${window.scrollY+r.top}px`;overlay.style.width=`${r.width}px`;overlay.style.height=`${r.height}px`;const ro=overlay.querySelector('.image-size-readout');if(ro)ro.textContent=`${Math.round(img.getBoundingClientRect().width)} px`;};place();window.addEventListener('scroll',place,{passive:true});window.addEventListener('resize',place);overlay._cleanup=()=>{window.removeEventListener('scroll',place);window.removeEventListener('resize',place);};overlay.addEventListener('click',e=>{const b=e.target.closest('[data-image-overlay]');if(!b)return;applyImageLayout(editor,img,b.dataset.imageOverlay);place();});const handle=overlay.querySelector('.image-resize-handle');handle.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();pushEditorHistory(editor);const startX=e.clientX,startW=img.getBoundingClientRect().width;const max=Math.max(180,editor.clientWidth-24);const move=ev=>{const next=Math.max(120,Math.min(max,startW+(ev.clientX-startX)));img.style.width=`${Math.round(next)}px`;img.style.height='auto';editor.dispatchEvent(new Event('input',{bubbles:true}));place();};const up=()=>{document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',up);};document.addEventListener('pointermove',move);document.addEventListener('pointerup',up,{once:true});});};
- const applyImageLayout=(editor,img,layout)=>{if(!img)return;pushEditorHistory(editor);img.classList.remove('image-inline','image-wrap-left','image-wrap-right','image-centered');if(layout==='left'){img.classList.add('image-wrap-left');img.style.margin='8px 22px 14px 0';img.style.float='left';}else if(layout==='right'){img.classList.add('image-wrap-right');img.style.margin='8px 0 14px 22px';img.style.float='right';}else if(layout==='center'){img.classList.add('image-centered');img.style.float='none';img.style.display='block';img.style.margin='16px auto';}else{img.classList.add('image-inline');img.style.float='none';img.style.display='inline-block';img.style.verticalAlign='middle';img.style.margin='8px 10px';}editor.dispatchEvent(new Event('input',{bubbles:true}));imageSelection(editor,img);};
- const journalContextMenu=$('#journalContextMenu');
- const closeJournalContext=()=>{journalContextMenu?.classList.remove('show');journalContextMenu?.setAttribute('aria-hidden','true');};
- const uploadReplacementImage=async(editor,img,file,stateEl)=>{if(!file||!img)return;if(!/^image\/(jpeg|png|webp|gif)$/.test(file.type)){if(stateEl)stateEl.textContent='Use JPG, PNG, WEBP, or GIF images.';return;}if(file.size>5*1024*1024){if(stateEl)stateEl.textContent='Image must be 5 MB or smaller.';return;}pushEditorHistory(editor);const fd=new FormData();fd.append('csrf',window.OJT360.csrf);fd.append('image',file);if(stateEl)stateEl.textContent='Changing image…';try{const r=await fetch('api/journal_image.php',{method:'POST',body:fd}),j=await r.json();if(!j.ok)throw new Error(j.message||'Image update failed.');img.src=j.url;img.alt=file.name.replace(/\.[^.]+$/,'');editor.dispatchEvent(new Event('input',{bubbles:true}));imageSelection(editor,img);if(stateEl)stateEl.textContent='Image changed.';}catch(e){if(stateEl)stateEl.textContent=e.message||'Image update failed.';}};
- const openImageChangePicker=(editor,img,stateEl)=>{const input=document.createElement('input');input.type='file';input.accept='image/png,image/jpeg,image/webp,image/gif';input.onchange=()=>{const f=input.files?.[0];if(f)uploadReplacementImage(editor,img,f,stateEl);};input.click();};
- const showJournalImageContext=(editor,img,x,y)=>{if(!journalContextMenu)return;imageSelection(editor,img);journalContextMenu.innerHTML=`<button data-img-action="edit">✎ Edit image</button><button data-img-action="crop">▣ Crop</button><button data-img-action="rotate-left">↶ Rotate left</button><button data-img-action="rotate-right">↷ Rotate right</button><button data-img-action="duplicate">▣ Duplicate</button><button data-img-action="change">↻ Change image</button><div class="journal-context-sep"></div><button data-img-action="inline">↔ Inline</button><button data-img-action="left">◀ Wrap left</button><button data-img-action="right">▶ Wrap right</button><button data-img-action="center">↔ Center</button><div class="journal-context-sep"></div><button class="danger" data-img-action="remove">× Remove image</button>`;journalContextMenu.dataset.editor=editor===journalEditor?'journal':'compilation';journalContextMenu.dataset.imageId='';journalContextMenu._editor=editor;journalContextMenu._image=img;const pad=8,w=190,h=360;const left=Math.min(x,window.innerWidth-w-pad),top=Math.min(y,window.innerHeight-h-pad);journalContextMenu.style.left=Math.max(pad,left)+'px';journalContextMenu.style.top=Math.max(pad,top)+'px';journalContextMenu.classList.add('show');journalContextMenu.setAttribute('aria-hidden','false');};
- journalContextMenu?.addEventListener('click',e=>{const b=e.target.closest('[data-img-action]');if(!b)return;const editor=journalContextMenu._editor,img=journalContextMenu._image;if(!editor||!img)return;const a=b.dataset.imgAction;closeJournalContext();if(a==='edit'||a==='crop'){pushEditorHistory(editor);openJournalImageEditor(editor,img);return;}if(a==='rotate-left'||a==='rotate-right'){pushEditorHistory(editor);openJournalImageEditor(editor,img);setTimeout(()=>{if(imageEditorState){imageEditorState.rotation+=(a==='rotate-left'?-90:90);drawImageEditor();}},30);return;}if(a==='duplicate'){pushEditorHistory(editor);const clone=img.cloneNode(true);clone.removeAttribute('id');img.parentNode?.insertBefore(clone,img.nextSibling);editor.dispatchEvent(new Event('input',{bubbles:true}));imageSelection(editor,clone);return;}if(a==='change'){openImageChangePicker(editor,img,editor===journalEditor?saveState:cstate);return;}if(a==='remove'){pushEditorHistory(editor);img.remove();hideImageOverlay();editor.dispatchEvent(new Event('input',{bubbles:true}));return;}if(['inline','left','right','center'].includes(a)){applyImageLayout(editor,img,a);}});
- document.addEventListener('click',e=>{if(!e.target.closest('#journalContextMenu'))closeJournalContext();});
+async function getJSON(url) {
+  try { const r = await fetch(url, { cache: 'no-store', credentials: 'same-origin' }); return await r.json(); }
+  catch (e) { return { ok: false, message: 'Could not load data.' }; }
+}
 
- const bindImageEditing=editor=>{if(!editor)return;editor.addEventListener('contextmenu',e=>{const img=e.target.closest('img');if(img&&editor.contains(img)){e.preventDefault();showJournalImageContext(editor,img,e.clientX,e.clientY);}});editor.addEventListener('click',e=>{const img=e.target.closest('img');if(img&&editor.contains(img)){e.preventDefault();imageSelection(editor,img);}else if(!e.target.closest('.image-edit-overlay'))hideImageOverlay();});editor.addEventListener('keydown',e=>{const img=selectedImages.get(editor);if(!img)return;if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement===editor){const sel=window.getSelection();if(sel&&sel.rangeCount&&sel.anchorNode&&img.contains(sel.anchorNode)){return;} } if(e.key==='Escape')hideImageOverlay();});editor.addEventListener('dragstart',e=>{const img=e.target.closest('img');if(img){e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/ojt360-image','move');editor._dragImage=img;imageSelection(editor,img);}});editor.addEventListener('dragover',e=>{if(editor._dragImage)e.preventDefault();});editor.addEventListener('drop',e=>{const img=editor._dragImage;if(!img)return;e.preventDefault();pushEditorHistory(editor);const range=document.caretRangeFromPoint?document.caretRangeFromPoint(e.clientX,e.clientY):(document.caretPositionFromPoint?(()=>{const p=document.caretPositionFromPoint(e.clientX,e.clientY);if(!p)return null;const r=document.createRange();r.setStart(p.offsetNode,p.offset);return r;})():null);if(range&&editor.contains(range.startContainer)){range.deleteContents();range.insertNode(img);range.setStartAfter(img);range.collapse(true);const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);editor.dispatchEvent(new Event('input',{bubbles:true}));}editor._dragImage=null;imageSelection(editor,img);});};
- let imageEditorState=null;
- const imageEditorModal=$('#journalImageEditorModal'), imageCanvas=$('#journalImageCanvas'), imageCtx=imageCanvas?.getContext('2d'), imageZoom=$('#journalImageZoom'), imageRatio=$('#journalImageCropRatio');
- const imageEditorClose=()=>{imageEditorModal?.classList.remove('show');imageEditorModal?.setAttribute('aria-hidden','true');imageEditorState=null;};
- const drawImageEditor=()=>{if(!imageEditorState||!imageCtx)return;const st=imageEditorState,canvas=imageCanvas;imageCtx.clearRect(0,0,canvas.width,canvas.height);imageCtx.fillStyle='#111827';imageCtx.fillRect(0,0,canvas.width,canvas.height);const iw=st.image.naturalWidth,ih=st.image.naturalHeight;const base=Math.min(canvas.width/iw,canvas.height/ih);const scale=base*st.zoom;const w=iw*scale,h=ih*scale;imageCtx.save();imageCtx.translate(canvas.width/2+st.x,canvas.height/2+st.y);imageCtx.rotate(st.rotation*Math.PI/180);imageCtx.drawImage(st.image,-w/2,-h/2,w,h);imageCtx.restore();};
- const openJournalImageEditor=(editor,img)=>{if(!imageEditorModal||!imageCanvas)return;const src=img.src,im=new Image();im.crossOrigin='anonymous';im.onload=()=>{imageEditorState={editor,img,image:im,zoom:1,x:0,y:0,rotation:0};if(imageZoom)imageZoom.value='1';if(imageRatio)imageRatio.value='free';drawImageEditor();imageEditorModal.classList.add('show');imageEditorModal.setAttribute('aria-hidden','false');};im.src=src;};
- const applyEditedJournalImage=()=>{if(!imageEditorState||!imageCanvas)return;const st=imageEditorState;pushEditorHistory(st.editor);const canvas=imageCanvas,ratio=(imageRatio?.value||'free').split(':');let outW=900,outH=620;if(ratio.length===2){const ar=parseFloat(ratio[0])/parseFloat(ratio[1]);if(ar>1)outH=Math.round(outW/ar);else outW=Math.round(outH*ar);}const out=document.createElement('canvas');out.width=outW;out.height=outH;const ctx=out.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,outW,outH);const iw=st.image.naturalWidth,ih=st.image.naturalHeight;const base=Math.min(canvas.width/iw,canvas.height/ih),scale=base*st.zoom,w=iw*scale,h=ih*scale;const cropScale=outW/canvas.width;ctx.save();ctx.translate(outW/2,outH/2);ctx.rotate(st.rotation*Math.PI/180);ctx.translate(st.x*cropScale,st.y*cropScale);ctx.drawImage(st.image,-w*cropScale/2,-h*cropScale/2,w*cropScale,h*cropScale);ctx.restore();out.toBlob(async blob=>{if(!blob)return;const fd=new FormData();fd.append('csrf',window.OJT360.csrf);fd.append('image',blob,'journal-edited.jpg');try{const r=await fetch('api/journal_image.php',{method:'POST',body:fd}),j=await r.json();if(!j.ok)throw new Error(j.message||'Image update failed.');st.img.src=j.url;st.editor.dispatchEvent(new Event('input',{bubbles:true}));imageEditorClose();imageSelection(st.editor,st.img);}catch(e){alert(e.message||'Could not update image.');}},'image/jpeg',.94);};
- $('#journalImageEditorClose')?.addEventListener('click',imageEditorClose);$('#journalImageCancel')?.addEventListener('click',imageEditorClose);$('#journalImageApply')?.addEventListener('click',applyEditedJournalImage);imageEditorModal?.addEventListener('click',e=>{if(e.target===imageEditorModal)imageEditorClose();});imageZoom?.addEventListener('input',()=>{if(imageEditorState){imageEditorState.zoom=parseFloat(imageZoom.value||'1');drawImageEditor();}});$('#journalRotateLeft')?.addEventListener('click',()=>{if(imageEditorState){imageEditorState.rotation-=90;drawImageEditor();}});$('#journalRotateRight')?.addEventListener('click',()=>{if(imageEditorState){imageEditorState.rotation+=90;drawImageEditor();}});$('#journalCropCenter')?.addEventListener('click',()=>{if(imageEditorState)drawImageEditor();});
- let imageEditorDragging=false,imageEditorDragX=0,imageEditorDragY=0;imageCanvas?.addEventListener('pointerdown',e=>{if(!imageEditorState)return;imageEditorDragging=true;imageEditorDragX=e.clientX-imageEditorState.x;imageEditorDragY=e.clientY-imageEditorState.y;imageCanvas.setPointerCapture?.(e.pointerId);});imageCanvas?.addEventListener('pointermove',e=>{if(!imageEditorDragging||!imageEditorState)return;imageEditorState.x=e.clientX-imageEditorDragX;imageEditorState.y=e.clientY-imageEditorDragY;drawImageEditor();});imageCanvas?.addEventListener('pointerup',()=>imageEditorDragging=false);imageCanvas?.addEventListener('pointercancel',()=>imageEditorDragging=false);
- const bindToolbar=(toolbar,editor,input,stateEl)=>{
-   if(!toolbar||!editor)return;
-   toolbar.addEventListener('mousedown',e=>{const btn=e.target.closest('button');if(btn){e.preventDefault();saveSelection(editor);}});
-   toolbar.addEventListener('change',e=>{const select=e.target.closest('select[data-command]');if(!select)return;saveSelection(editor);execEditorCommand(editor,select.dataset.command,select.value);});toolbar.addEventListener('click',e=>{const btn=e.target.closest('button');if(!btn)return;const cmd=btn.dataset.command,action=btn.dataset.editorAction,layout=btn.dataset.imageLayout;if(layout){const img=selectedImages.get(editor);if(img)applyImageLayout(editor,img,layout);else if(stateEl)stateEl.textContent='Select an image first.';return;}if(action==='image'){saveSelection(editor);input?.click();return;}if(action==='image-edit'){const img=selectedImages.get(editor);if(img)openJournalImageEditor(editor,img);else if(stateEl)stateEl.textContent='Select an image first.';return;}if(action==='link'){saveSelection(editor);const url=window.prompt('Enter the web address:','https://');if(url)execEditorCommand(editor,'createLink',url);return;}if(cmd)execEditorCommand(editor,cmd,btn.dataset.value||null);});
-   input?.addEventListener('change',()=>uploadEditorImage(editor,input,input.files?.[0],stateEl));
- };
- bindToolbar(document.querySelector('.editor-toolbar[data-editor="journalEditor"]'),journalEditor,imageInput,saveState);
- bindToolbar(document.querySelector('.editor-toolbar[data-editor="compilationContent"]'),compilationEditor,compilationImageInput,cstate);
- const bindImagePaste=editor=>{editor?.addEventListener('paste',async e=>{const items=[...(e.clipboardData?.items||[])];const item=items.find(x=>x.type.startsWith('image/'));if(!item)return;e.preventDefault();const file=item.getAsFile();if(file)await uploadEditorImage(editor,null,file,editor===journalEditor?saveState:cstate);});editor?.addEventListener('dragover',e=>{if([...e.dataTransfer.items].some(x=>x.kind==='file'&&x.type.startsWith('image/')))e.preventDefault();});editor?.addEventListener('drop',async e=>{const file=[...e.dataTransfer.files].find(x=>x.type.startsWith('image/'));if(!file)return;e.preventDefault();saveSelection(editor);await uploadEditorImage(editor,null,file,editor===journalEditor?saveState:cstate);});};
- bindImagePaste(journalEditor);bindImagePaste(compilationEditor);bindImageEditing(journalEditor);bindImageEditing(compilationEditor);
- journalEditor?.addEventListener('keyup',()=>saveSelection(journalEditor));journalEditor?.addEventListener('mouseup',()=>saveSelection(journalEditor));
- compilationEditor?.addEventListener('keyup',()=>saveSelection(compilationEditor));compilationEditor?.addEventListener('mouseup',()=>saveSelection(compilationEditor));
- journalEditor?.addEventListener('input',()=>{updateJournalCount();if(saveState)saveState.textContent='Unsaved changes';});
- compilationEditor?.addEventListener('input',()=>{updateCompilationCount();if(cstate)cstate.textContent='Unsaved changes';});
- updateJournalCount();updateCompilationCount();
- const journalForm=$('#journalForm');
- async function saveJournal(submit){if(!journalForm||!journalEditor)return;journalValue.value=journalEditor.innerHTML;const fd=new FormData(journalForm);fd.set('content',journalEditor.innerHTML);fd.set('orientation',document.querySelector('#journalForm [name=orientation]')?.value||'portrait');fd.append('submit',submit?'1':'0');if(saveState)saveState.textContent='Saving…';try{const r=await fetch('api/journal.php',{method:'POST',body:fd}),j=await r.json();if(saveState)saveState.textContent=j.message||'Saved';if(j.ok&&!submit&&j.journal_id)journalForm.querySelector('[name=journal_id]').value=j.journal_id;if(j.ok)setTimeout(()=>location.reload(),submit?700:450);}catch(e){if(saveState)saveState.textContent='Save failed';}}
- $('#saveDraft')?.addEventListener('click',()=>saveJournal(false));journalForm?.addEventListener('submit',e=>{e.preventDefault();saveJournal(true);});
- $$('[data-edit-journal]').forEach(btn=>btn.addEventListener('click',()=>{try{const d=JSON.parse(btn.dataset.editJournal);if(!journalForm||!journalEditor)return;journalForm.querySelector('[name=journal_id]').value=d.id;journalForm.querySelector('[name=week_start]').value=d.week_start;journalForm.querySelector('[name=title]').value=d.title;if(journalOrientation)journalOrientation.value=d.orientation||'portrait';applyJournalOrientation();journalEditor.innerHTML=d.content||'<p><br></p>';journalValue.value=journalEditor.innerHTML;updateJournalCount();journalEditor.scrollIntoView({behavior:'smooth',block:'start'});if(saveState)saveState.textContent='Loaded for editing';}catch(e){}}));
- // Final compilation
- const cf=$('#compilationForm');
- const orientationSelect=$('#documentOrientation'),pageSizeSelect=$('#documentPageSize'),compWorkspace=document.querySelector('.compilation-workspace'),pageNav=$('#documentPages');
- const applyDocumentSettings=()=>{const ed=compilationEditor;if(!ed)return;ed.classList.toggle('page-landscape',orientationSelect?.value==='landscape');ed.classList.toggle('page-letter',pageSizeSelect?.value==='Letter');};orientationSelect?.addEventListener('change',applyDocumentSettings);pageSizeSelect?.addEventListener('change',applyDocumentSettings);applyDocumentSettings();
- const getDocumentPages=()=>compilationEditor?[...compilationEditor.querySelectorAll('.compiled-week,.document-manual-page')]:[];
- const refreshPageNavigator=()=>{if(!pageNav||!compilationEditor)return;pageNav.innerHTML='';const pages=getDocumentPages();if(!pages.length){const b=document.createElement('button');b.className='document-page-thumb active';b.innerHTML='<span>1</span><strong>Blank page</strong>';pageNav.appendChild(b);return;}pages.forEach((page,i)=>{const b=document.createElement('button');b.className='document-page-thumb';const title=page.querySelector('h2')?.textContent||page.querySelector('.compiled-week-label')?.textContent||`Page ${i+1}`;b.innerHTML=`<span>${i+1}</span><strong>${title}</strong>`;b.addEventListener('click',()=>{pageNav.querySelectorAll('.document-page-thumb').forEach(x=>x.classList.remove('active'));b.classList.add('active');page.scrollIntoView({behavior:'smooth',block:'center'});});b.addEventListener('contextmenu',e=>{e.preventDefault();showPageContext(page,b,e.clientX,e.clientY);});pageNav.appendChild(b);});};
- const showPageContext=(page,thumb,x,y)=>{if(!journalContextMenu)return;journalContextMenu.innerHTML='<button data-page-action="add-before">＋ Add page before</button><button data-page-action="add-after">＋ Add page after</button><button data-page-action="duplicate">▣ Duplicate page</button><div class="journal-context-sep"></div><button class="danger" data-page-action="remove">× Remove page</button>';journalContextMenu._page=page;journalContextMenu._thumb=thumb;journalContextMenu._editor=compilationEditor;const w=190,h=190,pad=8;journalContextMenu.style.left=Math.max(pad,Math.min(x,window.innerWidth-w-pad))+'px';journalContextMenu.style.top=Math.max(pad,Math.min(y,window.innerHeight-h-pad))+'px';journalContextMenu.classList.add('show');journalContextMenu.setAttribute('aria-hidden','false');};
- const makeManualPage=()=>{const div=document.createElement('div');div.className='document-manual-page';div.innerHTML='<div class="compiled-week-label">NEW PAGE</div><h2>New Journal Page</h2><p><br></p>';return div;};
- const activeDocumentPage=()=>{const pages=getDocumentPages();return pages.find(p=>{const r=p.getBoundingClientRect();return r.top<window.innerHeight/2&&r.bottom>window.innerHeight/2;})||pages[pages.length-1]||null;};
- const addPage=(where='after')=>{if(!compilationEditor)return;pushEditorHistory(compilationEditor);const active=activeDocumentPage();const div=makeManualPage();if(where==='before'&&active)active.before(div);else if(where==='after'&&active)active.after(div);else compilationEditor.appendChild(div);compilationEditor.dispatchEvent(new Event('input',{bubbles:true}));refreshPageNavigator();div.scrollIntoView({behavior:'smooth',block:'center'});};
- $('#addDocumentPage')?.addEventListener('click',()=>addPage('after'));
- $('#removeDocumentPage')?.addEventListener('click',()=>{const pages=getDocumentPages();if(pages.length<=1){alert('Keep at least one page in the compilation.');return;}pushEditorHistory(compilationEditor);const active=pages.find(p=>{const r=p.getBoundingClientRect();return r.top<window.innerHeight/2&&r.bottom>window.innerHeight/2;})||pages[pages.length-1];active.remove();compilationEditor.dispatchEvent(new Event('input',{bubbles:true}));refreshPageNavigator();});
-
-
- journalContextMenu?.addEventListener('click',e=>{const b=e.target.closest('[data-page-action]');if(!b)return;const page=journalContextMenu._page;if(!page)return;const a=b.dataset.pageAction;closeJournalContext();pushEditorHistory(compilationEditor);if(a==='remove'){const pages=getDocumentPages();if(pages.length<=1){alert('Keep at least one page in the compilation.');return;}page.remove();}else if(a==='duplicate'){const clone=page.cloneNode(true);page.after(clone);}else if(a==='add-before'){page.before(makeManualPage());}else if(a==='add-after'){page.after(makeManualPage());}compilationEditor.dispatchEvent(new Event('input',{bubbles:true}));refreshPageNavigator();});
- function updatePrintPreview(){const t=cf?.querySelector('[name=title]')?.value||'OJT Weekly Journal Compilation';const p=$('#printTitle'),out=$('#printContent');if(p)p.textContent=t;if(out&&compilationEditor)out.innerHTML=compilationEditor.innerHTML;}
- cf?.addEventListener('submit',async e=>{e.preventDefault();if(!compilationEditor)return;const fd=new FormData(cf);fd.set('content',compilationEditor.innerHTML);fd.set('orientation',orientationSelect?.value||'portrait');fd.set('page_size',pageSizeSelect?.value||'A4');if(cstate)cstate.textContent='Saving…';try{const r=await fetch('api/journal_compilation.php',{method:'POST',body:fd}),j=await r.json();if(cstate)cstate.textContent=j.message||'Saved';if(j.ok)updatePrintPreview();}catch(e){if(cstate)cstate.textContent='Save failed';}});
- updatePrintPreview();
- $('#printCompilation')?.addEventListener('click',()=>{updatePrintPreview();document.body.classList.add('printing-compilation');window.print();setTimeout(()=>document.body.classList.remove('printing-compilation'),300);});$('#pdfCompilation')?.addEventListener('click',()=>{updatePrintPreview();document.body.classList.add('printing-compilation');alert('In the print dialog, choose “Save as PDF” as the destination, then save your final compilation.');window.print();setTimeout(()=>document.body.classList.remove('printing-compilation'),300);});
- // Tasks
- $$('.task-check').forEach(el=>el.addEventListener('click',()=>{const select=document.querySelector(`.task-status-select[data-task-id=\"${el.dataset.taskId}\"]`);if(select)select.value=select.value==='completed'?'pending':'completed';}));$$('.task-update-save').forEach(btn=>btn.addEventListener('click',async()=>{const id=btn.dataset.taskId,select=document.querySelector(`.task-status-select[data-task-id=\"${id}\"]`),comment=document.querySelector(`.task-comment[data-task-id=\"${id}\"]`),state=document.querySelector(`[data-task-state=\"${id}\"]`);const fd=new FormData();fd.append('csrf',window.OJT360.csrf);fd.append('task_id',id);fd.append('status',select?.value||'pending');fd.append('comment',comment?.value||'');if(state)state.textContent='Saving…';try{const r=await fetch('api/tasks.php',{method:'POST',body:fd}),j=await r.json();if(!j.ok)throw new Error(j.message||'Could not update task.');if(state)state.textContent=j.message||'Saved';setTimeout(()=>location.reload(),500);}catch(e){if(state)state.textContent=e.message||'Save failed';}}));
+/* ---------- toast / modal / confirm ---------- */
+function toast(message, type = 'info', ms = 3800) {
+  const stack = $('#toastStack'); if (!stack) return;
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.innerHTML = icon(type === 'success' ? 'check' : type === 'error' ? 'alert' : type === 'warn' ? 'alert' : 'bell') + '<span>' + esc(message) + '</span>';
+  stack.appendChild(t);
+  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 260); }, ms);
+}
+function lockScroll() { document.body.style.overflow = $$('.modal-backdrop.show').length ? 'hidden' : ''; }
+function openModal(el) { if (typeof el === 'string') el = $(el); if (!el) return; el.classList.add('show'); el.setAttribute('aria-hidden', 'false'); lockScroll(); }
+function closeModal(el) { if (typeof el === 'string') el = $(el); if (!el) return; el.classList.remove('show'); el.setAttribute('aria-hidden', 'true'); lockScroll(); emit('modal:close', el); }
+document.addEventListener('click', e => {
+  const bd = e.target.classList && e.target.classList.contains('modal-backdrop') ? e.target : null;
+  if (bd && !bd.hasAttribute('data-static')) closeModal(bd);
+  const cl = e.target.closest && e.target.closest('[data-close-modal]');
+  if (cl) closeModal(cl.closest('.modal-backdrop'));
 });
+function confirmBox({ title = 'Are you sure?', message = '', confirmText = 'Confirm', danger = false } = {}) {
+  return new Promise(resolve => {
+    const bd = document.createElement('div');
+    bd.className = 'modal-backdrop';
+    bd.innerHTML = `<div class="modal modal-sm center"><div class="modal-icon" style="${danger ? '' : 'background:var(--primary-soft);color:var(--primary-600)'}">${icon(danger ? 'trash' : 'help')}</div><h2>${esc(title)}</h2><p class="muted">${esc(message)}</p><div class="modal-actions" style="justify-content:center"><button class="btn secondary" data-no>Cancel</button><button class="btn ${danger ? 'danger' : 'primary'}" data-yes>${esc(confirmText)}</button></div></div>`;
+    document.body.appendChild(bd);
+    requestAnimationFrame(() => bd.classList.add('show')); lockScroll();
+    const done = v => { bd.classList.remove('show'); setTimeout(() => { bd.remove(); lockScroll(); }, 230); resolve(v); };
+    bd.querySelector('[data-yes]').onclick = () => done(true);
+    bd.querySelector('[data-no]').onclick = () => done(false);
+    bd.addEventListener('click', e => { if (e.target === bd) done(false); });
+  });
+}
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const open = $$('.modal-backdrop.show').pop();
+  if (open && !open.hasAttribute('data-static')) closeModal(open);
+});
+
+/* ---------- theme ---------- */
+const mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+function applyTheme(pref, animate = true) {
+  const dark = pref === 'dark' || (pref === 'system' && mq && mq.matches);
+  const h = document.documentElement;
+  if (animate) { h.classList.add('theme-switching'); setTimeout(() => h.classList.remove('theme-switching'), 500); }
+  h.setAttribute('data-theme', dark ? 'dark' : 'light');
+  h.setAttribute('data-theme-pref', pref);
+  try { localStorage.setItem('ojt360-theme', pref); localStorage.setItem('ojt360-dark', dark ? '1' : '0'); } catch (e) {}
+  emit('theme', dark ? 'dark' : 'light');
+}
+if (mq && mq.addEventListener) mq.addEventListener('change', () => { if (document.documentElement.getAttribute('data-theme-pref') === 'system') applyTheme('system'); });
+$('#themeQuick')?.addEventListener('click', () => applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
+
+/* ---------- sidebar ---------- */
+const sidebar = $('#sidebar'), backdrop = $('#sidebarBackdrop');
+const desktop = () => window.matchMedia('(min-width:1025px)').matches;
+function setSidebarCollapsed(v) {
+  document.documentElement.classList.toggle('sb-collapsed', v);
+  try { localStorage.setItem('ojt360-sidebar', v ? 'collapsed' : 'open'); } catch (e) {}
+}
+function closeDrawer() { sidebar?.classList.remove('open'); backdrop?.classList.remove('show'); }
+$('#menuBtn')?.addEventListener('click', () => {
+  if (desktop()) setSidebarCollapsed(!document.documentElement.classList.contains('sb-collapsed'));
+  else { const o = !sidebar.classList.contains('open'); sidebar.classList.toggle('open', o); backdrop.classList.toggle('show', o); }
+});
+backdrop?.addEventListener('click', closeDrawer);
+$$('.sidebar a').forEach(a => a.addEventListener('click', () => { if (!desktop()) closeDrawer(); }));
+$$('[data-logout]').forEach(b => b.addEventListener('click', () => openModal('#logoutModal')));
+
+/* ---------- online pill ---------- */
+const net = $('#netPill');
+function updateNet() { if (!net) return; const on = navigator.onLine; net.classList.toggle('offline', !on); $('span', net).textContent = on ? 'Online' : 'Offline'; }
+window.addEventListener('online', updateNet); window.addEventListener('offline', updateNet); updateNet();
+
+/* ---------- profile photo (menu, crop, view, delete) ---------- */
+const avatarEls = () => $$('.mini-card .avatar, [data-avatar], [data-avatar-xl]');
+function setAvatar(url) {
+  C.profileImage = url || '';
+  const initials = (C.userName || 'U').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  avatarEls().forEach(el => { el.innerHTML = url ? `<img src="${esc(url)}" alt="Profile picture">` : esc(initials); });
+  const vi = $('#profileViewImage'), vs = $('#profileViewInitials');
+  if (vi) { vi.style.display = url ? 'block' : 'none'; if (url) vi.src = url; }
+  if (vs) vs.style.display = url ? 'none' : 'block';
+  emit('avatar', url);
+}
+const pm = $('#profileMenuButton'), pd = $('#profileDropdown');
+pm?.addEventListener('click', e => { e.stopPropagation(); const s = !pd.classList.contains('show'); pd.classList.toggle('show', s); pm.setAttribute('aria-expanded', s); });
+pd?.addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', () => { pd?.classList.remove('show'); $$('.avatar-menu.show').forEach(m => m.classList.remove('show')); });
+
+const crop = { file: null, img: $('#profileCropImage'), stage: $('#profileCropStage'), zoom: $('#profileCropZoom'), x: 0, y: 0, scale: 1, base: 1, ready: false, drag: null };
+function cropLayout() {
+  if (!crop.ready) return;
+  const S = crop.stage.clientWidth, nw = crop.img.naturalWidth, nh = crop.img.naturalHeight;
+  const sc = crop.base * crop.scale, dw = nw * sc, dh = nh * sc;
+  crop.x = Math.max(-(dw - S) / 2, Math.min((dw - S) / 2, crop.x));
+  crop.y = Math.max(-(dh - S) / 2, Math.min((dh - S) / 2, crop.y));
+  crop.img.style.transform = `translate(-50%,-50%) translate(${crop.x}px,${crop.y}px) scale(${sc})`;
+}
+function openCrop(file) {
+  if (!file) return;
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { toast('Only JPG, PNG, or WEBP images are allowed.', 'error'); return; }
+  if (file.size > 8 * 1024 * 1024) { toast('Please choose an image under 8 MB.', 'error'); return; }
+  crop.file = file; crop.scale = 1; crop.x = crop.y = 0; crop.ready = false; crop.zoom.value = 1;
+  const url = URL.createObjectURL(file);
+  crop.img.onload = () => { const S = crop.stage.clientWidth; crop.base = Math.max(S / crop.img.naturalWidth, S / crop.img.naturalHeight); crop.ready = true; cropLayout(); URL.revokeObjectURL(url); };
+  crop.img.src = url; openModal('#profileCropModal');
+}
+crop.zoom?.addEventListener('input', () => { crop.scale = parseFloat(crop.zoom.value); cropLayout(); });
+crop.stage?.addEventListener('pointerdown', e => { if (!crop.ready) return; crop.drag = { x: e.clientX - crop.x, y: e.clientY - crop.y }; crop.stage.setPointerCapture(e.pointerId); });
+crop.stage?.addEventListener('pointermove', e => { if (!crop.drag) return; crop.x = e.clientX - crop.drag.x; crop.y = e.clientY - crop.drag.y; cropLayout(); });
+['pointerup', 'pointercancel'].forEach(ev => crop.stage?.addEventListener(ev, () => { crop.drag = null; }));
+crop.stage?.addEventListener('wheel', e => { e.preventDefault(); crop.scale = Math.min(3, Math.max(1, crop.scale - e.deltaY * 0.0015)); crop.zoom.value = crop.scale; cropLayout(); }, { passive: false });
+const closeCrop = () => { closeModal('#profileCropModal'); crop.ready = false; crop.file = null; };
+$('#profileCropCancel')?.addEventListener('click', closeCrop);
+$('#profileCropClose')?.addEventListener('click', closeCrop);
+$('#profileCropSave')?.addEventListener('click', async () => {
+  if (!crop.ready) return;
+  const S = crop.stage.clientWidth, sc = crop.base * crop.scale, dw = crop.img.naturalWidth * sc, dh = crop.img.naturalHeight * sc;
+  const sx = (dw / 2 - S / 2 - crop.x) / sc, sy = (dh / 2 - S / 2 - crop.y) / sc, sw = S / sc;
+  const cv = document.createElement('canvas'); cv.width = cv.height = 640;
+  const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 640, 640);
+  ctx.drawImage(crop.img, sx, sy, sw, sw, 0, 0, 640, 640);
+  const btn = $('#profileCropSave'); btn.disabled = true; btn.textContent = 'Saving…';
+  cv.toBlob(async blob => {
+    const fd = new FormData(); fd.append('profile_picture', blob, 'profile.jpg');
+    const j = await api('api/profile_picture.php', fd);
+    btn.disabled = false; btn.textContent = 'Save profile picture';
+    if (j.ok) { setAvatar(j.url); closeCrop(); toast('Profile picture updated.', 'success'); } else toast(j.message || 'Upload failed.', 'error');
+  }, 'image/jpeg', 0.92);
+});
+function bindPhotoInput(input) { input?.addEventListener('change', () => { const f = input.files && input.files[0]; if (f) openCrop(f); input.value = ''; }); }
+bindPhotoInput($('#headerProfileInput'));
+$('#headerUploadProfile')?.addEventListener('click', () => $('#headerProfileInput').click());
+async function deletePhoto() {
+  if (!C.profileImage) { toast('You have no profile picture to delete.', 'warn'); return; }
+  if (!await confirmBox({ title: 'Delete profile photo?', message: 'Your initials will be shown instead.', confirmText: 'Delete', danger: true })) return;
+  const j = await api('api/profile_picture.php', { action: 'delete' });
+  if (j.ok) { setAvatar(''); toast('Profile photo removed.', 'success'); } else toast(j.message || 'Could not delete the photo.', 'error');
+}
+$('#headerDeleteProfile')?.addEventListener('click', deletePhoto);
+function viewPhoto() { setAvatar(C.profileImage); openModal('#profilePictureViewModal'); }
+$('#profileViewClose')?.addEventListener('click', () => closeModal('#profilePictureViewModal'));
+// page-level avatar menu (profile.php)
+$$('[data-avatar-menu]').forEach(btn => {
+  const menu = $('#' + btn.dataset.avatarMenu);
+  btn.addEventListener('click', e => { e.stopPropagation(); menu.classList.toggle('show'); });
+  menu.addEventListener('click', e => e.stopPropagation());
+});
+$$('[data-photo-action]').forEach(b => b.addEventListener('click', () => {
+  $$('.avatar-menu.show').forEach(m => m.classList.remove('show'));
+  const a = b.dataset.photoAction;
+  if (a === 'view') viewPhoto(); else if (a === 'upload') $('#profilePageInput')?.click(); else if (a === 'delete') deletePhoto();
+}));
+bindPhotoInput($('#profilePageInput'));
+setAvatar(C.profileImage || '');
+
+/* ---------- assistant ---------- */
+(function(){
+  const fab = $('#assistantFab'), panel = $('#assistantPanel'), box = $('#assistantMessages'), form = $('#assistantForm'), input = $('#assistantInput'), status = $('#assistantStatus');
+  if (!fab) return;
+  let loaded = false, busy = false; const greeting = box.innerHTML;
+  const add = (text, who) => { const d = document.createElement('div'); d.className = who === 'user' ? 'user-bubble' : 'assistant-bubble'; d.textContent = text; box.appendChild(d); box.scrollTop = box.scrollHeight; return d; };
+  async function history() { if (loaded) return; const j = await getJSON('api/assistant.php?action=history'); box.innerHTML = ''; if (j.ok && j.history && j.history.length) j.history.forEach(m => add(m.message, m.role)); else box.innerHTML = greeting; loaded = true; }
+  async function ask(text) {
+    if (busy) return; busy = true; add(text, 'user'); const t = add('Thinking…', 'assistant'); status.textContent = 'AI Assistant · thinking';
+    const j = await api('api/assistant.php', { message: text });
+    t.textContent = j.ok ? (j.reply || 'No response returned.') : (j.error || j.message || 'I could not process that request.');
+    status.textContent = j.ok ? (j.mode === 'gemini' ? 'AI Assistant · online' : 'AI Assistant · setup mode') : 'AI Assistant · error';
+    busy = false; box.scrollTop = box.scrollHeight;
+  }
+  fab.addEventListener('click', async () => { panel.classList.toggle('show'); if (panel.classList.contains('show')) { await history(); input.focus(); } });
+  $('#assistantClose').addEventListener('click', () => panel.classList.remove('show'));
+  form.addEventListener('submit', e => { e.preventDefault(); const v = input.value.trim(); if (v) { input.value = ''; ask(v); } });
+  $$('[data-assist]').forEach(b => b.addEventListener('click', () => ask(b.dataset.assist)));
+})();
+
+/* =====================================================================
+   Time tracker: one state machine shared by every page
+   ===================================================================== */
+const T = {
+  state: C.tracker || { status: 'idle', session: null, today: { net_seconds: 0, break_seconds: 0 }, completed_hours: 0, required_hours: 480, events: [], server_now: Math.floor(Date.now() / 1000) },
+  offset: 0,
+  mode: 'timein',
+  now() { return Date.now() / 1000 + this.offset; },
+  set(state) { this.state = state; this.offset = state.server_now - Date.now() / 1000; emit('state', this.derive()); this.paintButtons(); },
+  derive() {
+    const s = this.state, now = this.now();
+    const d = { status: s.status, session: s.session, sessionTotal: 0, sessionBreak: 0, sessionNet: 0, todayNet: s.today.net_seconds, todayBreak: s.today.break_seconds, required: s.required_hours, events: s.events || [] };
+    if (s.session) {
+      const total = Math.max(0, now - s.session.time_in_ts);
+      let brk = s.session.break_seconds + (s.session.break_started_ts ? Math.max(0, now - s.session.break_started_ts) : 0);
+      brk = Math.min(brk, total);
+      d.sessionTotal = total; d.sessionBreak = brk; d.sessionNet = Math.max(0, total - brk);
+      d.todayNet += d.sessionNet; d.todayBreak += brk;
+    }
+    d.completed = Math.min(d.required, s.completed_hours + d.sessionNet / 3600);
+    d.pct = d.required > 0 ? Math.min(100, d.completed / d.required * 100) : 0;
+    return d;
+  },
+  paintButtons() {
+    const st = this.state.status;
+    $$('[data-track="timein"]').forEach(b => { b.disabled = st !== 'idle'; });
+    $$('[data-track="timeout"]').forEach(b => { b.disabled = st === 'idle'; });
+    $$('[data-track="break"]').forEach(b => {
+      b.disabled = st === 'idle';
+      const lbl = $('.lbl', b), ic = $('.btn-ic', b);
+      if (lbl) lbl.textContent = st === 'break' ? 'Resume Work' : 'Take a Break';
+      if (ic) ic.innerHTML = icon(st === 'break' ? 'play' : 'coffee');
+      b.classList.toggle('is-resume', st === 'break');
+    });
+    document.body.dataset.track = st;
+  },
+  async refresh() { const j = await getJSON('api/attendance.php?action=state'); if (j.ok) this.set(j.state); return j; },
+  async act(action, extra = {}) {
+    const j = await api('api/attendance.php', Object.assign({ action }, extra));
+    if (j.state) this.set(j.state);
+    return j;
+  },
+  async breakToggle() {
+    const j = await this.act(this.state.status === 'break' ? 'break_end' : 'break_start');
+    toast(j.message || (j.ok ? 'Updated.' : 'Could not update.'), j.ok ? 'success' : 'error');
+    return j;
+  }
+};
+T.offset = T.state.server_now - Date.now() / 1000;
+OJT_expose();
+
+/* chip in the top bar, updated every second */
+function tick() {
+  const d = T.derive(); const chip = $('#trackChip');
+  if (chip) {
+    chip.hidden = d.status === 'idle';
+    chip.classList.toggle('is-break', d.status === 'break');
+    $('[data-chip-label]', chip).textContent = d.status === 'break' ? 'On break' : 'Working';
+    $('[data-chip-time]', chip).textContent = hms(d.status === 'break' && T.state.session?.break_started_ts ? T.now() - T.state.session.break_started_ts : d.sessionNet);
+  }
+  emit('tick', d);
+}
+setInterval(tick, 1000);
+
+/* ----- QR scanner modal ----- */
+const scan = { qr: null, busy: false };
+function setScanStatus(msg, cls = '') { const el = $('#scanStatus'); if (!el) return; el.textContent = msg; el.className = 'scan-status ' + cls; }
+function loadQrLib() {
+  if (window.Html5Qrcode) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const urls = ['https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js', 'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js'];
+    const tryNext = i => { if (i >= urls.length) return reject(new Error('QR library failed to load')); const s = document.createElement('script'); s.src = urls[i]; s.onload = resolve; s.onerror = () => tryNext(i + 1); document.head.appendChild(s); };
+    tryNext(0);
+  });
+}
+async function stopCamera() { if (scan.qr) { try { await scan.qr.stop(); } catch (e) {} try { scan.qr.clear(); } catch (e) {} scan.qr = null; } }
+async function startCamera() {
+  if (scan.qr) return;
+  setScanStatus('Starting camera…');
+  try { await loadQrLib(); } catch (e) { setScanStatus('The QR library could not load (offline?). Use the manual code box below.', 'bad'); return; }
+  $('#reader').innerHTML = '';
+  scan.qr = new Html5Qrcode('reader');
+  try {
+    await scan.qr.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 230, height: 230 } }, async text => { await stopCamera(); setScanStatus('QR detected. Validating…'); await submitQr(text); });
+    setScanStatus('Camera active. Point it at the company QR code.');
+  } catch (e) { scan.qr = null; setScanStatus('Camera could not start. Allow camera access, or enter the code manually below.', 'bad'); }
+}
+async function submitQr(value) {
+  if (scan.busy) return; scan.busy = true; setScanStatus('Validating on the server…');
+  const j = await T.act('scan', { qr_value: value });
+  scan.busy = false;
+  if (j.ok) {
+    setScanStatus(j.message, 'ok'); toast(j.message, 'success');
+    setTimeout(() => { closeScan(); if (j.action === 'timeout') emit('timeout', j); else emit('timein', j); }, 650);
+  } else { setScanStatus(j.message || 'That QR code was not accepted.', 'bad'); }
+}
+function openScan(mode) {
+  T.mode = mode;
+  const isIn = mode === 'timein';
+  $('#scanEyebrow').textContent = isIn ? 'TIME IN' : 'TIME OUT';
+  $('#scanTitle').textContent = isIn ? 'Scan your company QR to start' : 'Scan your company QR to finish';
+  $('#scanHint').textContent = isIn ? 'Your timer starts as soon as the code is validated.' : 'Your hours are saved and today\'s daily log opens for your details.';
+  $('#manualQr').value = ''; $('#reader').innerHTML = '<div class="qr-placeholder">' + icon('qr') + '<span>Camera preview appears here</span></div>';
+  setScanStatus('Ready to scan.'); openModal('#scanModal'); startCamera();
+}
+async function closeScan() { await stopCamera(); closeModal('#scanModal'); }
+$$('[data-scan-close]').forEach(b => b.addEventListener('click', closeScan));
+on('modal:close', el => { if (el && el.id === 'scanModal') stopCamera(); });
+$('#startScan')?.addEventListener('click', startCamera);
+$('#stopScan')?.addEventListener('click', async () => { await stopCamera(); setScanStatus('Scanner stopped.'); });
+$('#manualScan')?.addEventListener('click', () => { const v = $('#manualQr').value.trim(); if (v) { stopCamera(); submitQr(v); } else setScanStatus('Type or paste a code first.', 'bad'); });
+$('#manualQr')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#manualScan').click(); } });
+
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-track]'); if (!b || b.disabled) return;
+  const a = b.dataset.track;
+  if (a === 'timein') openScan('timein');
+  else if (a === 'timeout') {
+    if (T.state.status === 'break') toast('Your break will be ended automatically when you time out.', 'info');
+    openScan('timeout');
+  } else if (a === 'break') { b.disabled = true; await T.breakToggle(); T.paintButtons(); }
+});
+// after Time Out, open the daily log form so the student can describe the work
+on('timeout', j => { if (j.log_id) { toast('Add what you worked on in today\'s daily log.', 'info', 2600); setTimeout(() => { location.href = 'daily_logs.php?edit=' + j.log_id; }, 900); } else location.reload(); });
+on('timein', () => { if (!/(index|attendance)\.php$|\/$/.test(location.pathname)) location.href = 'index.php'; else location.reload(); });
+
+function OJT_expose() {
+  window.OJT = { C, $, $$, pad, hms, hm, esc, icon, api, getJSON, toast, openModal, closeModal, confirm: confirmBox, on, emit, tracker: T, applyTheme, setAvatar, openScan, stopCamera };
+}
+OJT_expose();
+T.paintButtons();
+tick();
+if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('reduce-motion');
+document.addEventListener('visibilitychange', () => { if (!document.hidden) T.refresh(); });
+})();

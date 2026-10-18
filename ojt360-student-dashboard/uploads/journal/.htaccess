@@ -1,4 +1,5 @@
-Options -ExecCGI
-<FilesMatch "\.(php|php[0-9]|phtml|phar)$">
+# Uploaded files must never run as scripts.
+Options -ExecCGI -Indexes
+<FilesMatch "\.(php|php[0-9]|phtml|phar|pl|py|cgi|sh)$">
   Require all denied
 </FilesMatch>

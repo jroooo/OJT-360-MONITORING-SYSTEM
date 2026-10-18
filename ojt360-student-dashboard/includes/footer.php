@@ -1,9 +1,55 @@
-</main></div>
-<div class="modal-backdrop" id="logoutModal"><div class="modal"><button class="modal-close" data-close-modal>×</button><div class="modal-icon">↪</div><h2>Are you sure you want to logout?</h2><p>Your current session will be ended.</p><div class="modal-actions"><button class="btn secondary" data-close-modal>Cancel</button><a class="btn danger" href="logout.php">Logout</a></div></div></div>
-<button class="assistant-fab" id="assistantFab" aria-label="Open OJT360 Assistant">✦</button><div class="assistant-panel" id="assistantPanel"><div class="assistant-head"><div><strong>OJT360 Assistant</strong><span id="assistantStatus">AI Assistant</span></div><button class="icon-btn" id="assistantClose">×</button></div><div class="assistant-messages" id="assistantMessages"><div class="assistant-bubble">Hi <?=e(explode(' ',trim($user['full_name']))[0])?>! Ask me anything about your OJT dashboard, your records, your journal, attendance, tasks, or general questions.</div></div><div class="assistant-suggestions"><button data-assist="Summarize my OJT progress">My progress</button><button data-assist="What tasks are unfinished?">My tasks</button><button data-assist="Help me improve my weekly journal">Journal help</button><button data-assist="Explain my attendance record">Attendance</button></div><form id="assistantForm" class="assistant-form"><input id="assistantInput" placeholder="Ask OJT360 Assistant..." autocomplete="off"><button>Send</button></form></div>
-<div class="profile-crop-backdrop" id="profileCropModal" aria-hidden="true"><div class="profile-crop-modal" role="dialog" aria-modal="true" aria-labelledby="profileCropTitle"><div class="profile-crop-head"><div><span class="eyebrow">PROFILE PHOTO</span><h3 id="profileCropTitle">Adjust your profile picture</h3></div><button type="button" class="icon-btn" id="profileCropClose" aria-label="Close">×</button></div><div class="profile-crop-body"><div class="profile-crop-stage" id="profileCropStage"><img id="profileCropImage" alt="Profile preview"><div class="profile-crop-circle" aria-hidden="true"></div></div><div class="profile-crop-controls"><label for="profileCropZoom">Zoom</label><input id="profileCropZoom" type="range" min="0.5" max="3" step="0.01" value="1"><div class="profile-crop-hint">Drag the photo to position it inside the circle.</div></div></div><div class="profile-crop-actions"><button type="button" class="btn secondary" id="profileCropCancel">Cancel</button><button type="button" class="btn primary" id="profileCropSave">Save Profile Picture</button></div></div></div>
-<div class="profile-view-backdrop" id="profilePictureViewModal" aria-hidden="true"><div class="profile-view-modal" role="dialog" aria-modal="true" aria-labelledby="profileViewTitle"><div class="profile-view-head"><div><span class="eyebrow">PROFILE PHOTO</span><h3 id="profileViewTitle">Profile Picture</h3></div><button type="button" class="icon-btn" id="profileViewClose" aria-label="Close">×</button></div><div class="profile-view-body"><div class="profile-view-circle"><img id="profileViewImage" src="" alt="Profile picture"></div><strong><?=e($user['full_name'])?></strong><span><?=e($user['student_no'])?></span></div></div></div>
-<div class="journal-image-backdrop" id="journalImageEditorModal" aria-hidden="true"><div class="journal-image-modal" role="dialog" aria-modal="true" aria-labelledby="journalImageEditorTitle"><div class="journal-image-head"><div><span class="eyebrow">IMAGE EDITOR</span><h3 id="journalImageEditorTitle">Edit journal image</h3></div><button type="button" class="icon-btn" id="journalImageEditorClose" aria-label="Close">×</button></div><div class="journal-image-body"><div class="journal-image-canvas-wrap"><canvas id="journalImageCanvas" width="760" height="520"></canvas><div class="journal-image-crop-box" id="journalImageCropBox" aria-hidden="true"></div></div><div class="journal-image-tools"><label>Zoom<input id="journalImageZoom" type="range" min="0.5" max="3" step="0.01" value="1"></label><label>Crop ratio<select id="journalImageCropRatio"><option value="free">Free</option><option value="1:1">Square</option><option value="4:3">4 : 3</option><option value="16:9">16 : 9</option></select></label><div class="journal-image-actions-row"><button type="button" class="btn secondary" id="journalRotateLeft">↶ Rotate</button><button type="button" class="btn secondary" id="journalRotateRight">↷ Rotate</button><button type="button" class="btn outline" id="journalCropCenter">Crop</button></div><p>Drag the image to position it. Use zoom, crop, or rotate, then apply the changes.</p></div></div><div class="profile-crop-actions"><button type="button" class="btn secondary" id="journalImageCancel">Cancel</button><button type="button" class="btn primary" id="journalImageApply">Apply Image Changes</button></div></div></div>
+</main>
+</div><!-- /.content -->
+</div><!-- /.app-shell -->
 
-<div class="journal-context-menu" id="journalContextMenu" role="menu" aria-hidden="true"></div>
-<script src="assets/js/app.js"></script></body></html>
+<div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+<div class="modal-backdrop" id="logoutModal"><div class="modal modal-sm">
+  <button class="modal-close" data-close-modal aria-label="Close"><?= icon('x') ?></button>
+  <div class="modal-icon"><?= icon('logout') ?></div>
+  <h2>Log out of OJT360?</h2><p>Your current session will be ended on this device.</p>
+  <div class="modal-actions"><button class="btn secondary" data-close-modal>Stay signed in</button><a class="btn danger" href="logout.php">Logout</a></div>
+</div></div>
+
+<!-- Time In / Time Out QR scanner -->
+<div class="modal-backdrop" id="scanModal" aria-hidden="true"><div class="modal modal-scan" role="dialog" aria-modal="true" aria-labelledby="scanTitle">
+  <button class="modal-close" data-scan-close aria-label="Close"><?= icon('x') ?></button>
+  <span class="eyebrow" id="scanEyebrow">TIME IN</span>
+  <h2 id="scanTitle">Scan your company QR</h2>
+  <p class="muted" id="scanHint">Allow camera access, then point it at your company's OJT360 QR code.</p>
+  <div id="reader" class="qr-reader"><div class="qr-placeholder"><?= icon('qr') ?><span>Camera preview appears here</span></div></div>
+  <div id="scanStatus" class="scan-status">Ready to scan.</div>
+  <div class="scan-actions"><button type="button" class="btn primary" id="startScan"><?= icon('camera') ?> Start camera</button><button type="button" class="btn secondary" id="stopScan">Stop</button></div>
+  <details class="manual-qr"><summary>Enter the code manually</summary>
+    <div class="manual-row"><input id="manualQr" placeholder="e.g. OJT360-COMPANY-001" autocomplete="off"><button type="button" class="btn secondary" id="manualScan">Validate</button></div>
+    <a class="text-link" href="qr-test.php" target="_blank" rel="noopener">Open the demo QR for testing</a>
+  </details>
+</div></div>
+
+<button class="assistant-fab" id="assistantFab" aria-label="Open OJT360 Assistant" title="OJT360 Assistant"><?= logo_mark(true) ?></button>
+<div class="assistant-panel" id="assistantPanel">
+  <div class="assistant-head"><div class="assistant-title"><?= logo_mark(true) ?><div><strong>OJT360 Assistant</strong><span id="assistantStatus">AI Assistant</span></div></div><button class="icon-btn" id="assistantClose" aria-label="Close assistant"><?= icon('x') ?></button></div>
+  <div class="assistant-messages" id="assistantMessages"><div class="assistant-bubble">Hi <?= e(explode(' ', trim($user['full_name']))[0]) ?>! Ask me anything about your OJT dashboard, your records, your journal, attendance, tasks, or general questions.</div></div>
+  <div class="assistant-suggestions"><button data-assist="Summarize my OJT progress">My progress</button><button data-assist="What tasks are unfinished?">My tasks</button><button data-assist="Help me improve my weekly journal">Journal help</button><button data-assist="Explain my attendance record">Attendance</button></div>
+  <form id="assistantForm" class="assistant-form"><input id="assistantInput" placeholder="Ask OJT360 Assistant..." autocomplete="off"><button aria-label="Send"><?= icon('send') ?></button></form>
+</div>
+
+<div class="modal-backdrop" id="profileCropModal" aria-hidden="true"><div class="modal modal-md" role="dialog" aria-modal="true" aria-labelledby="profileCropTitle">
+  <button class="modal-close" id="profileCropClose" aria-label="Close"><?= icon('x') ?></button>
+  <span class="eyebrow">PROFILE PHOTO</span><h2 id="profileCropTitle">Adjust your profile picture</h2>
+  <div class="crop-stage" id="profileCropStage"><img id="profileCropImage" alt="Profile preview"><div class="crop-circle" aria-hidden="true"></div></div>
+  <label class="range-row">Zoom<input id="profileCropZoom" type="range" min="1" max="3" step="0.01" value="1"></label>
+  <p class="muted small">Drag the photo to position it inside the circle.</p>
+  <div class="modal-actions"><button type="button" class="btn secondary" id="profileCropCancel">Cancel</button><button type="button" class="btn primary" id="profileCropSave">Save profile picture</button></div>
+</div></div>
+
+<div class="modal-backdrop" id="profilePictureViewModal" aria-hidden="true"><div class="modal modal-sm center" role="dialog" aria-modal="true">
+  <button class="modal-close" id="profileViewClose" aria-label="Close"><?= icon('x') ?></button>
+  <div class="view-circle"><img id="profileViewImage" src="" alt="Profile picture"><span id="profileViewInitials"><?= e(initials($user['full_name'])) ?></span></div>
+  <h2><?= e($user['full_name']) ?></h2><p class="muted"><?= e($user['student_no']) ?></p>
+</div></div>
+
+<script src="assets/js/app.js?v=18"></script>
+<?php foreach (($page_scripts ?? []) as $src): ?><script src="assets/js/<?= e($src) ?>?v=18"></script>
+<?php endforeach; ?>
+</body></html>

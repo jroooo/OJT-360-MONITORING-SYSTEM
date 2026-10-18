@@ -10,17 +10,17 @@ echo '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" con
 try {
     $pdo = db();
     echo '<div class="row ok">Database connection: OK</div>';
-    foreach (['users','students','companies','company_qr_codes','internships','attendance','journals','notifications','announcements','activity_logs','support_requests','assistant_messages'] as $table) {
+    foreach (['students','qr_codes','internships','attendance','attendance_events','daily_logs','journals','journal_compilations','journal_submissions','tasks','task_updates','notifications','announcements','activity_logs','support_requests','assistant_messages','student_settings'] as $table) {
         $safe = preg_replace('/[^a-z0-9_]/i','',$table);
         $exists = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='" . DB_NAME . "' AND table_name='" . $safe . "'")->fetchColumn();
         echo '<div class="row">Table <code>'.h($table).'</code>: '.($exists ? '<span class="ok">OK</span>' : '<span class="bad">Missing</span>').'</div>';
     }
-    $ai=openai_config();
+    $ai=assistant_config();
     $configured=!empty($ai['api_key']) && !str_contains((string)$ai['api_key'],'PASTE_YOUR_');
     echo '<div class="row">AI API key: '.($configured ? '<span class="ok">Configured</span>' : '<span class="bad">Not configured — setup mode is active</span>').'</div>';
     echo '<div class="row">AI model: <code>'.h((string)$ai['model']).'</code></div>';
     echo '<div class="row">AI web search: '.(!empty($ai['web_search']) ? '<span class="ok">Enabled</span>' : 'Disabled').'</div>';
-    $qr=$pdo->prepare("SELECT COUNT(*) FROM company_qr_codes WHERE qr_value='OJT360-COMPANY-001' AND is_active=1"); $qr->execute();
+    $qr=$pdo->prepare("SELECT COUNT(*) FROM qr_codes WHERE qr_value='OJT360-COMPANY-001' AND is_active=1"); $qr->execute();
     echo '<div class="row">Demo QR <code>OJT360-COMPANY-001</code>: '.((int)$qr->fetchColumn() ? '<span class="ok">Active</span>' : '<span class="bad">Missing</span>').'</div>';
 } catch (Throwable $e) {
     echo '<div class="row bad">Setup check failed: '.h($e->getMessage()).'</div>';
