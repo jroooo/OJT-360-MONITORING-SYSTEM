@@ -153,36 +153,6 @@ CREATE TABLE IF NOT EXISTS journal_submissions (
   CONSTRAINT fk_submissions_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS tasks (
-  id INT(11) NOT NULL AUTO_INCREMENT,
-  student_pk INT(11) NOT NULL,
-  title VARCHAR(180) NOT NULL,
-  description TEXT DEFAULT NULL,
-  due_date DATE DEFAULT NULL,
-  status ENUM('pending','in_progress','completed') NOT NULL DEFAULT 'pending',
-  source VARCHAR(12) NOT NULL DEFAULT 'company',
-  company_name VARCHAR(150) DEFAULT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  KEY student_status (student_pk,status,due_date),
-  CONSTRAINT fk_tasks_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS task_updates (
-  id INT(11) NOT NULL AUTO_INCREMENT,
-  task_id INT(11) NOT NULL,
-  student_pk INT(11) NOT NULL,
-  status ENUM('pending','in_progress','completed') NOT NULL,
-  comment TEXT DEFAULT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY task_student (task_id,student_pk),
-  CONSTRAINT fk_taskupd_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
-  CONSTRAINT fk_taskupd_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 CREATE TABLE IF NOT EXISTS notifications (
   id INT(11) NOT NULL AUTO_INCREMENT,
   student_pk INT(11) NOT NULL,
@@ -264,14 +234,6 @@ FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM students WHERE student_id='2026001');
 INSERT INTO internships (student_pk,company_name,company_address,required_hours,completed_hours,start_date,end_date,status)
 SELECT s.id,'OJT360 Demo Company','Tacloban City, Leyte',480,0,CURDATE(),DATE_ADD(CURDATE(),INTERVAL 60 DAY),'active'
 FROM students s WHERE s.student_id='2026001' AND NOT EXISTS (SELECT 1 FROM internships i WHERE i.student_pk=s.id);
-
-INSERT INTO tasks (student_pk,title,description,due_date,status,source,company_name)
-SELECT s.id,'Prepare weekly OJT progress update','Review your attendance and journal records and prepare a short progress update for your supervisor.',DATE_ADD(CURDATE(),INTERVAL 3 DAY),'pending','company','OJT360 Demo Company'
-FROM students s WHERE s.student_id='2026001' AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.student_pk=s.id AND t.title='Prepare weekly OJT progress update');
-
-INSERT INTO tasks (student_pk,title,description,due_date,status,source,company_name)
-SELECT s.id,'Complete weekly journal','Finish the journal entry for your current OJT week.',DATE_ADD(CURDATE(),INTERVAL 5 DAY),'in_progress','company','OJT360 Demo Company'
-FROM students s WHERE s.student_id='2026001' AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.student_pk=s.id AND t.title='Complete weekly journal');
 
 INSERT INTO announcements (title,message,category,is_active)
 SELECT 'Weekly Journal Reminder','Please finish your weekly journal before the end of your assigned week.','Reminder',1
