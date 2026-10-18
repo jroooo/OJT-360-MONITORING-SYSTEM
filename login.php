@@ -39,6 +39,7 @@ if (
 
             if ($employee) {
                 session_regenerate_id(true);
+
                 $_SESSION["employee_logged_in"] = true;
                 $_SESSION["employee_id"] = $employee["employee_id"];
 
@@ -50,6 +51,128 @@ if (
             }
 
             $errorMessage = "Invalid institutional email or password.";
+        }
+
+        $stmt->close();
+    }
+
+    $conn->close();
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| COMPANY LOGIN
+|--------------------------------------------------------------------------
+*/
+
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    isset($_POST["company_username"], $_POST["company_password"])
+) {
+    $companyUsername = trim($_POST["company_username"]);
+    $companyPassword = $_POST["company_password"];
+
+    require_once __DIR__ . "/config/database.php";
+
+    $stmt = $conn->prepare(
+        "SELECT
+            id,
+            company_name,
+            rep_first_name,
+            rep_middle_name,
+            rep_last_name,
+            rep_position,
+            contact_number,
+            representative_email,
+            company_username,
+            password_hash
+        FROM companies
+        WHERE company_username = ?
+        LIMIT 1"
+    );
+
+    if ($stmt === false) {
+        $errorMessage = "Unable to process your company login right now. Please try again.";
+    } else {
+        $stmt->bind_param("s", $companyUsername);
+
+        if (!$stmt->execute()) {
+            $errorMessage = "Unable to process your company login right now. Please try again.";
+        } else {
+            $company = null;
+            $companies = $stmt->get_result();
+
+            if ($candidate = $companies->fetch_assoc()) {
+                if (
+                    password_verify(
+                        $companyPassword,
+                        $candidate["password_hash"]
+                    )
+                ) {
+                    $company = $candidate;
+                }
+            }
+
+            if ($company) {
+
+                session_regenerate_id(true);
+
+                /*
+                |--------------------------------------------------------------------------
+                | COMPANY SESSION
+                |--------------------------------------------------------------------------
+                */
+
+                $_SESSION["company_logged_in"] = true;
+
+                $_SESSION["company_id"] =
+                    (int)$company["id"];
+
+                $_SESSION["company_name"] =
+                    $company["company_name"];
+
+                $_SESSION["company_username"] =
+                    $company["company_username"];
+
+                $_SESSION["company_rep_first_name"] =
+                    $company["rep_first_name"];
+
+                $_SESSION["company_rep_middle_name"] =
+                    $company["rep_middle_name"];
+
+                $_SESSION["company_rep_last_name"] =
+                    $company["rep_last_name"];
+
+                $_SESSION["company_rep_position"] =
+                    $company["rep_position"];
+
+                $_SESSION["company_contact_number"] =
+                    $company["contact_number"];
+
+                $_SESSION["company_email"] =
+                    $company["representative_email"];
+
+
+                $stmt->close();
+                $conn->close();
+
+                /*
+                |--------------------------------------------------------------------------
+                | COMPANY DASHBOARD
+                |--------------------------------------------------------------------------
+                */
+
+                header(
+                    "Location: company_dashboard.php",
+                    true,
+                    303
+                );
+
+                exit;
+            }
+
+            $errorMessage = "Invalid company username or password.";
         }
 
         $stmt->close();
@@ -676,7 +799,7 @@ body {
         height: 320px;
     }
 
-    .ring-small {g
+    .ring-small {
 
         width: 210px;
 
@@ -1052,13 +1175,22 @@ body {
         <div id="login-forms">
 
             <?php if ($errorMessage !== ""): ?>
+
                 <p
                     class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
                     role="alert"
                 >
-                    <?= htmlspecialchars($errorMessage, ENT_QUOTES, "UTF-8") ?>
+
+                    <?= htmlspecialchars(
+                        $errorMessage,
+                        ENT_QUOTES,
+                        "UTF-8"
+                    ) ?>
+
                 </p>
+
             <?php endif; ?>
+
 
             <!-- =================================================
                  STUDENT FORM
@@ -1157,6 +1289,7 @@ body {
 
             </form>
 
+
             <!-- =================================================
                  EMPLOYEE FORM
             ================================================== -->
@@ -1250,6 +1383,7 @@ body {
 
             </form>
 
+
             <!-- =================================================
                  COMPANY FORM
             ================================================== -->
@@ -1258,6 +1392,7 @@ body {
                 id="company-form"
                 class="hidden space-y-4"
                 method="POST"
+                action="login.php"
             >
 
                 <!-- COMPANY EMAIL -->
@@ -1376,6 +1511,7 @@ body {
 
 </div>
 
+
 <!-- =========================================================
      JAVASCRIPT
 ========================================================= -->
@@ -1414,19 +1550,16 @@ function togglePassword(role) {
 
 }
 
+
 /* =========================================================
    SELECT ROLE
 ========================================================= */
 
 function selectRole(role) {
 
-    /* Change hidden role value */
-
     document.getElementById(
         'selected-role'
     ).value = role;
-
-    /* All available roles */
 
     const roles = [
         'student',
@@ -1446,8 +1579,6 @@ function selectRole(role) {
                 r + '-form'
             );
 
-        /* Selected role */
-
         if (r === role) {
 
             tab.classList.add(
@@ -1458,11 +1589,7 @@ function selectRole(role) {
                 'hidden'
             );
 
-        }
-
-        /* Other roles */
-
-        else {
+        } else {
 
             tab.classList.remove(
                 'tab-active'
@@ -1478,8 +1605,31 @@ function selectRole(role) {
 
 }
 
+
+/* =========================================================
+   KEEP THE CORRECT TAB AFTER LOGIN ERROR
+========================================================= */
+
 <?php if ($errorMessage !== ""): ?>
+
+<?php if (isset($_POST["company_username"])): ?>
+
+selectRole('company');
+
+<?php elseif (isset($_POST["employee_username"])): ?>
+
 selectRole('employee');
+
+<?php else: ?>
+
+selectRole('student');
+
+<?php endif; ?>
+
+<?php else: ?>
+
+selectRole('student');
+
 <?php endif; ?>
 
 </script>
