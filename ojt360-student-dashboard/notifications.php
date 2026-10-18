@@ -7,7 +7,7 @@ $stmt->execute([$uid]);
 $items = $stmt->fetchAll();
 ?>
 <div class="page-head">
-  <div><span class="eyebrow">UPDATES</span><h1>Notifications<span class="title-dot">.</span></h1><p>Attendance, journals, tasks, and adviser announcements.</p></div>
+  <div><span class="eyebrow">UPDATES</span><h1>Notifications<span class="title-dot">.</span></h1><p>Attendance, journals, and adviser announcements.</p></div>
   <div class="page-actions"><button class="btn secondary" id="readAll" type="button"><?= icon('check') ?> Mark all as read</button></div>
 </div>
 <section class="panel notification-list">

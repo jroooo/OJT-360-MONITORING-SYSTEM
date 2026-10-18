@@ -10,7 +10,7 @@ echo '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" con
 try {
     $pdo = db();
     echo '<div class="row ok">Database connection: OK</div>';
-    foreach (['students','qr_codes','internships','attendance','attendance_events','daily_logs','journals','journal_compilations','journal_submissions','tasks','task_updates','notifications','announcements','activity_logs','support_requests','assistant_messages','student_settings'] as $table) {
+    foreach (['students','qr_codes','internships','attendance','attendance_events','daily_logs','journals','journal_compilations','journal_submissions','notifications','announcements','activity_logs','support_requests','assistant_messages','student_settings'] as $table) {
         $safe = preg_replace('/[^a-z0-9_]/i','',$table);
         $exists = (int)$pdo->query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='" . DB_NAME . "' AND table_name='" . $safe . "'")->fetchColumn();
         echo '<div class="row">Table <code>'.h($table).'</code>: '.($exists ? '<span class="ok">OK</span>' : '<span class="bad">Missing</span>').'</div>';

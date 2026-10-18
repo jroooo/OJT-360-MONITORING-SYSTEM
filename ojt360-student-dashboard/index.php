@@ -28,8 +28,6 @@ $q->execute([$uid]); $recentLogs = $q->fetchAll();
 $q = db()->prepare("SELECT action_text, created_at FROM activity_logs WHERE student_pk=? ORDER BY created_at DESC LIMIT 5");
 $q->execute([$uid]); $activities = $q->fetchAll();
 $announcement = db()->query("SELECT * FROM announcements WHERE is_active=1 ORDER BY created_at DESC LIMIT 1")->fetch();
-$taskStmt = db()->prepare("SELECT t.* FROM tasks t WHERE t.student_pk=? AND t.status<>'completed' ORDER BY t.due_date IS NULL, t.due_date ASC, t.created_at DESC LIMIT 4");
-$taskStmt->execute([$uid]); $dashboardTasks = $taskStmt->fetchAll();
 $wj = db()->prepare("SELECT status FROM journals WHERE student_pk=? AND week_start=? LIMIT 1");
 $wj->execute([$uid, date('Y-m-d', strtotime('monday this week'))]); $weekJournal = $wj->fetchColumn();
 ?>
@@ -125,16 +123,7 @@ $wj->execute([$uid, date('Y-m-d', strtotime('monday this week'))]); $weekJournal
   </section>
 </div>
 
-<div class="grid-3 lower">
-  <section class="panel">
-    <div class="panel-head"><div><span class="eyebrow">COMPANY TASKS</span><h3>Unfinished tasks</h3></div><a href="tasks.php" class="text-link">View all</a></div>
-    <?php if (!$dashboardTasks): ?><div class="dash-empty">No unfinished tasks right now.</div><?php endif; ?>
-    <div class="mini-list">
-      <?php foreach ($dashboardTasks as $t): $overdue = !empty($t['due_date']) && $t['due_date'] < date('Y-m-d'); ?>
-        <a class="mini-row" href="tasks.php"><div class="mini-check"><?= icon('tasks') ?></div><div class="mini-main"><strong><?= e($t['title']) ?></strong><small><?= e(($t['source'] ?? '') === 'personal' ? 'My task' : ($t['company_name'] ?: 'OJT company')) ?><?= $t['due_date'] ? ' · Due ' . e(date('M d', strtotime($t['due_date']))) : '' ?></small></div><span class="pill <?= $overdue ? 'red-pill' : 'amber-pill' ?>"><?= $overdue ? 'Overdue' : 'Open' ?></span></a>
-      <?php endforeach; ?>
-    </div>
-  </section>
+<div class="grid-2 lower">
   <section class="panel">
     <div class="panel-head"><div><span class="eyebrow">ACTIVITY</span><h3>Recent activity</h3></div><a href="notifications.php" class="text-link">View all</a></div>
     <?php if (!$activities): ?><div class="dash-empty">No activity yet.</div><?php endif; ?>

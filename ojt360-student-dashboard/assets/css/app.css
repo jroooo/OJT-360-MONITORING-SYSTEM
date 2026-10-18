@@ -551,15 +551,6 @@ body.printing-doc #printArea{display:block}
 /* =====================================================================
    TASKS · HELP · SETTINGS · PROFILE · NOTIFICATIONS
    ===================================================================== */
-.task-stats{margin-bottom:20px}.task-stats .stat strong{font-size:28px}
-.task-tabs{margin-bottom:16px}.task-tabs .tab b{background:var(--surface-3);border-radius:99px;padding:1px 8px;font-size:11px}
-.task-list{display:grid;gap:14px}
-.task-card{display:flex;gap:16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow-sm);transition:border-color .2s,opacity .2s}.task-card:hover{border-color:var(--line-2)}.task-card.task-done{opacity:.72}.task-card.task-done h3{text-decoration:line-through;text-decoration-color:var(--faint)}
-.task-check{width:30px;height:30px;border-radius:50%;border:2px solid var(--line-2);background:transparent;color:transparent;display:grid;place-items:center;flex:none;margin-top:2px;transition:.18s;padding:0}.task-check .ic{width:16px;height:16px}.task-check:not(:disabled):hover{border-color:var(--green)}.task-check.checked{background:var(--green);border-color:var(--green);color:#fff}
-.task-main{flex:1;min-width:0}.task-title-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.task-title-row h3{font-size:17px}.task-main>p{color:var(--ink-2);margin:6px 0 10px}
-.task-meta{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:12.5px}.task-meta span{display:inline-flex;align-items:center;gap:6px}.task-meta .ic{width:14px;height:14px}
-.task-update{margin-top:12px}.task-update summary{cursor:pointer;color:var(--primary-600);font-weight:700;font-size:13px;width:fit-content}
-.task-update-box{display:grid;gap:12px;margin-top:12px;padding:16px;background:var(--surface-2);border:1px solid var(--line);border-radius:14px}.task-update-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .help-search{position:relative;margin-bottom:20px}.help-search .ic{position:absolute;z-index:1;left:18px;top:50%;width:20px;height:20px;transform:translateY(-50%);color:var(--muted);pointer-events:none}.help-search input#faqSearch{padding:16px 18px 16px 52px;border-radius:16px;font-size:15px}
 .quick-help{margin-bottom:20px}.qh-card{display:grid;gap:3px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px;transition:.2s}.qh-card:hover{border-color:var(--primary);transform:translateY(-2px);box-shadow:var(--shadow)}.qh-card b{font-size:15px}.qh-card span{color:var(--muted);font-size:13px}
 .faq-tabs{margin-bottom:14px}.faq-list{display:grid;gap:10px}
@@ -589,4 +580,4 @@ body.printing-doc #printArea{display:block}
 .notification-list{padding:10px}.notification-item{display:flex;gap:14px;padding:16px;border-radius:14px;border:1px solid transparent;align-items:flex-start;cursor:default}.notification-item+.notification-item{margin-top:4px}.notification-item.unread{background:var(--primary-soft);cursor:pointer}
 .notification-icon{width:42px;height:42px;border-radius:12px;background:var(--surface-3);color:var(--primary-600);display:grid;place-items:center;flex:none}.notification-item.unread .notification-icon{background:var(--surface)}
 .notif-body{flex:1}.notif-body p{color:var(--ink-2);margin:2px 0 4px}.notif-body small{color:var(--muted)}.unread-dot{width:10px;height:10px;border-radius:50%;background:var(--primary);flex:none;margin-top:6px}
-@media(max-width:700px){.theme-cards{grid-template-columns:1fr}.profile-hero{padding:0 18px 20px}.task-card{padding:16px}}
+@media(max-width:700px){.theme-cards{grid-template-columns:1fr}.profile-hero{padding:0 18px 20px}}

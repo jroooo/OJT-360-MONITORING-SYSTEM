@@ -11,9 +11,9 @@ DATABASE (new in v18)
 - Removed from this package: employees, companies, company_qr_codes, company_notifications, the Employee and
   Company tabs on login/register, and the `role` / `section` columns.
 - New `qr_codes` table (qr_value, company_name, company_address, is_active) is what students scan. Insert more
-  rows there for other OJT sites. Internship, attendance and task rows keep the company NAME as plain text.
+  rows there for other OJT sites. Internship and attendance rows keep the company NAME as plain text.
 - Tables used: students, qr_codes, internships, attendance, attendance_events, daily_logs, journals,
-  journal_compilations, journal_submissions, tasks, task_updates, notifications, announcements, activity_logs,
+  journal_compilations, journal_submissions, notifications, announcements, activity_logs,
   support_requests, assistant_messages, student_settings.
 - Upgrading an existing database: run database/reset-student-tables.sql once (keeps `students`), then reload.
   Fresh install: import database/schema.sql, or just open the site; missing tables are created automatically.
@@ -29,7 +29,7 @@ DESIGN
 DASHBOARD (index.php, assets/js/dashboard.js)
 - Time In (QR scanner), Take a Break / Resume Work, Time Out.
 - Live timer + flowing wave while working (slow amber wave on break, flat line when idle).
-- Progress ring updates live; on-time %, late %, break hours insight graphs; recent logs; tasks; activity.
+- Progress ring updates live; on-time %, late %, break hours insight graphs; recent logs; activity.
 
 ATTENDANCE (attendance.php, assets/js/attendance.js, api/attendance.php)
 - Calendar (colour-coded days, click a date for attendance + daily log + photo), History table, Timeline.
@@ -48,7 +48,7 @@ JOURNAL (journal.php, journal_compilation.php, assets/js/editor.js)
 - All saved HTML is sanitised server-side (includes/helpers.php: sanitize_rich_html).
 
 REPORTS: weekly / monthly, stats, accomplishment table, export Word (.doc), PDF/Print, CSV.
-TASKS: filters, progress updates, your own personal tasks.   HELP: searchable FAQ + support form.
+HELP: searchable FAQ + support form.
 SETTINGS: theme, sidebar, reduce motion, shift start / grace, required hours, change password.
 PROFILE: cover + avatar menu (view / upload / delete, crop), stats, edit information.
 

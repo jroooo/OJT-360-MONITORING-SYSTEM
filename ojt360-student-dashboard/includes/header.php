@@ -24,7 +24,6 @@ $mainNav = [
     ['daily_logs.php', 'logs', 'Daily Logs', ['daily_logs.php']],
     ['journal.php', 'journal', 'Journal', ['journal.php', 'journal_compilation.php']],
     ['reports.php', 'reports', 'Reports', ['reports.php']],
-    ['tasks.php', 'tasks', 'My Tasks', ['tasks.php']],
 ];
 $subNav = [
     ['help.php', 'help', 'Help & Support', ['help.php']],

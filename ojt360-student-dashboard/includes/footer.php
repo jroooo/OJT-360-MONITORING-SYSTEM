@@ -29,8 +29,8 @@
 <button class="assistant-fab" id="assistantFab" aria-label="Open OJT360 Assistant" title="OJT360 Assistant"><?= logo_mark(true) ?></button>
 <div class="assistant-panel" id="assistantPanel">
   <div class="assistant-head"><div class="assistant-title"><?= logo_mark(true) ?><div><strong>OJT360 Assistant</strong><span id="assistantStatus">AI Assistant</span></div></div><button class="icon-btn" id="assistantClose" aria-label="Close assistant"><?= icon('x') ?></button></div>
-  <div class="assistant-messages" id="assistantMessages"><div class="assistant-bubble">Hi <?= e(explode(' ', trim($user['full_name']))[0]) ?>! Ask me anything about your OJT dashboard, your records, your journal, attendance, tasks, or general questions.</div></div>
-  <div class="assistant-suggestions"><button data-assist="Summarize my OJT progress">My progress</button><button data-assist="What tasks are unfinished?">My tasks</button><button data-assist="Help me improve my weekly journal">Journal help</button><button data-assist="Explain my attendance record">Attendance</button></div>
+  <div class="assistant-messages" id="assistantMessages"><div class="assistant-bubble">Hi <?= e(explode(' ', trim($user['full_name']))[0]) ?>! Ask me anything about your OJT dashboard, your records, your journal, attendance, or general questions.</div></div>
+  <div class="assistant-suggestions"><button data-assist="Summarize my OJT progress">My progress</button><button data-assist="Help me improve my weekly journal">Journal help</button><button data-assist="Explain my attendance record">Attendance</button></div>
   <form id="assistantForm" class="assistant-form"><input id="assistantInput" placeholder="Ask OJT360 Assistant..." autocomplete="off"><button aria-label="Send"><?= icon('send') ?></button></form>
 </div>
 

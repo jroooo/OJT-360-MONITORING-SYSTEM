@@ -14,7 +14,7 @@ const APP_TIMEZONE = 'Asia/Manila';
 const APP_TZ_OFFSET = '+08:00';
 date_default_timezone_set(APP_TIMEZONE);
 
-const SCHEMA_VERSION = 18;
+const SCHEMA_VERSION = 19;
 
 function assistant_config(): array {
     static $config = null;
@@ -211,38 +211,6 @@ CREATE TABLE IF NOT EXISTS journal_submissions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 SQL,
 <<<'SQL'
-CREATE TABLE IF NOT EXISTS tasks (
-  id INT(11) NOT NULL AUTO_INCREMENT,
-  student_pk INT(11) NOT NULL,
-  title VARCHAR(180) NOT NULL,
-  description TEXT DEFAULT NULL,
-  due_date DATE DEFAULT NULL,
-  status ENUM('pending','in_progress','completed') NOT NULL DEFAULT 'pending',
-  source VARCHAR(12) NOT NULL DEFAULT 'company',
-  company_name VARCHAR(150) DEFAULT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  KEY student_status (student_pk,status,due_date),
-  CONSTRAINT fk_tasks_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-SQL,
-<<<'SQL'
-CREATE TABLE IF NOT EXISTS task_updates (
-  id INT(11) NOT NULL AUTO_INCREMENT,
-  task_id INT(11) NOT NULL,
-  student_pk INT(11) NOT NULL,
-  status ENUM('pending','in_progress','completed') NOT NULL,
-  comment TEXT DEFAULT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY task_student (task_id,student_pk),
-  CONSTRAINT fk_taskupd_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
-  CONSTRAINT fk_taskupd_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-SQL,
-<<<'SQL'
 CREATE TABLE IF NOT EXISTS notifications (
   id INT(11) NOT NULL AUTO_INCREMENT,
   student_pk INT(11) NOT NULL,
@@ -337,6 +305,10 @@ function ensure_runtime_tables(PDO $pdo): void {
     }
 
     foreach (schema_statements() as $sql) $pdo->exec($sql);
+
+    // v19: the My Tasks page was removed, so its two tables are dropped (task_updates first: it points to tasks).
+    $pdo->exec('DROP TABLE IF EXISTS task_updates');
+    $pdo->exec('DROP TABLE IF EXISTS tasks');
     $pdo->exec(<<<'SQL'
 INSERT INTO qr_codes (qr_value,company_name,company_address,is_active)
 SELECT 'OJT360-COMPANY-001','OJT360 Demo Company','Tacloban City, Leyte',1
