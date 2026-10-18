@@ -1,6 +1,47 @@
+
 <?php
+require_once __DIR__ . '/includes/bootstrap.php';
+
 $pageTitle = "OJT360 - Sign In";
+$loginError = '';
+
+if (is_post() && isset($_POST['company_username'], $_POST['company_password'])) {
+    ojt_start_session();
+
+    $username = trim((string) $_POST['company_username']);
+    $password = (string) $_POST['company_password'];
+
+    if ($username === '' || $password === '') {
+        $loginError = 'Please enter your company email and password.';
+    } else {
+        try {
+            $stmt = db()->prepare(
+                "SELECT id, company_username, representative_email, password_hash
+                 FROM companies
+                 WHERE company_username = ? OR representative_email = ?
+                 LIMIT 1"
+            );
+            $stmt->execute([$username, $username]);
+            $company = $stmt->fetch();
+
+            if ($company && password_verify($password, $company['password_hash'])) {
+                session_regenerate_id(true);
+
+                $_SESSION['company_id'] = (int) $company['id'];
+                $_SESSION['last_activity'] = time();
+
+                redirect('company_dashboard.php');
+            }
+
+            $loginError = 'Invalid company email/username or password.';
+        } catch (Throwable $e) {
+            error_log('OJT360 company login failed: ' . $e->getMessage());
+            $loginError = 'Login could not be completed. Please check the server error log.';
+        }
+    }
+}
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -619,7 +660,7 @@ body {
         height: 320px;
     }
 
-    .ring-small {g
+    .ring-small {
 
         width: 210px;
 
@@ -991,6 +1032,12 @@ body {
         <!-- =================================================
              FORMS
         ================================================== -->
+
+        <?php if ($loginError !== ''): ?>
+            <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+                <?= e($loginError) ?>
+            </div>
+        <?php endif; ?>
 
         <div id="login-forms">
 
