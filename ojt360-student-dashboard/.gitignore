@@ -1,5 +1,0 @@
-config.local.php
-
-config.local.php
-/uploads/profile/*
-!/uploads/profile/.gitkeep

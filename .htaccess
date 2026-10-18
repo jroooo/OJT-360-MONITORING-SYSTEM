@@ -2,9 +2,17 @@
     RewriteEngine On
     RewriteBase /OJT-360-MONITORING-SYSTEM/
 
-    # Friendly Employee Settings URL
-    RewriteRule ^Employee-Settings/?$ settings.php [L]
-
-    # Friendly Employee Dashboard URL
+    # Employee Dashboard
     RewriteRule ^Employee-Dashboard/?$ dashboard(employee).php [L]
+
+    # Employee Settings
+    RewriteRule ^Employee-Settings/?$ settings.php [L]
 </IfModule>
+
+<Files "gemini.local.php">
+    Require all denied
+</Files>
+
+<Files "groq.local.php">
+    Require all denied
+</Files>

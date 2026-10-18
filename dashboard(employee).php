@@ -31,6 +31,553 @@ if ($conn->connect_error) {
 
 $conn->set_charset("utf8mb4");
 
+if (!isset($_SESSION["employee_students_csrf"])) {
+    $_SESSION["employee_students_csrf"] = bin2hex(random_bytes(32));
+}
+
+if (!isset($_SESSION["employee_companies_csrf"])) {
+    $_SESSION["employee_companies_csrf"] = bin2hex(random_bytes(32));
+}
+
+if (!isset($_SESSION["employee_evaluations_csrf"])) {
+    $_SESSION["employee_evaluations_csrf"] = bin2hex(random_bytes(32));
+}
+
+if (!isset($_SESSION["employee_chatbot_csrf"])) {
+    $_SESSION["employee_chatbot_csrf"] = bin2hex(random_bytes(32));
+}
+
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    ($_POST["company_action"] ?? "") !== ""
+) {
+    $companyAction = $_POST["company_action"];
+    $companyCsrf = $_POST["companies_csrf"] ?? "";
+    $companyFlash = ["type" => "error", "message" => "Invalid company action."];
+
+    if (
+        !is_string($companyCsrf) ||
+        !hash_equals($_SESSION["employee_companies_csrf"], $companyCsrf)
+    ) {
+        $companyFlash["message"] = "Your security token expired. Reload the page and try again.";
+    } elseif ($companyAction === "create") {
+        $readCompanyField = static function (string $key): string {
+            $value = $_POST[$key] ?? "";
+            return is_string($value) ? trim($value) : "";
+        };
+
+        $companyName = $readCompanyField("company_name");
+        $companyCode = $readCompanyField("company_code");
+        $contactPerson = $readCompanyField("contact_person");
+        $contactNumber = $readCompanyField("contact_number");
+        $companyEmail = $readCompanyField("email");
+        $companyAddress = $readCompanyField("address");
+        $companyBuilding = $readCompanyField("building");
+        $companyDepartment = $readCompanyField("department");
+        $companyPosition = $readCompanyField("position");
+        $companyStatus = $readCompanyField("status");
+
+        $validCompany = $companyName !== "" &&
+            strlen($companyName) <= 150 &&
+            strlen($companyCode) <= 50 &&
+            $contactPerson !== "" &&
+            strlen($contactPerson) <= 100 &&
+            $contactNumber !== "" &&
+            strlen($contactNumber) <= 20 &&
+            filter_var($companyEmail, FILTER_VALIDATE_EMAIL) &&
+            strlen($companyEmail) <= 100 &&
+            $companyAddress !== "" &&
+            strlen($companyAddress) <= 255 &&
+            strlen($companyBuilding) <= 100 &&
+            strlen($companyDepartment) <= 100 &&
+            strlen($companyPosition) <= 100 &&
+            in_array($companyStatus, ["active", "inactive"], true);
+
+        if (!$validCompany) {
+            $companyFlash["message"] = "Enter valid company details and select an available status.";
+        } else {
+            $companyCodeValue = $companyCode === "" ? null : $companyCode;
+            try {
+                $insertCompany = $conn->prepare(
+                    "INSERT INTO company (
+                        company_name,
+                        company_code,
+                        contact_person,
+                        contact_number,
+                        email,
+                        address,
+                        building,
+                        department,
+                        position,
+                        status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                );
+            } catch (mysqli_sql_exception $exception) {
+                $insertCompany = false;
+            }
+
+            if ($insertCompany === false) {
+                error_log("Unable to prepare company insert: " . ($conn->error ?: "database prepare failed"));
+                $companyFlash["message"] = "Unable to add the company right now. Please try again.";
+            } else {
+                $insertCompany->bind_param(
+                    "ssssssssss",
+                    $companyName,
+                    $companyCodeValue,
+                    $contactPerson,
+                    $contactNumber,
+                    $companyEmail,
+                    $companyAddress,
+                    $companyBuilding,
+                    $companyDepartment,
+                    $companyPosition,
+                    $companyStatus
+                );
+
+                try {
+                    $companyInserted = $insertCompany->execute();
+                } catch (mysqli_sql_exception $exception) {
+                    $companyInserted = false;
+                }
+
+                if ($companyInserted) {
+                    $companyFlash = ["type" => "success", "message" => "Company added successfully."];
+                } elseif ($insertCompany->errno === 1062) {
+                    $companyFlash["message"] = "That company code is already in use.";
+                } else {
+                    error_log("Unable to insert company: " . ($insertCompany->error ?: "database insert failed"));
+                    $companyFlash["message"] = "Unable to add the company right now. Please try again.";
+                }
+
+                $insertCompany->close();
+            }
+        }
+    } elseif ($companyAction === "set_status") {
+        $companyDatabaseId = filter_var(
+            $_POST["company_database_id"] ?? null,
+            FILTER_VALIDATE_INT,
+            ["options" => ["min_range" => 1]]
+        );
+        $requestedCompanyStatus = $_POST["status"] ?? "";
+
+        if (
+            $companyDatabaseId === false ||
+            !is_string($requestedCompanyStatus) ||
+            !in_array($requestedCompanyStatus, ["active", "inactive"], true)
+        ) {
+            $companyFlash["message"] = "The selected company or status is invalid.";
+        } else {
+            try {
+                $updateCompanyStatus = $conn->prepare(
+                    "UPDATE company SET status = ? WHERE id = ?"
+                );
+            } catch (mysqli_sql_exception $exception) {
+                $updateCompanyStatus = false;
+            }
+
+            if ($updateCompanyStatus === false) {
+                error_log("Unable to prepare company status update: " . ($conn->error ?: "database prepare failed"));
+                $companyFlash["message"] = "Unable to update the company status right now. Please try again.";
+            } else {
+                $updateCompanyStatus->bind_param("si", $requestedCompanyStatus, $companyDatabaseId);
+
+                try {
+                    $companyUpdated = $updateCompanyStatus->execute();
+                } catch (mysqli_sql_exception $exception) {
+                    $companyUpdated = false;
+                }
+
+                if ($companyUpdated) {
+                    $companyFlash = [
+                        "type" => "success",
+                        "message" => $requestedCompanyStatus === "active"
+                            ? "Company activated successfully."
+                            : "Company marked inactive successfully."
+                    ];
+                } else {
+                    error_log("Unable to update company status: " . ($updateCompanyStatus->error ?: "database update failed"));
+                    $companyFlash["message"] = "Unable to update the company status right now. Please try again.";
+                }
+
+                $updateCompanyStatus->close();
+            }
+        }
+    }
+
+    $_SESSION["employee_companies_flash"] = $companyFlash;
+    header("Location: Employee-Dashboard", true, 303);
+    exit;
+}
+
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    ($_POST["student_action"] ?? "") === "delete"
+) {
+    $csrfToken = $_POST["students_csrf"] ?? "";
+    $studentDatabaseId = filter_var(
+        $_POST["student_database_id"] ?? null,
+        FILTER_VALIDATE_INT,
+        ["options" => ["min_range" => 1]]
+    );
+
+    if (
+        !is_string($csrfToken) ||
+        !hash_equals($_SESSION["employee_students_csrf"], $csrfToken)
+    ) {
+        $_SESSION["employee_interns_flash"] = [
+            "type" => "error",
+            "message" => "Your security token expired. Reload the page and try again."
+        ];
+    } elseif ($studentDatabaseId === false) {
+        $_SESSION["employee_interns_flash"] = [
+            "type" => "error",
+            "message" => "The selected student record is invalid."
+        ];
+    } else {
+        try {
+            $deleteStudent = $conn->prepare("DELETE FROM students WHERE id = ?");
+        } catch (mysqli_sql_exception $exception) {
+            $deleteStudent = false;
+        }
+
+        if ($deleteStudent === false) {
+            error_log("Unable to prepare student deletion: " . ($conn->error ?: "database prepare failed"));
+            $_SESSION["employee_interns_flash"] = [
+                "type" => "error",
+                "message" => "Unable to remove the student right now. Please try again."
+            ];
+        } else {
+            $deleteStudent->bind_param("i", $studentDatabaseId);
+
+            try {
+                $studentDeleted = $deleteStudent->execute();
+            } catch (mysqli_sql_exception $exception) {
+                $studentDeleted = false;
+            }
+
+            if ($studentDeleted && $deleteStudent->affected_rows === 1) {
+                $_SESSION["employee_interns_flash"] = [
+                    "type" => "success",
+                    "message" => "Student record and account removed successfully."
+                ];
+            } elseif ($studentDeleted) {
+                $_SESSION["employee_interns_flash"] = [
+                    "type" => "error",
+                    "message" => "The student record no longer exists."
+                ];
+            } else {
+                error_log("Unable to delete student record: " . ($deleteStudent->error ?: "database delete failed"));
+                $_SESSION["employee_interns_flash"] = [
+                    "type" => "error",
+                    "message" => "Unable to remove the student right now. Please try again."
+                ];
+            }
+
+            $deleteStudent->close();
+        }
+    }
+
+    header("Location: Employee-Dashboard?section=interns", true, 303);
+    exit;
+}
+
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    ($_POST["student_action"] ?? "") === "create"
+) {
+    $csrfToken = $_POST["students_csrf"] ?? "";
+    $readStudentField = static function (string $key): string {
+        $value = $_POST[$key] ?? "";
+        return is_string($value) ? trim($value) : "";
+    };
+    $firstName = $readStudentField("first_name");
+    $middleName = $readStudentField("middle_name");
+    $lastName = $readStudentField("last_name");
+    $course = $readStudentField("course");
+    $mobileNumber = $readStudentField("mobile_number");
+    $schoolName = "Leyte Normal University";
+    $completeAddress = $readStudentField("complete_address");
+    $studentId = $readStudentField("student_id");
+    $institutionalEmail = $readStudentField("institutional_email");
+    $studentPassword = $_POST["student_password"] ?? "";
+
+    $validCsrf = is_string($csrfToken) &&
+        hash_equals($_SESSION["employee_students_csrf"], $csrfToken);
+    $validFields = is_string($studentPassword) &&
+        $firstName !== "" &&
+        strlen($firstName) <= 50 &&
+        strlen($middleName) <= 50 &&
+        $lastName !== "" &&
+        strlen($lastName) <= 50 &&
+        $course !== "" &&
+        strlen($course) <= 100 &&
+        $mobileNumber !== "" &&
+        strlen($mobileNumber) <= 20 &&
+        $schoolName !== "" &&
+        strlen($schoolName) <= 150 &&
+        $completeAddress !== "" &&
+        $studentId !== "" &&
+        strlen($studentId) <= 50 &&
+        filter_var($institutionalEmail, FILTER_VALIDATE_EMAIL) &&
+        strlen($institutionalEmail) <= 100 &&
+        strlen($studentPassword) >= 8;
+
+    if (!$validCsrf) {
+        $_SESSION["employee_interns_flash"] = [
+            "type" => "error",
+            "message" => "Your security token expired. Reload the page and try again."
+        ];
+    } elseif (!$validFields) {
+        $_SESSION["employee_interns_flash"] = [
+            "type" => "error",
+            "message" => "Enter all required student details, a valid email, and a password of at least 8 characters."
+        ];
+    } else {
+        try {
+            $duplicateCheck = $conn->prepare(
+                "SELECT id
+                FROM students
+                WHERE student_id = ? OR institutional_email = ?
+                LIMIT 1"
+            );
+        } catch (mysqli_sql_exception $exception) {
+            $duplicateCheck = false;
+        }
+
+        if ($duplicateCheck === false) {
+            error_log("Unable to prepare student duplicate check: " . ($conn->error ?: "database prepare failed"));
+            $_SESSION["employee_interns_flash"] = [
+                "type" => "error",
+                "message" => "Unable to add the student right now. Please try again."
+            ];
+        } else {
+            $duplicateCheck->bind_param("ss", $studentId, $institutionalEmail);
+            try {
+                $duplicateCheckSucceeded = $duplicateCheck->execute();
+                $duplicateRecord = $duplicateCheckSucceeded
+                    ? $duplicateCheck->get_result()->fetch_assoc()
+                    : null;
+            } catch (mysqli_sql_exception $exception) {
+                $duplicateCheckSucceeded = false;
+                $duplicateRecord = null;
+            }
+
+            $duplicateCheck->close();
+
+            if (!$duplicateCheckSucceeded) {
+                error_log("Unable to check for duplicate student account: " . ($conn->error ?: "database query failed"));
+                $_SESSION["employee_interns_flash"] = [
+                    "type" => "error",
+                    "message" => "Unable to add the student right now. Please try again."
+                ];
+            } elseif ($duplicateRecord) {
+                $_SESSION["employee_interns_flash"] = [
+                    "type" => "error",
+                    "message" => "That student ID or institutional email is already registered."
+                ];
+            } else {
+                $studentPasswordHash = password_hash($studentPassword, PASSWORD_DEFAULT);
+                try {
+                    $insertStudent = $conn->prepare(
+                        "INSERT INTO students (
+                            first_name,
+                            middle_name,
+                            last_name,
+                            course,
+                            mobile_number,
+                            school_name,
+                            complete_address,
+                            student_id,
+                            institutional_email,
+                            password_hash
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    );
+                } catch (mysqli_sql_exception $exception) {
+                    $insertStudent = false;
+                }
+
+                if ($studentPasswordHash === false || $insertStudent === false) {
+                    error_log("Unable to prepare student registration: " . ($conn->error ?: "database prepare failed"));
+                    $_SESSION["employee_interns_flash"] = [
+                        "type" => "error",
+                        "message" => "Unable to add the student right now. Please try again."
+                    ];
+                } else {
+                    $insertStudent->bind_param(
+                        "ssssssssss",
+                        $firstName,
+                        $middleName,
+                        $lastName,
+                        $course,
+                        $mobileNumber,
+                        $schoolName,
+                        $completeAddress,
+                        $studentId,
+                        $institutionalEmail,
+                        $studentPasswordHash
+                    );
+
+                    try {
+                        $studentInserted = $insertStudent->execute();
+                    } catch (mysqli_sql_exception $exception) {
+                        $studentInserted = false;
+                    }
+
+                    if ($studentInserted) {
+                        $_SESSION["employee_interns_flash"] = [
+                            "type" => "success",
+                            "message" => "Student account added successfully."
+                        ];
+                    } elseif ($insertStudent->errno === 1062) {
+                        $_SESSION["employee_interns_flash"] = [
+                            "type" => "error",
+                            "message" => "That student ID or institutional email is already registered."
+                        ];
+                    } else {
+                        error_log("Unable to insert student account: " . ($insertStudent->error ?: "database insert failed"));
+                        $_SESSION["employee_interns_flash"] = [
+                            "type" => "error",
+                            "message" => "Unable to add the student right now. Please try again."
+                        ];
+                    }
+
+                    $insertStudent->close();
+                }
+            }
+        }
+    }
+
+    header("Location: Employee-Dashboard?section=interns", true, 303);
+    exit;
+}
+
+/* =========================================================
+   EMPLOYEE SETTINGS ACTIONS
+========================================================= */
+
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    ($_POST["settings_action"] ?? "") === "change_password"
+) {
+    $csrfToken = $_POST["settings_csrf"] ?? "";
+
+    if (
+        !is_string($csrfToken) ||
+        !isset($_SESSION["employee_settings_csrf"]) ||
+        !hash_equals($_SESSION["employee_settings_csrf"], $csrfToken)
+    ) {
+        $_SESSION["employee_settings_flash"] = [
+            "type" => "error",
+            "message" => "Your security token expired. Reload the page and try again."
+        ];
+    } else {
+        $currentPassword = $_POST["current_password"] ?? "";
+        $newPassword = $_POST["new_password"] ?? "";
+        $confirmPassword = $_POST["confirm_password"] ?? "";
+
+        if (
+            !is_string($currentPassword) ||
+            !is_string($newPassword) ||
+            !is_string($confirmPassword) ||
+            $currentPassword === "" ||
+            strlen($newPassword) < 8 ||
+            !hash_equals($newPassword, $confirmPassword)
+        ) {
+            $_SESSION["employee_settings_flash"] = [
+                "type" => "error",
+                "message" => "Enter your current password, choose a new password of at least 8 characters, and confirm it."
+            ];
+        } else {
+            $passwordStmt = $conn->prepare(
+                "SELECT password_hash
+                FROM employees
+                WHERE employee_id = ?
+                LIMIT 1"
+            );
+
+            if ($passwordStmt === false) {
+                error_log("Unable to prepare employee password lookup: " . $conn->error);
+                $_SESSION["employee_settings_flash"] = [
+                    "type" => "error",
+                    "message" => "Unable to change your password right now. Please try again."
+                ];
+            } else {
+                $passwordStmt->bind_param("s", $_SESSION["employee_id"]);
+
+                if (!$passwordStmt->execute()) {
+                    error_log("Unable to load employee password: " . $passwordStmt->error);
+                    $_SESSION["employee_settings_flash"] = [
+                        "type" => "error",
+                        "message" => "Unable to change your password right now. Please try again."
+                    ];
+                } else {
+                    $passwordRecord = $passwordStmt->get_result()->fetch_assoc();
+
+                    if (
+                        !$passwordRecord ||
+                        !password_verify($currentPassword, $passwordRecord["password_hash"])
+                    ) {
+                        $_SESSION["employee_settings_flash"] = [
+                            "type" => "error",
+                            "message" => "Your current password is incorrect."
+                        ];
+                    } else {
+                        $newPasswordHash = password_hash($newPassword, PASSWORD_DEFAULT);
+
+                        if ($newPasswordHash === false) {
+                            $_SESSION["employee_settings_flash"] = [
+                                "type" => "error",
+                                "message" => "Unable to change your password right now. Please try again."
+                            ];
+                        } else {
+                            $updatePasswordStmt = $conn->prepare(
+                                "UPDATE employees
+                                SET password_hash = ?
+                                WHERE employee_id = ?"
+                            );
+
+                            if ($updatePasswordStmt === false) {
+                                error_log("Unable to prepare employee password update: " . $conn->error);
+                                $_SESSION["employee_settings_flash"] = [
+                                    "type" => "error",
+                                    "message" => "Unable to change your password right now. Please try again."
+                                ];
+                            } else {
+                                $updatePasswordStmt->bind_param(
+                                    "ss",
+                                    $newPasswordHash,
+                                    $_SESSION["employee_id"]
+                                );
+
+                                if ($updatePasswordStmt->execute()) {
+                                    $_SESSION["employee_settings_flash"] = [
+                                        "type" => "success",
+                                        "message" => "Your password was changed successfully."
+                                    ];
+                                } else {
+                                    error_log("Unable to update employee password: " . $updatePasswordStmt->error);
+                                    $_SESSION["employee_settings_flash"] = [
+                                        "type" => "error",
+                                        "message" => "Unable to change your password right now. Please try again."
+                                    ];
+                                }
+
+                                $updatePasswordStmt->close();
+                            }
+                        }
+                    }
+                }
+
+                $passwordStmt->close();
+            }
+        }
+    }
+
+    $conn->close();
+    header("Location: Employee%20Dashboard?section=settings", true, 303);
+    exit;
+}
+
 /* =========================================================
    GET LOGGED-IN EMPLOYEE
 ========================================================= */
@@ -75,6 +622,338 @@ if ($result->num_rows !== 1) {
 $employee = $result->fetch_assoc();
 $stmt->close();
 
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    ($_POST["evaluation_action"] ?? "") === "save"
+) {
+    $evaluationFlash = ["type" => "error", "message" => "Unable to save the evaluation."];
+    $evaluationCsrf = $_POST["evaluations_csrf"] ?? "";
+    $evaluationStudentValue = $_POST["student_db_id"] ?? null;
+    $evaluationStudentId = is_string($evaluationStudentValue) || is_int($evaluationStudentValue)
+        ? filter_var(
+            $evaluationStudentValue,
+            FILTER_VALIDATE_INT,
+            ["options" => ["min_range" => 1]]
+        )
+        : false;
+    $evaluationRecordValue = $_POST["evaluation_id"] ?? "";
+    $evaluationRecordId = $evaluationRecordValue === ""
+        ? null
+        : (
+            is_string($evaluationRecordValue) || is_int($evaluationRecordValue)
+                ? filter_var(
+                    $evaluationRecordValue,
+                    FILTER_VALIDATE_INT,
+                    ["options" => ["min_range" => 1]]
+                )
+                : false
+        );
+    $evaluationDate = $_POST["evaluation_date"] ?? "";
+    $overallPerformance = $_POST["overall_performance"] ?? "";
+    $evaluationStatus = $_POST["status"] ?? "";
+    $recommendation = $_POST["recommendation"] ?? "";
+    $strengths = $_POST["strengths"] ?? "";
+    $areasForImprovement = $_POST["areas_for_improvement"] ?? "";
+    $comments = $_POST["comments"] ?? "";
+    $postedScores = $_POST["scores"] ?? [];
+    $scoreFields = [
+        "attendance_punctuality",
+        "quality_of_work",
+        "productivity",
+        "communication",
+        "teamwork",
+        "initiative",
+        "professionalism",
+        "adaptability",
+        "problem_solving",
+        "technical_skills"
+    ];
+    $performanceOptions = [
+        "Outstanding",
+        "Very Good",
+        "Satisfactory",
+        "Needs Improvement",
+        "Unsatisfactory"
+    ];
+    $evaluationRatings = [];
+
+    if (
+        !is_string($evaluationCsrf) ||
+        !hash_equals($_SESSION["employee_evaluations_csrf"], $evaluationCsrf)
+    ) {
+        $evaluationFlash["message"] = "Your security token expired. Reload the page and try again.";
+    } elseif (
+        $evaluationStudentId === false ||
+        $evaluationRecordId === false ||
+        !is_string($evaluationDate) ||
+        !is_string($overallPerformance) ||
+        !in_array($overallPerformance, $performanceOptions, true) ||
+        !is_string($evaluationStatus) ||
+        !in_array($evaluationStatus, ["Draft", "Completed"], true) ||
+        !is_string($recommendation) ||
+        strlen($recommendation) > 100 ||
+        !is_string($strengths) ||
+        strlen($strengths) > 5000 ||
+        !is_string($areasForImprovement) ||
+        strlen($areasForImprovement) > 5000 ||
+        !is_string($comments) ||
+        strlen($comments) > 5000 ||
+        !is_array($postedScores)
+    ) {
+        $evaluationFlash["message"] = "Enter valid evaluation details and select a rating from 1 to 5 for every criterion.";
+    } else {
+        $parsedEvaluationDate = DateTime::createFromFormat("!Y-m-d", $evaluationDate);
+        $dateErrors = DateTime::getLastErrors();
+        $validEvaluationDate = $parsedEvaluationDate !== false &&
+            $parsedEvaluationDate->format("Y-m-d") === $evaluationDate &&
+            ($dateErrors === false || ($dateErrors["warning_count"] === 0 && $dateErrors["error_count"] === 0));
+
+        foreach ($scoreFields as $scoreField) {
+            $scoreValue = $postedScores[$scoreField] ?? null;
+            $rating = is_string($scoreValue) || is_int($scoreValue)
+                ? filter_var($scoreValue, FILTER_VALIDATE_INT)
+                : false;
+            if ($rating === false || $rating < 1 || $rating > 5) {
+                $evaluationRatings = [];
+                break;
+            }
+            $evaluationRatings[$scoreField] = $rating;
+        }
+
+        if (!$validEvaluationDate || count($evaluationRatings) !== count($scoreFields)) {
+            $evaluationFlash["message"] = "Enter a valid evaluation date and select a rating from 1 to 5 for every criterion.";
+        } else {
+            try {
+                $studentExistsStmt = $conn->prepare("SELECT id FROM students WHERE id = ? LIMIT 1");
+            } catch (mysqli_sql_exception $exception) {
+                $studentExistsStmt = false;
+            }
+
+            if ($studentExistsStmt === false) {
+                error_log("Unable to prepare evaluation student check: " . ($conn->error ?: "database prepare failed"));
+                $evaluationFlash["message"] = "Unable to save the evaluation right now. Please try again.";
+            } else {
+                $studentExistsStmt->bind_param("i", $evaluationStudentId);
+                try {
+                    $studentCheckSucceeded = $studentExistsStmt->execute();
+                    $studentExists = $studentCheckSucceeded && $studentExistsStmt->get_result()->num_rows === 1;
+                } catch (mysqli_sql_exception $exception) {
+                    $studentCheckSucceeded = false;
+                    $studentExists = false;
+                }
+                $studentExistsStmt->close();
+
+                if (!$studentCheckSucceeded) {
+                    error_log("Unable to verify evaluation student: " . ($conn->error ?: "database query failed"));
+                    $evaluationFlash["message"] = "Unable to save the evaluation right now. Please try again.";
+                } elseif (!$studentExists) {
+                    $evaluationFlash["message"] = "The selected student record could not be found.";
+                } else {
+                    $attendancePunctuality = $evaluationRatings["attendance_punctuality"];
+                    $qualityOfWork = $evaluationRatings["quality_of_work"];
+                    $productivity = $evaluationRatings["productivity"];
+                    $communication = $evaluationRatings["communication"];
+                    $teamwork = $evaluationRatings["teamwork"];
+                    $initiative = $evaluationRatings["initiative"];
+                    $professionalism = $evaluationRatings["professionalism"];
+                    $adaptability = $evaluationRatings["adaptability"];
+                    $problemSolving = $evaluationRatings["problem_solving"];
+                    $technicalSkills = $evaluationRatings["technical_skills"];
+                    $overallRating = round(array_sum($evaluationRatings) / count($evaluationRatings), 2);
+                    $evaluatorId = (int)$employee["id"];
+
+                    if ($evaluationRecordId !== null) {
+                        try {
+                            $draftCheck = $conn->prepare(
+                                "SELECT id
+                                FROM intern_evaluations
+                                WHERE id = ? AND student_db_id = ? AND status = 'Draft'
+                                LIMIT 1"
+                            );
+                        } catch (mysqli_sql_exception $exception) {
+                            $draftCheck = false;
+                        }
+
+                        if ($draftCheck === false) {
+                            error_log("Unable to prepare evaluation draft check: " . ($conn->error ?: "database prepare failed"));
+                            $evaluationFlash["message"] = "Unable to update the draft right now. Please try again.";
+                        } else {
+                            $draftCheck->bind_param("ii", $evaluationRecordId, $evaluationStudentId);
+                            try {
+                                $draftCheckSucceeded = $draftCheck->execute();
+                                $draftExists = $draftCheckSucceeded && $draftCheck->get_result()->num_rows === 1;
+                            } catch (mysqli_sql_exception $exception) {
+                                $draftCheckSucceeded = false;
+                                $draftExists = false;
+                            }
+                            $draftCheck->close();
+
+                            if (!$draftCheckSucceeded) {
+                                error_log("Unable to verify evaluation draft: " . ($conn->error ?: "database query failed"));
+                                $evaluationFlash["message"] = "Unable to update the draft right now. Please try again.";
+                            } elseif (!$draftExists) {
+                                $evaluationFlash["message"] = "This draft is no longer available to edit. Refresh the page and try again.";
+                            } else {
+                                try {
+                                    $updateEvaluation = $conn->prepare(
+                                        "UPDATE intern_evaluations SET
+                                            evaluation_date = ?,
+                                            attendance_punctuality = ?,
+                                            quality_of_work = ?,
+                                            productivity = ?,
+                                            communication = ?,
+                                            teamwork = ?,
+                                            initiative = ?,
+                                            professionalism = ?,
+                                            adaptability = ?,
+                                            problem_solving = ?,
+                                            technical_skills = ?,
+                                            overall_rating = ?,
+                                            overall_performance = ?,
+                                            strengths = ?,
+                                            areas_for_improvement = ?,
+                                            comments = ?,
+                                            recommendation = ?,
+                                            status = ?
+                                        WHERE id = ? AND student_db_id = ? AND status = 'Draft'"
+                                    );
+                                } catch (mysqli_sql_exception $exception) {
+                                    $updateEvaluation = false;
+                                }
+
+                                if ($updateEvaluation === false) {
+                                    error_log("Unable to prepare evaluation draft update: " . ($conn->error ?: "database prepare failed"));
+                                    $evaluationFlash["message"] = "Unable to update the draft right now. Please try again.";
+                                } else {
+                                    $updateEvaluation->bind_param(
+                                        "siiiiiiiiiidssssssii",
+                                        $evaluationDate,
+                                        $attendancePunctuality,
+                                        $qualityOfWork,
+                                        $productivity,
+                                        $communication,
+                                        $teamwork,
+                                        $initiative,
+                                        $professionalism,
+                                        $adaptability,
+                                        $problemSolving,
+                                        $technicalSkills,
+                                        $overallRating,
+                                        $overallPerformance,
+                                        $strengths,
+                                        $areasForImprovement,
+                                        $comments,
+                                        $recommendation,
+                                        $evaluationStatus,
+                                        $evaluationRecordId,
+                                        $evaluationStudentId
+                                    );
+                                    try {
+                                        $evaluationSaved = $updateEvaluation->execute();
+                                    } catch (mysqli_sql_exception $exception) {
+                                        $evaluationSaved = false;
+                                    }
+
+                                    if ($evaluationSaved) {
+                                        $evaluationFlash = [
+                                            "type" => "success",
+                                            "message" => $evaluationStatus === "Completed"
+                                                ? "Draft marked as completed successfully."
+                                                : "Draft updated successfully."
+                                        ];
+                                    } else {
+                                        error_log("Unable to update evaluation draft: " . ($updateEvaluation->error ?: "database update failed"));
+                                        $evaluationFlash["message"] = "Unable to update the draft right now. Please try again.";
+                                    }
+                                    $updateEvaluation->close();
+                                }
+                            }
+                        }
+                    } else {
+                        try {
+                            $insertEvaluation = $conn->prepare(
+                                "INSERT INTO intern_evaluations (
+                                    student_db_id,
+                                    evaluator_id,
+                                    evaluation_date,
+                                    attendance_punctuality,
+                                    quality_of_work,
+                                    productivity,
+                                    communication,
+                                    teamwork,
+                                    initiative,
+                                    professionalism,
+                                    adaptability,
+                                    problem_solving,
+                                    technical_skills,
+                                    overall_rating,
+                                    overall_performance,
+                                    strengths,
+                                    areas_for_improvement,
+                                    comments,
+                                    recommendation,
+                                    status
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                            );
+                        } catch (mysqli_sql_exception $exception) {
+                            $insertEvaluation = false;
+                        }
+
+                        if ($insertEvaluation === false) {
+                            error_log("Unable to prepare evaluation insert: " . ($conn->error ?: "database prepare failed"));
+                            $evaluationFlash["message"] = "Unable to save the evaluation right now. Please try again.";
+                        } else {
+                            $insertEvaluation->bind_param(
+                                "iisiiiiiiiiiidssssss",
+                                $evaluationStudentId,
+                                $evaluatorId,
+                                $evaluationDate,
+                                $attendancePunctuality,
+                                $qualityOfWork,
+                                $productivity,
+                                $communication,
+                                $teamwork,
+                                $initiative,
+                                $professionalism,
+                                $adaptability,
+                                $problemSolving,
+                                $technicalSkills,
+                                $overallRating,
+                                $overallPerformance,
+                                $strengths,
+                                $areasForImprovement,
+                                $comments,
+                                $recommendation,
+                                $evaluationStatus
+                            );
+                            try {
+                                $evaluationSaved = $insertEvaluation->execute();
+                            } catch (mysqli_sql_exception $exception) {
+                                $evaluationSaved = false;
+                            }
+
+                            if ($evaluationSaved) {
+                                $evaluationFlash = [
+                                    "type" => "success",
+                                    "message" => "Evaluation saved successfully."
+                                ];
+                            } else {
+                                error_log("Unable to insert evaluation: " . ($insertEvaluation->error ?: "database insert failed"));
+                                $evaluationFlash["message"] = "Unable to save the evaluation right now. Please try again.";
+                            }
+                            $insertEvaluation->close();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    $_SESSION["employee_evaluations_flash"] = $evaluationFlash;
+    header("Location: Employee-Dashboard?section=evaluations", true, 303);
+    exit;
+}
+
 /* =========================================================
    EMPLOYEE INFORMATION
 ========================================================= */
@@ -113,6 +992,211 @@ $displayPosition = htmlspecialchars($employeePosition, ENT_QUOTES, "UTF-8");
 $displayUsername = htmlspecialchars($employeeUsername, ENT_QUOTES, "UTF-8");
 $displayEmployeeId = htmlspecialchars($employeeId, ENT_QUOTES, "UTF-8");
 $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
+
+$studentRecords = [];
+$internPageError = "";
+try {
+    $studentsQuery = $conn->query("
+        SELECT
+            id,
+            first_name,
+            middle_name,
+            last_name,
+            course,
+            mobile_number,
+            school_name,
+            student_id,
+            institutional_email,
+            created_at
+        FROM students
+        ORDER BY created_at DESC, id DESC
+    ");
+} catch (mysqli_sql_exception $exception) {
+    error_log("Unable to load registered students: " . $exception->getMessage());
+    $studentsQuery = false;
+}
+
+if ($studentsQuery === false) {
+    $internPageError = "Unable to load student records right now. Please try again later.";
+} else {
+    while ($studentRecord = $studentsQuery->fetch_assoc()) {
+        $studentRecords[] = $studentRecord;
+    }
+    $studentsQuery->free();
+}
+
+$studentCourseCount = count(array_unique(array_column($studentRecords, "course")));
+$studentSchoolCount = count(array_unique(array_column($studentRecords, "school_name")));
+$internsFlash = $_SESSION["employee_interns_flash"] ?? null;
+unset($_SESSION["employee_interns_flash"]);
+$studentsCsrf = htmlspecialchars($_SESSION["employee_students_csrf"], ENT_QUOTES, "UTF-8");
+
+$studentProgressByStudentId = [];
+$studentProgressPageError = "";
+try {
+    $studentProgressQuery = $conn->query("
+        SELECT
+            student.student_id,
+            portal_user.id AS portal_user_id,
+            company.name AS company_name,
+            attendance_total.completed_minutes
+        FROM students AS student
+        LEFT JOIN users AS portal_user
+            ON portal_user.student_no = student.student_id
+            AND portal_user.role = 'student'
+        LEFT JOIN internships AS internship
+            ON internship.user_id = portal_user.id
+            AND internship.id = (
+                SELECT MAX(latest_internship.id)
+                FROM internships AS latest_internship
+                WHERE latest_internship.user_id = portal_user.id
+            )
+        LEFT JOIN companies AS company
+            ON company.id = internship.company_id
+            LEFT JOIN (
+                SELECT student_pk, SUM(duration_minutes) AS completed_minutes
+                FROM attendance
+                GROUP BY student_pk
+            ) AS attendance_total
+                ON attendance_total.student_pk = student.id
+    ");
+} catch (mysqli_sql_exception $exception) {
+    error_log("Unable to load student attendance progress: " . $exception->getMessage());
+    $studentProgressQuery = false;
+}
+
+if ($studentProgressQuery === false) {
+    $studentProgressPageError = "Company assignments and working hours could not be loaded right now.";
+} else {
+    while ($studentProgressRecord = $studentProgressQuery->fetch_assoc()) {
+        $studentProgressByStudentId[$studentProgressRecord["student_id"]] = [
+            "portalLinked" => $studentProgressRecord["portal_user_id"] !== null,
+            "company" => $studentProgressRecord["company_name"],
+            "completedHours" => $studentProgressRecord["completed_minutes"] !== null
+                ? (float)$studentProgressRecord["completed_minutes"] / 60
+                : 0.0
+        ];
+    }
+    $studentProgressQuery->free();
+}
+
+$evaluationRecordsByStudentId = [];
+$evaluationPageError = "";
+$evaluationStats = [
+    "count" => 0,
+    "completed" => 0,
+    "average" => null
+];
+try {
+    $evaluationsQuery = $conn->query("
+        SELECT
+            evaluation.id,
+            evaluation.student_db_id,
+            evaluation.evaluation_date,
+            evaluation.attendance_punctuality,
+            evaluation.quality_of_work,
+            evaluation.productivity,
+            evaluation.communication,
+            evaluation.teamwork,
+            evaluation.initiative,
+            evaluation.professionalism,
+            evaluation.adaptability,
+            evaluation.problem_solving,
+            evaluation.technical_skills,
+            evaluation.overall_rating,
+            evaluation.overall_performance,
+            evaluation.strengths,
+            evaluation.areas_for_improvement,
+            evaluation.comments,
+            evaluation.recommendation,
+            evaluation.status
+        FROM intern_evaluations AS evaluation
+        INNER JOIN (
+            SELECT student_db_id, MAX(id) AS latest_id
+            FROM intern_evaluations
+            GROUP BY student_db_id
+        ) AS latest ON latest.latest_id = evaluation.id
+        ORDER BY evaluation.evaluation_date DESC, evaluation.id DESC
+    ");
+    $evaluationStatsQuery = $conn->query("
+        SELECT
+            COUNT(*) AS evaluation_count,
+            SUM(status = 'Completed') AS completed_count,
+            AVG(CASE WHEN status = 'Completed' THEN overall_rating END) AS average_rating
+        FROM intern_evaluations
+    ");
+} catch (mysqli_sql_exception $exception) {
+    error_log("Unable to load evaluations: " . $exception->getMessage());
+    $evaluationsQuery = false;
+    $evaluationStatsQuery = false;
+}
+
+if ($evaluationsQuery === false || $evaluationStatsQuery === false) {
+    $evaluationPageError = "Unable to load evaluation records right now. Please check the intern_evaluations table and try again.";
+} else {
+    while ($evaluationRecord = $evaluationsQuery->fetch_assoc()) {
+        $evaluationRecordsByStudentId[(int)$evaluationRecord["student_db_id"]] = $evaluationRecord;
+    }
+    $evaluationsQuery->free();
+
+    $evaluationStatsRecord = $evaluationStatsQuery->fetch_assoc();
+    $evaluationStats = [
+        "count" => (int)($evaluationStatsRecord["evaluation_count"] ?? 0),
+        "completed" => (int)($evaluationStatsRecord["completed_count"] ?? 0),
+        "average" => $evaluationStatsRecord["average_rating"] !== null
+            ? (float)$evaluationStatsRecord["average_rating"]
+            : null
+    ];
+    $evaluationStatsQuery->free();
+}
+$evaluationFlash = $_SESSION["employee_evaluations_flash"] ?? null;
+unset($_SESSION["employee_evaluations_flash"]);
+$evaluationsCsrf = htmlspecialchars($_SESSION["employee_evaluations_csrf"], ENT_QUOTES, "UTF-8");
+
+$companyRecords = [];
+$companyPageError = "";
+try {
+    $companiesQuery = $conn->query("
+        SELECT
+            id,
+            company_name,
+            company_code,
+            contact_person,
+            contact_number,
+            email,
+            address,
+            building,
+            department,
+            position,
+            status,
+            created_at
+        FROM company
+        ORDER BY created_at DESC, id DESC
+    ");
+} catch (mysqli_sql_exception $exception) {
+    error_log("Unable to load companies: " . $exception->getMessage());
+    $companiesQuery = false;
+}
+
+if ($companiesQuery === false) {
+    $companyPageError = "Unable to load company records right now. Please try again later.";
+} else {
+    while ($companyRecord = $companiesQuery->fetch_assoc()) {
+        $companyRecords[] = $companyRecord;
+    }
+    $companiesQuery->free();
+}
+
+$companiesFlash = $_SESSION["employee_companies_flash"] ?? null;
+unset($_SESSION["employee_companies_flash"]);
+$companiesCsrf = htmlspecialchars($_SESSION["employee_companies_csrf"], ENT_QUOTES, "UTF-8");
+
+if (!isset($_SESSION["employee_settings_csrf"])) {
+    $_SESSION["employee_settings_csrf"] = bin2hex(random_bytes(32));
+}
+$settingsCsrf = htmlspecialchars($_SESSION["employee_settings_csrf"], ENT_QUOTES, "UTF-8");
+$settingsFlash = $_SESSION["employee_settings_flash"] ?? null;
+unset($_SESSION["employee_settings_flash"]);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -132,7 +1216,7 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
     <!-- =========================================================
          SIDEBAR
     ========================================================== -->
-    <aside class="sidebar" id="sidebar">
+    <aside class="sidebar compact" id="sidebar">
         <div class="brand">
             <div class="brand-mark">
                 <span></span><span></span><span></span><span></span>
@@ -142,39 +1226,45 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
         </div>
 
         <nav class="sidebar-nav">
-            <button class="nav-link active" data-page="overview">
+            <button class="nav-link active" data-page="overview" aria-label="Overview" title="Overview">
                 <span class="nav-icon">▦</span>
                 <span>Overview</span>
             </button>
 
-            <button class="nav-link" data-page="interns">
+            <button class="nav-link" data-page="interns" aria-label="Interns" title="Interns">
                 <span class="nav-icon">♙</span>
                 <span>Interns</span>
             </button>
 
-            <button class="nav-link" data-page="evaluations">
+            <button class="nav-link" data-page="evaluations" aria-label="Evaluations" title="Evaluations">
                 <span class="nav-icon">▤</span>
                 <span>Evaluations</span>
             </button>
 
-            <button class="nav-link" data-page="messages">
+            <button class="nav-link" data-page="messages" aria-label="Messages" title="Messages">
                 <span class="nav-icon">➤</span>
                 <span>Messages</span>
             </button>
 
-            <button class="nav-link" data-page="reports">
+            <button class="nav-link" data-page="reports" aria-label="Reports and Analytics" title="Reports and Analytics">
                 <span class="nav-icon">▥</span>
                 <span>Reports &amp; Analytics</span>
             </button>
+
         </nav>
 
         <div class="sidebar-bottom">
-            <button class="nav-link help-link" data-page="support">
+            <button class="nav-link help-link" data-page="support" aria-label="Help and Support" title="Help and Support">
                 <span class="nav-icon">?</span>
                 <span>Help &amp; Support</span>
             </button>
 
-            <button class="nav-link" id="signOutBtn">
+            <button class="nav-link settings-bottom-link" data-page="settings" aria-label="Settings" title="Settings">
+                <span class="nav-icon">⚙</span>
+                <span>Settings</span>
+            </button>
+
+            <button class="nav-link" id="signOutBtn" aria-label="Sign out" title="Sign out">
                 <span class="nav-icon">↪</span>
                 <span>Sign out</span>
             </button>
@@ -205,33 +1295,43 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                 <div class="brand-mark">
                     <span></span><span></span><span></span><span></span>
                 </div>
-                <div class="brand-text">OJT360</div>
+                <div class="brand-text" id="topbarPageName" data-current-page="Employee">OJT360</div>
             </div>
 
             <div class="sync">
                 <span class="sync-dot"></span>
-                <span>All changes synced</span>
+                <span>Online</span>
             </div>
 
-            <button class="theme-toggle" id="themeToggle" type="button" aria-label="Enable dark mode" title="Enable dark mode">
-                <span id="themeToggleIcon" aria-hidden="true">☾</span>
+            <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark mode" title="Switch to dark mode">
+                <span id="themeToggleIcon" aria-hidden="true">
+                    <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle cx="12" cy="12" r="4"></circle>
+                        <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"></path>
+                    </svg>
+                    <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5Z"></path>
+                    </svg>
+                </span>
             </button>
 
             <div class="notification-wrapper">
-                <button class="icon-button" id="notificationButton" type="button" title="Notifications" aria-label="Notifications" aria-controls="notificationPanel" aria-expanded="false">
+                <button class="icon-button" id="notificationBtn" type="button" title="Notifications" aria-label="Notifications" aria-controls="notificationDropdown" aria-expanded="false">
+                    <span class="notification-badge" id="notificationBadge" aria-live="polite" hidden>0</span>
                 </button>
-                <section class="notification-panel" id="notificationPanel" aria-label="Notifications" hidden>
-                    <div class="notification-panel-header">Notifications</div>
-                    <p class="notification-empty">You're all caught up.</p>
+                <section class="notification-panel" id="notificationDropdown" aria-label="Notifications" hidden>
+                    <div class="notification-panel-header">
+                        <strong>Notifications</strong>
+                        <button class="notification-mark-read" id="markAllReadBtn" type="button">Mark all read</button>
+                    </div>
+                    <div class="notification-list" id="notificationList">
+                        <p class="notification-empty">You're all caught up.</p>
+                    </div>
                 </section>
             </div>
 
-            <button class="top-profile profile-trigger" id="topProfileBtn" title="Open profile">
+            <button class="top-profile profile-trigger" id="topProfileBtn" title="Open profile" aria-label="Open profile for <?= $displayName ?>">
                 <div class="avatar"><?= $displayInitials ?></div>
-                <div>
-                    <div class="profile-name" style="color:#29465e"><?= $displayName ?></div>
-                    <div class="profile-role"><?= $displayPosition ?></div>
-                </div>
             </button>
         </header>
 
@@ -244,8 +1344,8 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
 
                 <div class="hero">
                     <div class="eyebrow">Employee Workspace</div>
-                    <h1>Manage companies and student assignments.</h1>
-                    <p>Manage partner companies, monitor company status, and assign students to their internship companies.</p>
+                    <h1>Manage companies and registered students.</h1>
+                    <p>Review student profiles registered in the OJT360 database and manage partner companies.</p>
                 </div>
 
                 <div class="stat-grid">
@@ -253,7 +1353,7 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                         <div class="stat-icon">A</div>
                         <div>
                             <div class="stat-label">Active Companies</div>
-                            <div class="stat-value" id="activeCompanyCount">2</div>
+                            <div class="stat-value" id="activeCompanyCount"><?= count(array_filter($companyRecords, static fn(array $companyRecord): bool => $companyRecord["status"] === "active")) ?></div>
                             <div class="stat-sub">Available for assignment</div>
                         </div>
                     </div>
@@ -261,27 +1361,27 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                     <div class="stat-card">
                         <div class="stat-icon amber">A</div>
                         <div>
-                            <div class="stat-label">Archived Companies</div>
-                            <div class="stat-value" id="archivedCompanyCount">1</div>
-                            <div class="stat-sub">Historical partners</div>
+                            <div class="stat-label">Inactive Companies</div>
+                            <div class="stat-value" id="inactiveCompanyCount"><?= count(array_filter($companyRecords, static fn(array $companyRecord): bool => $companyRecord["status"] === "inactive")) ?></div>
+                            <div class="stat-sub">Not currently accepting placements</div>
                         </div>
                     </div>
 
                     <div class="stat-card">
                         <div class="stat-icon green">A</div>
                         <div>
-                            <div class="stat-label">Assigned Students</div>
-                            <div class="stat-value" id="assignedCount">2</div>
-                            <div class="stat-sub"><span id="overviewStudentTotal">4</span> students total</div>
+                            <div class="stat-label">Registered Students</div>
+                            <div class="stat-value"><?= count($studentRecords) ?></div>
+                            <div class="stat-sub">From the students database</div>
                         </div>
                     </div>
 
                     <div class="stat-card">
                         <div class="stat-icon purple">U</div>
                         <div>
-                            <div class="stat-label">Unassigned Students</div>
-                            <div class="stat-value" id="unassignedCount">2</div>
-                            <div class="stat-sub">Awaiting company placement</div>
+                            <div class="stat-label">Schools</div>
+                            <div class="stat-value"><?= $studentSchoolCount ?></div>
+                            <div class="stat-sub">Unique schools represented</div>
                         </div>
                     </div>
                 </div>
@@ -297,13 +1397,25 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                         <button class="btn btn-primary" id="addCompanyBtn">+ Add Company</button>
                     </div>
 
+                    <?php if ($companiesFlash): ?>
+                        <div class="interns-flash <?= ($companiesFlash["type"] ?? "") === "success" ? "success" : "error" ?>" role="<?= ($companiesFlash["type"] ?? "") === "error" ? "alert" : "status" ?>">
+                            <?= htmlspecialchars($companiesFlash["message"] ?? "", ENT_QUOTES, "UTF-8") ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if ($companyPageError !== ""): ?>
+                        <div class="interns-flash error" role="alert">
+                            <?= htmlspecialchars($companyPageError, ENT_QUOTES, "UTF-8") ?>
+                        </div>
+                    <?php endif; ?>
+
                     <div class="toolbar">
                         <input class="search" id="companySearch" placeholder="Search companies...">
 
                         <div class="filter-group">
                             <button class="filter active" data-company-filter="all">All</button>
                             <button class="filter" data-company-filter="active">Active</button>
-                            <button class="filter" data-company-filter="archived">Archived</button>
+                            <button class="filter" data-company-filter="inactive">Inactive</button>
                         </div>
                     </div>
 
@@ -314,12 +1426,54 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                                     <th>Company Name</th>
                                     <th>Contact Person</th>
                                     <th>Contact Email</th>
-                                    <th>Students</th>
+                                    <th>Contact Number</th>
+                                    <th>Address</th>
                                     <th>Status</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
-                            <tbody id="companyTable"></tbody>
+                            <tbody id="companyTable">
+                                <?php if ($companyPageError !== ""): ?>
+                                    <tr><td colspan="7"><div class="empty">Company records could not be loaded.</div></td></tr>
+                                <?php elseif (!$companyRecords): ?>
+                                    <tr><td colspan="7"><div class="empty">No companies found.</div></td></tr>
+                                <?php else: ?>
+                                    <?php foreach ($companyRecords as $companyRecord): ?>
+                                        <tr>
+                                            <td>
+                                                <div class="person">
+                                                    <div class="mini-avatar"><?= htmlspecialchars(strtoupper(substr($companyRecord["company_name"], 0, 2)), ENT_QUOTES, "UTF-8") ?></div>
+                                                    <div>
+                                                        <div class="person-name"><?= htmlspecialchars($companyRecord["company_name"], ENT_QUOTES, "UTF-8") ?></div>
+                                                        <div class="person-sub"><?= htmlspecialchars($companyRecord["company_code"] ?? "No company code", ENT_QUOTES, "UTF-8") ?></div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td><?= htmlspecialchars($companyRecord["contact_person"], ENT_QUOTES, "UTF-8") ?></td>
+                                            <td><?= htmlspecialchars($companyRecord["email"], ENT_QUOTES, "UTF-8") ?></td>
+                                            <td><?= htmlspecialchars($companyRecord["contact_number"], ENT_QUOTES, "UTF-8") ?></td>
+                                            <td><?= htmlspecialchars($companyRecord["address"], ENT_QUOTES, "UTF-8") ?></td>
+                                            <td>
+                                                <span class="badge <?= $companyRecord["status"] === "active" ? "green" : "yellow" ?>">
+                                                    <?= $companyRecord["status"] === "active" ? "Active" : "Inactive" ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div class="action-row">
+                                                    <button class="small-btn company-view-button" type="button" data-company-id="<?= (int)$companyRecord["id"] ?>">View</button>
+                                                    <form class="company-status-form" method="post" action="Employee-Dashboard">
+                                                        <input type="hidden" name="company_action" value="set_status">
+                                                        <input type="hidden" name="companies_csrf" value="<?= $companiesCsrf ?>">
+                                                        <input type="hidden" name="company_database_id" value="<?= (int)$companyRecord["id"] ?>">
+                                                        <input type="hidden" name="status" value="<?= $companyRecord["status"] === "active" ? "inactive" : "active" ?>">
+                                                        <button class="small-btn" type="submit"><?= $companyRecord["status"] === "active" ? "Deactivate" : "Activate" ?></button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
                         </table>
                     </div>
                 </div>
@@ -327,9 +1481,9 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                 <div class="section-card">
                     <div class="section-head">
                         <div>
-                            <div class="section-kicker">Placement Management</div>
-                            <h2 class="section-title">Student Assignments</h2>
-                            <p class="section-sub">Assign students to their internship company.</p>
+                            <div class="section-kicker">Student Management</div>
+                            <h2 class="section-title">Registered Students</h2>
+                            <p class="section-sub">Student profiles from the same database used by the Interns and Evaluations pages.</p>
                         </div>
                     </div>
 
@@ -339,13 +1493,57 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                                 <tr>
                                     <th>Student</th>
                                     <th>Student ID</th>
-                                    <th>Program</th>
-                                    <th>Assigned Company</th>
-                                    <th>Status</th>
-                                    <th>Action</th>
+                                    <th>Course</th>
+                                    <th>Institutional Email</th>
+                                    <th>Mobile Number</th>
+                                    <th>School</th>
+                                    <th>Working Hours</th>
                                 </tr>
                             </thead>
-                            <tbody id="assignmentTable"></tbody>
+                            <tbody id="assignmentTable">
+                                <?php if ($internPageError !== ""): ?>
+                                    <tr><td colspan="7"><div class="empty">Student records could not be loaded.</div></td></tr>
+                                <?php elseif (!$studentRecords): ?>
+                                    <tr><td colspan="7"><div class="empty">No registered students found.</div></td></tr>
+                                <?php else: ?>
+                                    <?php foreach ($studentRecords as $studentRecord): ?>
+                                        <?php
+                                            $studentName = trim(
+                                                $studentRecord["first_name"] . " " .
+                                                ($studentRecord["middle_name"] !== "" ? $studentRecord["middle_name"] . " " : "") .
+                                                $studentRecord["last_name"]
+                                            );
+                                            $studentInitials = strtoupper(
+                                                substr($studentRecord["first_name"], 0, 1) .
+                                                substr($studentRecord["last_name"], 0, 1)
+                                            );
+                                            $studentProgress = $studentProgressByStudentId[$studentRecord["student_id"]] ?? null;
+                                        ?>
+                                        <tr>
+                                            <td>
+                                                <div class="person">
+                                                    <div class="mini-avatar"><?= htmlspecialchars($studentInitials, ENT_QUOTES, "UTF-8") ?></div>
+                                                    <div class="person-name"><?= htmlspecialchars($studentName, ENT_QUOTES, "UTF-8") ?></div>
+                                                </div>
+                                            </td>
+                                            <td><?= htmlspecialchars($studentRecord["student_id"], ENT_QUOTES, "UTF-8") ?></td>
+                                            <td><?= htmlspecialchars($studentRecord["course"], ENT_QUOTES, "UTF-8") ?></td>
+                                            <td><?= htmlspecialchars($studentRecord["institutional_email"], ENT_QUOTES, "UTF-8") ?></td>
+                                            <td><?= htmlspecialchars($studentRecord["mobile_number"], ENT_QUOTES, "UTF-8") ?></td>
+                                            <td><?= htmlspecialchars($studentRecord["school_name"], ENT_QUOTES, "UTF-8") ?></td>
+                                            <td>
+                                                <?php if ($studentProgressPageError !== ""): ?>
+                                                    Unavailable
+                                                <?php elseif ($studentProgress === null): ?>
+                                                    Unavailable
+                                                <?php else: ?>
+                                                    <?= number_format($studentProgress["completedHours"], 1) ?> hrs
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
                         </table>
                     </div>
                 </div>
@@ -359,47 +1557,50 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                 <div class="page-heading">
                     <div>
                         <div class="eyebrow" style="color:#1688ba">Placement Management</div>
-                        <h1>Intern Assignments</h1>
-                        <p>View and manage student internship information, placement status, and completed hours.</p>
+                        <h1>Intern Students</h1>
+                        <p>Student profiles loaded from the registered students database.</p>
                     </div>
 
                     <button class="btn btn-primary" id="addInternBtn">+ Add Intern Student</button>
                 </div>
 
+                <?php if ($internsFlash): ?>
+                    <div class="interns-flash <?= ($internsFlash["type"] ?? "") === "success" ? "success" : "error" ?>" role="<?= ($internsFlash["type"] ?? "") === "error" ? "alert" : "status" ?>">
+                        <?= htmlspecialchars($internsFlash["message"] ?? "", ENT_QUOTES, "UTF-8") ?>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($internPageError !== ""): ?>
+                    <div class="interns-flash error" role="alert">
+                        <?= htmlspecialchars($internPageError, ENT_QUOTES, "UTF-8") ?>
+                    </div>
+                <?php endif; ?>
+
                 <div class="stat-grid">
                     <div class="stat-card">
                         <div class="stat-icon">T</div>
                         <div>
-                            <div class="stat-label">Total Interns</div>
-                            <div class="stat-value" id="internTotalCount">4</div>
-                            <div class="stat-sub">Registered internship students</div>
+                            <div class="stat-label">Registered Students</div>
+                            <div class="stat-value"><?= count($studentRecords) ?></div>
+                            <div class="stat-sub">Records in the students table</div>
                         </div>
                     </div>
 
                     <div class="stat-card">
                         <div class="stat-icon green">A</div>
                         <div>
-                            <div class="stat-label">Assigned Students</div>
-                            <div class="stat-value" id="internAssignedCount">2</div>
-                            <div class="stat-sub">Placed with a company</div>
+                            <div class="stat-label">Courses</div>
+                            <div class="stat-value"><?= $studentCourseCount ?></div>
+                            <div class="stat-sub">Unique courses represented</div>
                         </div>
                     </div>
 
                     <div class="stat-card">
                         <div class="stat-icon amber">U</div>
                         <div>
-                            <div class="stat-label">Unassigned Students</div>
-                            <div class="stat-value" id="internUnassignedCount">2</div>
-                            <div class="stat-sub">Awaiting company placement</div>
-                        </div>
-                    </div>
-
-                    <div class="stat-card">
-                        <div class="stat-icon purple">A</div>
-                        <div>
-                            <div class="stat-label">Average Progress</div>
-                            <div class="stat-value" id="internAverageProgress">50%</div>
-                            <div class="stat-sub">Across all internship hours</div>
+                            <div class="stat-label">Schools</div>
+                            <div class="stat-value"><?= $studentSchoolCount ?></div>
+                            <div class="stat-sub">Unique schools represented</div>
                         </div>
                     </div>
                 </div>
@@ -408,8 +1609,8 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                     <div class="section-head">
                         <div>
                             <div class="section-kicker">Student Information</div>
-                            <h2 class="section-title">Student Assignments</h2>
-                            <p class="section-sub">Student details, internship company, status, and completed hours.</p>
+                            <h2 class="section-title">Registered Students</h2>
+                            <p class="section-sub">Profile and registration details from the students database.</p>
                         </div>
                     </div>
 
@@ -419,14 +1620,58 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                                 <tr>
                                     <th>Student</th>
                                     <th>Student ID</th>
-                                    <th>Program</th>
-                                    <th>Assigned Company</th>
-                                    <th>Status</th>
-                                    <th>Working Hours</th>
+                                    <th>Course</th>
+                                    <th>Institutional Email</th>
+                                    <th>Mobile Number</th>
+                                    <th>School</th>
+                                    <th>Registered</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
-                            <tbody id="internTable"></tbody>
+                            <tbody>
+                                <?php if ($internPageError !== ""): ?>
+                                    <tr><td colspan="8"><div class="empty">Student records could not be loaded.</div></td></tr>
+                                <?php elseif (!$studentRecords): ?>
+                                    <tr><td colspan="8"><div class="empty">No registered students found.</div></td></tr>
+                                <?php else: ?>
+                                    <?php foreach ($studentRecords as $studentRecord): ?>
+                                        <?php
+                                            $studentName = trim(
+                                                $studentRecord["first_name"] . " " .
+                                                ($studentRecord["middle_name"] !== "" ? $studentRecord["middle_name"] . " " : "") .
+                                                $studentRecord["last_name"]
+                                            );
+                                            $studentInitials = strtoupper(
+                                                substr($studentRecord["first_name"], 0, 1) .
+                                                substr($studentRecord["last_name"], 0, 1)
+                                            );
+                                            $registeredAt = strtotime($studentRecord["created_at"]);
+                                        ?>
+                                        <tr>
+                                            <td>
+                                                <div class="person">
+                                                    <div class="mini-avatar"><?= htmlspecialchars($studentInitials, ENT_QUOTES, "UTF-8") ?></div>
+                                                    <div class="person-name"><?= htmlspecialchars($studentName, ENT_QUOTES, "UTF-8") ?></div>
+                                                </div>
+                                            </td>
+                                            <td><?= htmlspecialchars($studentRecord["student_id"], ENT_QUOTES, "UTF-8") ?></td>
+                                            <td><?= htmlspecialchars($studentRecord["course"], ENT_QUOTES, "UTF-8") ?></td>
+                                            <td><?= htmlspecialchars($studentRecord["institutional_email"], ENT_QUOTES, "UTF-8") ?></td>
+                                            <td><?= htmlspecialchars($studentRecord["mobile_number"], ENT_QUOTES, "UTF-8") ?></td>
+                                            <td><?= htmlspecialchars($studentRecord["school_name"], ENT_QUOTES, "UTF-8") ?></td>
+                                            <td><?= $registeredAt === false ? "—" : date("M j, Y", $registeredAt) ?></td>
+                                            <td>
+                                                <form class="remove-student-form" method="post" action="Employee-Dashboard?section=interns" data-student-name="<?= htmlspecialchars($studentName, ENT_QUOTES, "UTF-8") ?>">
+                                                    <input type="hidden" name="student_action" value="delete">
+                                                    <input type="hidden" name="students_csrf" value="<?= $studentsCsrf ?>">
+                                                    <input type="hidden" name="student_database_id" value="<?= (int)$studentRecord["id"] ?>">
+                                                    <button class="small-btn danger" type="submit">Remove</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
                         </table>
                     </div>
                 </div>
@@ -441,18 +1686,36 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                     <div>
                         <div class="eyebrow" style="color:#1688ba">Performance</div>
                         <h1>Evaluations</h1>
-                        <p>Review intern progress and submit structured performance feedback.</p>
+                        <p>Review and record performance evaluations for registered students.</p>
                     </div>
 
                     <button class="btn btn-primary" id="startEvaluationBtn">Start evaluation</button>
                 </div>
 
                 <div class="section-card">
+                    <?php if ($evaluationFlash && ($evaluationFlash["type"] ?? "") !== "success"): ?>
+                        <div class="interns-flash error" role="alert">
+                            <?= htmlspecialchars($evaluationFlash["message"] ?? "", ENT_QUOTES, "UTF-8") ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if ($evaluationPageError !== ""): ?>
+                        <div class="interns-flash error" role="alert">
+                            <?= htmlspecialchars($evaluationPageError, ENT_QUOTES, "UTF-8") ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if ($studentProgressPageError !== ""): ?>
+                        <div class="interns-flash error" role="alert">
+                            <?= htmlspecialchars($studentProgressPageError, ENT_QUOTES, "UTF-8") ?>
+                        </div>
+                    <?php endif; ?>
+
                     <div class="section-head">
                         <div>
-                            <div class="section-kicker">Intern Roster</div>
-                            <h2 class="section-title">Attendance &amp; evaluation status</h2>
-                            <p class="section-sub">Monitor internship hours and evaluation progress.</p>
+                            <div class="section-kicker">Student Roster</div>
+                            <h2 class="section-title">Registered students</h2>
+                            <p class="section-sub">The latest saved evaluation and feedback are shown for each registered student.</p>
                         </div>
 
                         <div class="action-row">
@@ -467,9 +1730,8 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                     <div class="feedback">
                         <div>
                             <h3>Structured feedback that supports growth</h3>
-                            <p>Rate technical proficiency, communication, reliability, and initiative. Drafts are saved automatically until submission.</p>
+                            <p>Rate each performance criterion from 1 to 5, record feedback, then choose whether to save the evaluation as a draft or complete the review.</p>
                         </div>
-                        <button class="btn btn-primary" id="feedbackBtn">Start evaluation</button>
                     </div>
                 </div>
             </section>
@@ -492,53 +1754,29 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                 <div class="section-card message-layout">
                     <div class="conversation-list">
                         <div class="conversation-search">
-                            <input class="search" style="width:100%" placeholder="Search conversations...">
+                            <input class="search" id="conversationSearch" style="width:100%" placeholder="Search companies...">
                         </div>
 
-                        <div class="conversation active" data-chat="Northstar Digital Labs" data-receiver-type="company" data-receiver-id="Northstar Digital Labs">
-                            <div class="conversation-top">
-                                <div class="conversation-name">Northstar Digital Labs</div>
-                                <div class="conversation-time">9:41 AM</div>
-                            </div>
-                            <div class="conversation-msg">Can we confirm the schedule?</div>
-                        </div>
-
-                        <div class="conversation" data-chat="Byteworks Solutions" data-receiver-type="company" data-receiver-id="Byteworks Solutions">
-                            <div class="conversation-top">
-                                <div class="conversation-name">Byteworks Solutions</div>
-                                <div class="conversation-time">Yesterday</div>
-                            </div>
-                            <div class="conversation-msg">The evaluation form is ready.</div>
-                        </div>
-
-                        <div class="conversation" data-chat="Pacific Tech Systems" data-receiver-type="company" data-receiver-id="Pacific Tech Systems">
-                            <div class="conversation-top">
-                                <div class="conversation-name">Pacific Tech Systems</div>
-                                <div class="conversation-time">Mon</div>
-                            </div>
-                            <div class="conversation-msg">Thanks for the update.</div>
-                        </div>
+                        <div id="companyConversationList" aria-live="polite"></div>
                     </div>
 
                     <div class="chat">
                         <div class="chat-head">
                             <div>
-                                <div class="chat-name" id="chatName">Northstar Digital Labs</div>
-                                <div class="chat-status">● Active now • 1 assigned intern</div>
+                                <div class="chat-name" id="chatName">Select a company</div>
+                                <div class="chat-status" id="chatStatus">Company coordination</div>
                             </div>
                             <button class="small-btn">⋮</button>
                         </div>
 
                         <div class="chat-body" id="chatBody">
-                            <div class="bubble">Good morning! Can we confirm the adjusted schedule for this week?</div>
-                            <div class="bubble me">Yes, the schedule was approved. I have updated the placement record as well.</div>
-                            <div class="bubble">Perfect, thank you. We will make sure her attendance logs follow the new hours.</div>
+                            <div data-empty-chat="true" style="padding:24px;text-align:center;color:#8597a6;font-size:12px;">Choose a company to view its conversation.</div>
                         </div>
 
                         <div class="chat-input">
                             <button class="small-btn">＋</button>
-                            <input id="messageInput" placeholder="Write a message...">
-                            <button class="btn btn-primary" id="sendMessageBtn">Send</button>
+                            <input id="messageInput" placeholder="Write a message..." disabled>
+                            <button class="btn btn-primary" id="sendMessageBtn" type="button" disabled>Send</button>
                         </div>
                     </div>
                 </div>
@@ -582,8 +1820,8 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                         <div class="stat-icon purple">E</div>
                         <div>
                             <div class="stat-label">Evaluation Avg.</div>
-                            <div class="stat-value">4.6 / 5</div>
-                            <div class="stat-sub">Across 24 interns</div>
+                            <div class="stat-value"><?= $evaluationStats["average"] !== null ? number_format($evaluationStats["average"], 2) . " / 5" : "—" ?></div>
+                            <div class="stat-sub"><?= $evaluationStats["count"] ?> evaluations · <?= $evaluationStats["completed"] ?> completed</div>
                         </div>
                     </div>
 
@@ -689,6 +1927,152 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                 </div>
             </section>
 
+            <!-- =================================================
+                 SETTINGS
+            ================================================== -->
+            <section class="page" id="page-settings">
+                <div class="page-heading">
+                    <div>
+                        <div class="section-kicker">Preferences</div>
+                        <h1>Settings<span class="settings-title-dot">.</span></h1>
+                        <p>Personalize the portal, set your work schedule, and manage your account.</p>
+                    </div>
+                </div>
+
+                <div class="settings-grid">
+                    <section class="section-card settings-card">
+                        <div class="settings-card-heading">
+                            <div class="section-kicker">Appearance</div>
+                            <h2 class="section-title">Theme</h2>
+                        </div>
+
+                        <div class="settings-themes" role="group" aria-label="Color theme">
+                            <button class="settings-theme-card" type="button" data-settings-theme="light" aria-pressed="false">
+                                <span class="settings-theme-preview light"><i></i><i></i><i></i></span>
+                                <strong>☼ Light</strong>
+                                <small>Bright and clean</small>
+                            </button>
+                            <button class="settings-theme-card" type="button" data-settings-theme="dark" aria-pressed="false">
+                                <span class="settings-theme-preview dark"><i></i><i></i><i></i></span>
+                                <strong>☾ Dark</strong>
+                                <small>Easy on the eyes</small>
+                            </button>
+                            <button class="settings-theme-card" type="button" data-settings-theme="system" aria-pressed="false">
+                                <span class="settings-theme-preview system"><i></i><i></i><i></i></span>
+                                <strong>▣ System</strong>
+                                <small>Match my device</small>
+                            </button>
+                        </div>
+
+                        <div class="settings-preference-row">
+                            <span class="settings-preference-icon">☰</span>
+                            <span class="settings-preference-copy">
+                                <strong>Keep sidebar open</strong>
+                                <small>Turn off to use the compact icon-only sidebar on desktop.</small>
+                            </span>
+                            <label class="settings-switch">
+                                <input type="checkbox" id="settingsSidebarToggle">
+                                <span></span>
+                            </label>
+                        </div>
+                        <div class="settings-preference-row">
+                            <span class="settings-preference-icon">ϟ</span>
+                            <span class="settings-preference-copy">
+                                <strong>Reduce motion</strong>
+                                <small>Calms animations such as transitions and page scrolling.</small>
+                            </span>
+                            <label class="settings-switch">
+                                <input type="checkbox" id="settingsMotionToggle">
+                                <span></span>
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="section-card settings-card">
+                        <div class="settings-card-heading">
+                            <div class="section-kicker">Work Schedule</div>
+                            <h2 class="section-title">Attendance &amp; hours goal</h2>
+                        </div>
+                        <p class="settings-help-text">Your shift start decides whether a Time In counts as on time on the dashboard.</p>
+
+                        <form id="settingsScheduleForm" class="settings-form">
+                            <div class="settings-fields three">
+                                <label>Shift starts
+                                    <input class="field" type="time" name="shift_start" value="08:00" required>
+                                </label>
+                                <label>Grace period (min)
+                                    <input class="field" type="number" name="grace_minutes" min="0" max="120" value="15" required>
+                                </label>
+                                <label>Daily target (hours)
+                                    <input class="field" type="number" name="daily_target" min="1" max="16" step="0.5" value="8" required>
+                                </label>
+                            </div>
+                            <div class="settings-actions">
+                                <span class="settings-local-note">Saved on this device</span>
+                                <button class="btn btn-primary" type="submit">Save schedule</button>
+                            </div>
+                        </form>
+
+                        <hr class="settings-divider">
+
+                        <form id="settingsGoalForm" class="settings-form">
+                            <label>Required OJT hours
+                                <input class="field" type="number" name="required_hours" min="1" max="2000" step="1" value="480" required>
+                                <small class="settings-field-help">Defined by your school. Used for your progress ring and goal bar.</small>
+                            </label>
+                            <div class="settings-actions">
+                                <span class="settings-local-note">Saved on this device</span>
+                                <button class="btn btn-primary" type="submit">Update goal</button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <section class="section-card settings-card">
+                        <div class="settings-card-heading">
+                            <div class="section-kicker">Security</div>
+                            <h2 class="section-title">Change password</h2>
+                        </div>
+                        <form class="settings-form" method="POST" action="Employee%20Dashboard?section=settings">
+                            <input type="hidden" name="settings_action" value="change_password">
+                            <input type="hidden" name="settings_csrf" value="<?= $settingsCsrf ?>">
+                            <label>Current password
+                                <input class="field" type="password" name="current_password" autocomplete="current-password" required>
+                            </label>
+                            <div class="settings-fields two">
+                                <label>New password
+                                    <input class="field" type="password" name="new_password" minlength="8" autocomplete="new-password" required>
+                                </label>
+                                <label>Confirm new password
+                                    <input class="field" type="password" name="confirm_password" minlength="8" autocomplete="new-password" required>
+                                </label>
+                            </div>
+                            <div class="settings-actions">
+                                <span class="settings-local-note">Use at least 8 characters</span>
+                                <button class="btn btn-primary" type="submit">Update password</button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <section class="section-card settings-card">
+                        <div class="settings-card-heading">
+                            <div class="section-kicker">Account</div>
+                            <h2 class="section-title">Quick links</h2>
+                        </div>
+                        <div class="settings-quick-links">
+                            <button type="button" data-settings-page="interns"><span>♙</span> Intern assignments <b>›</b></button>
+                            <button type="button" data-settings-page="evaluations"><span>▤</span> Evaluations <b>›</b></button>
+                            <button type="button" data-settings-page="reports"><span>▥</span> Reports &amp; analytics <b>›</b></button>
+                            <button type="button" data-settings-page="support"><span>?</span> Help &amp; support <b>›</b></button>
+                        </div>
+                        <div class="settings-account-summary">
+                            <div class="avatar"><?= $displayInitials ?></div>
+                            <div><strong><?= $displayName ?></strong><small><?= $displayEmail ?></small></div>
+                            <button class="small-btn" type="button" id="settingsProfileButton">Edit profile</button>
+                        </div>
+                    </section>
+                </div>
+            </section>
+
         </div>
     </main>
 </div>
@@ -751,7 +2135,7 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
 <!-- =============================================================
      OJT360 AI ASSISTANT
 ============================================================== -->
-<button class="ai-launcher" id="aiLauncher" aria-label="Open OJT360 Assistant" title="OJT360 Assistant">
+<button class="ai-launcher" id="aiLauncher" aria-label="Open OJT360 Assistant" aria-expanded="false" title="OJT360 Assistant">
     <span class="ai-launcher-icon">✦</span>
 </button>
 
@@ -771,7 +2155,7 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
         <button class="ai-close" id="aiClose" aria-label="Close assistant">&times;</button>
     </div>
 
-    <div class="ai-body" id="aiBody">
+    <div class="ai-body" id="aiBody" role="log" aria-live="polite" aria-relevant="additions text">
         <div class="ai-row">
             <div class="ai-mini-avatar">✦</div>
             <div class="ai-bubble">
@@ -780,9 +2164,9 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
         </div>
 
         <div class="ai-suggestions">
-            <button class="ai-suggestion" data-question="What are the final journal requirements?">Final journal requirements</button>
-            <button class="ai-suggestion" data-question="How does QR attendance work?">QR scan help</button>
-            <button class="ai-suggestion" data-question="How do I assign a student to a company?">Student assignment</button>
+            <button class="ai-suggestion" data-question="Where can I review registered interns?">Find interns</button>
+            <button class="ai-suggestion" data-question="How do I record and review a student evaluation?">Evaluation guide</button>
+            <button class="ai-suggestion" data-question="What can I do from the Messages page?">Using Messages</button>
         </div>
     </div>
 
@@ -795,6 +2179,34 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
 <div class="toast" id="toast"></div>
 
 <!-- =============================================================
+     FORMAL ACTION CONFIRMATION
+============================================================== -->
+<div class="modal-backdrop" id="actionConfirmModal">
+    <section class="modal action-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="actionConfirmTitle" aria-describedby="actionConfirmMessage">
+        <div class="action-confirm-head">
+            <div class="action-confirm-icon" aria-hidden="true">!</div>
+            <div>
+                <div class="assignment-kicker">Please confirm</div>
+                <h2 id="actionConfirmTitle"></h2>
+            </div>
+        </div>
+        <div class="action-confirm-body">
+            <p id="actionConfirmMessage"></p>
+            <div class="fm-summary">
+                <div class="fm-row">
+                    <span id="actionConfirmLabel"></span>
+                    <strong id="actionConfirmValue"></strong>
+                </div>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-light" data-close="actionConfirmModal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="actionConfirmButton"></button>
+        </div>
+    </section>
+</div>
+
+<!-- =============================================================
      ADD COMPANY MODAL
 ============================================================== -->
 <div class="modal-backdrop" id="companyModal">
@@ -804,30 +2216,62 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
             <button class="close" data-close="companyModal">&times;</button>
         </div>
 
-        <form id="companyForm">
+        <form id="companyForm" method="post" action="Employee-Dashboard">
+            <input type="hidden" name="company_action" value="create">
+            <input type="hidden" name="companies_csrf" value="<?= $companiesCsrf ?>">
             <div class="modal-body">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label class="form-label">Company name</label>
-                        <input class="field" name="company" required>
+                        <label class="form-label" for="companyName">Company name</label>
+                        <input class="field" id="companyName" name="company_name" maxlength="150" required>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Contact person</label>
-                        <input class="field" name="contact" required>
+                        <label class="form-label" for="companyCode">Company code</label>
+                        <input class="field" id="companyCode" name="company_code" maxlength="50">
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Contact email</label>
-                        <input class="field" type="email" name="email" required>
+                        <label class="form-label" for="companyContactPerson">Contact person</label>
+                        <input class="field" id="companyContactPerson" name="contact_person" maxlength="100" required>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Status</label>
-                        <select class="field" name="status">
+                        <label class="form-label" for="companyContactNumber">Contact number</label>
+                        <input class="field" id="companyContactNumber" name="contact_number" maxlength="20" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="companyEmail">Contact email</label>
+                        <input class="field" id="companyEmail" type="email" name="email" maxlength="100" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="companyStatus">Status</label>
+                        <select class="field" id="companyStatus" name="status">
                             <option value="active">Active</option>
-                            <option value="archived">Archived</option>
+                            <option value="inactive">Inactive</option>
                         </select>
+                    </div>
+
+                    <div class="form-group full">
+                        <label class="form-label" for="companyAddress">Address</label>
+                        <input class="field" id="companyAddress" name="address" maxlength="255" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="companyBuilding">Building</label>
+                        <input class="field" id="companyBuilding" name="building" maxlength="100">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="companyDepartment">Department</label>
+                        <input class="field" id="companyDepartment" name="department" maxlength="100">
+                    </div>
+
+                    <div class="form-group full">
+                        <label class="form-label" for="companyPosition">Position</label>
+                        <input class="field" id="companyPosition" name="position" maxlength="100">
                     </div>
                 </div>
             </div>
@@ -856,12 +2300,16 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
         <div class="company-details-body">
             <div class="company-details-summary">
                 <div class="company-detail-item">
-                    <label>Contact Person</label>
-                    <strong id="companyDetailsContact"></strong>
+                    <label>Company Code</label>
+                    <strong id="companyDetailsCode"></strong>
                 </div>
                 <div class="company-detail-item">
                     <label>Status</label>
                     <span id="companyDetailsStatus"></span>
+                </div>
+                <div class="company-detail-item">
+                    <label>Contact Person</label>
+                    <strong id="companyDetailsContact"></strong>
                 </div>
                 <div class="company-detail-item">
                     <label>Contact Information</label>
@@ -869,8 +2317,12 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                     <div class="company-detail-secondary" id="companyDetailsPhone"></div>
                 </div>
                 <div class="company-detail-item">
-                    <label>Assigned Students</label>
-                    <strong id="companyDetailsCount"></strong>
+                    <label>Building</label>
+                    <strong id="companyDetailsBuilding"></strong>
+                </div>
+                <div class="company-detail-item">
+                    <label>Department / Position</label>
+                    <strong id="companyDetailsDepartment"></strong>
                 </div>
                 <div class="company-detail-item">
                     <label>Address</label>
@@ -878,8 +2330,14 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
                 </div>
             </div>
 
-            <h3 class="company-assigned-title">Assigned Students</h3>
-            <div class="company-student-list" id="companyDetailsStudents"></div>
+            <div class="company-detail-item">
+                <label>Registered</label>
+                <strong id="companyDetailsCreated"></strong>
+            </div>
+            <h3 class="company-assigned-title">Student placement</h3>
+            <div class="company-student-list">
+                <div class="company-details-empty">Student-company assignments are not stored in the provided database tables.</div>
+            </div>
         </div>
     </section>
 </div>
@@ -894,56 +2352,210 @@ $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
             <button class="close" data-close="internModal">&times;</button>
         </div>
 
-        <form id="internForm">
+        <form id="internForm" method="post">
+            <input type="hidden" name="student_action" value="create">
+            <input type="hidden" name="students_csrf" value="<?= $studentsCsrf ?>">
             <div class="modal-body">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label class="form-label">Student name</label>
-                        <input class="field" name="name" required>
+                        <label class="form-label" for="internFirstName">First name</label>
+                        <input class="field" id="internFirstName" name="first_name" maxlength="50" autocomplete="given-name" required>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Student ID</label>
-                        <input class="field" name="studentId" maxlength="20" required>
+                        <label class="form-label" for="internMiddleName">Middle name</label>
+                        <input class="field" id="internMiddleName" name="middle_name" maxlength="50" autocomplete="additional-name">
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Program</label>
-                        <input class="field" name="program" placeholder="BSIT - Web Development" required>
+                        <label class="form-label" for="internLastName">Last name</label>
+                        <input class="field" id="internLastName" name="last_name" maxlength="50" autocomplete="family-name" required>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Assigned company</label>
-                        <select class="field" name="company">
-                            <option value="">Not Assigned</option>
-                            <option>ABC Technology Solutions</option>
-                            <option>XYZ Corporation</option>
-                        </select>
+                        <label class="form-label" for="internStudentId">Student ID</label>
+                        <input class="field" id="internStudentId" name="student_id" maxlength="50" required>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Internship start date</label>
-                        <input class="field" type="date" name="startDate">
+                        <label class="form-label" for="internCourse">Course</label>
+                        <input class="field" id="internCourse" name="course" maxlength="100" required>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Required hours</label>
-                        <input class="field" type="number" name="requiredHours" value="360" min="1" required>
+                        <label class="form-label" for="internMobileNumber">Mobile number</label>
+                        <input class="field" id="internMobileNumber" name="mobile_number" maxlength="20" autocomplete="tel" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="internSchoolName">School name</label>
+                        <input class="field" id="internSchoolName" name="school_name" value="Leyte Normal University" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="internEmail">Institutional email</label>
+                        <input class="field" id="internEmail" type="email" name="institutional_email" maxlength="100" autocomplete="email" required>
                     </div>
 
                     <div class="form-group full">
-                        <label class="form-label">Completed hours</label>
-                        <input class="field" type="number" name="completedHours" value="0" min="0">
+                        <label class="form-label" for="internAddress">Complete address</label>
+                        <textarea class="field" id="internAddress" name="complete_address" rows="3" required></textarea>
+                    </div>
+
+                    <div class="form-group full">
+                        <label class="form-label" for="internPassword">Initial student password</label>
+                        <input class="field" id="internPassword" type="password" name="student_password" minlength="8" autocomplete="new-password" required>
+                        <small>The password is securely hashed before it is saved.</small>
                     </div>
                 </div>
             </div>
 
             <div class="modal-foot">
                 <button type="button" class="btn btn-light" data-close="internModal">Cancel</button>
-                <button class="btn btn-primary">Add Intern Student</button>
+                <button class="btn btn-primary" type="submit">Create Student Account</button>
             </div>
         </form>
     </div>
+</div>
+
+<!-- =============================================================
+     INTERN EVALUATION MODAL
+============================================================== -->
+<div class="modal-backdrop" id="evaluationModal">
+    <div class="modal evaluation-modal">
+        <div class="modal-head">
+            <h2>Record intern evaluation</h2>
+            <button class="close" type="button" data-close="evaluationModal" aria-label="Close">&times;</button>
+        </div>
+
+        <form method="post">
+            <input type="hidden" name="evaluation_action" value="save">
+            <input type="hidden" name="evaluations_csrf" value="<?= $evaluationsCsrf ?>">
+            <input type="hidden" id="evaluationRecordId" name="evaluation_id" value="">
+            <div class="modal-body">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationStudent">Student</label>
+                        <select class="field" id="evaluationStudent" name="student_db_id" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationDate">Evaluation date</label>
+                        <input class="field" id="evaluationDate" type="date" name="evaluation_date" value="<?= htmlspecialchars(date("Y-m-d"), ENT_QUOTES, "UTF-8") ?>" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationPerformance">Overall performance</label>
+                        <select class="field" id="evaluationPerformance" name="overall_performance" required>
+                            <option value="">Select performance</option>
+                            <option>Outstanding</option>
+                            <option>Very Good</option>
+                            <option>Satisfactory</option>
+                            <option>Needs Improvement</option>
+                            <option>Unsatisfactory</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationStatus">Review status</label>
+                        <select class="field" id="evaluationStatus" name="status" required>
+                            <option value="Draft">Save as draft (continue later)</option>
+                            <option value="Completed">Mark as completed (finalize review)</option>
+                        </select>
+                    </div>
+                    <div class="form-group full">
+                        <span class="form-label">Performance criteria (1 = lowest, 5 = highest)</span>
+                        <div class="evaluation-criteria-list" id="evaluationCriteria"></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationStrengths">Strengths</label>
+                        <textarea class="field" id="evaluationStrengths" name="strengths" rows="3" maxlength="5000"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationImprovements">Areas for improvement</label>
+                        <textarea class="field" id="evaluationImprovements" name="areas_for_improvement" rows="3" maxlength="5000"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationComments">Comments</label>
+                        <textarea class="field" id="evaluationComments" name="comments" rows="3" maxlength="5000"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="evaluationRecommendation">Recommendation</label>
+                        <input class="field" id="evaluationRecommendation" name="recommendation" maxlength="100">
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-foot">
+                <button type="button" class="btn btn-light" data-close="evaluationModal">Cancel</button>
+                <button class="btn btn-primary" type="submit">Save evaluation</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- =============================================================
+     STUDENT EVALUATION DETAILS
+============================================================== -->
+<div class="modal-backdrop" id="studentEvaluationModal">
+    <section class="modal student-evaluation-modal" aria-labelledby="studentEvaluationName">
+        <header class="student-evaluation-head">
+            <div>
+                <div class="assignment-kicker">Intern Performance Record</div>
+                <h2 id="studentEvaluationName"></h2>
+                <p id="studentEvaluationIdentity"></p>
+            </div>
+            <button class="close" type="button" data-close="studentEvaluationModal" aria-label="Close evaluation">&times;</button>
+        </header>
+
+        <div class="student-evaluation-body">
+            <div class="student-evaluation-summary">
+                <div class="company-detail-item">
+                    <label>Program</label>
+                    <strong id="studentEvaluationProgram"></strong>
+                </div>
+                <div class="company-detail-item">
+                    <label>Evaluation date</label>
+                    <strong id="studentEvaluationDate"></strong>
+                </div>
+                <div class="company-detail-item">
+                    <label>Overall performance</label>
+                    <strong id="studentEvaluationPerformance"></strong>
+                </div>
+                <div class="company-detail-item">
+                    <label>Overall rating</label>
+                    <strong id="studentEvaluationRating"></strong>
+                </div>
+                <div class="company-detail-item">
+                    <label>Review status</label>
+                    <strong id="studentEvaluationStatus"></strong>
+                </div>
+            </div>
+
+            <section class="student-evaluation-section" aria-labelledby="evaluationCriteriaHeading">
+                <h3 id="evaluationCriteriaHeading">Performance criteria</h3>
+                <div class="table-wrap">
+                    <table class="student-evaluation-table">
+                        <thead>
+                            <tr><th>Criterion</th><th>Rating</th></tr>
+                        </thead>
+                        <tbody id="studentEvaluationScores"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="student-evaluation-section">
+                <h3>Written feedback</h3>
+                <div class="student-evaluation-feedback-grid">
+                    <div class="evaluation-feedback-item"><h4>Strengths</h4><p id="studentEvaluationStrengths"></p></div>
+                    <div class="evaluation-feedback-item"><h4>Areas for improvement</h4><p id="studentEvaluationImprovements"></p></div>
+                    <div class="evaluation-feedback-item"><h4>Evaluator comments</h4><p id="studentEvaluationComments"></p></div>
+                    <div class="evaluation-feedback-item"><h4>Recommendation</h4><p id="studentEvaluationRecommendation"></p></div>
+                </div>
+            </section>
+        </div>
+
+        <footer class="modal-foot">
+            <button class="btn btn-light" type="button" data-close="studentEvaluationModal">Close</button>
+        </footer>
+    </section>
 </div>
 
 <!-- =============================================================
@@ -1020,96 +2632,103 @@ if (
 
 const CURRENT_EMPLOYEE_ID = <?= json_encode($employeeId) ?>;
 const CURRENT_EMPLOYEE_TYPE = "employee";
+const STUDENT_DATA_ERROR = <?= json_encode($internPageError !== "") ?>;
+const STUDENT_PROGRESS_DATA_ERROR = <?= json_encode($studentProgressPageError !== "") ?>;
+const EVALUATION_DATA_ERROR = <?= json_encode($evaluationPageError !== "") ?>;
+const CHATBOT_CSRF_TOKEN = <?= json_encode(
+    $_SESSION["employee_chatbot_csrf"],
+    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+) ?>;
+const EVALUATION_SUCCESS_MESSAGE = <?= json_encode(
+    ($evaluationFlash["type"] ?? "") === "success" ? ($evaluationFlash["message"] ?? "") : "",
+    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+) ?>;
 
 let currentConversation = null;
 let currentRealtimeChannel = null;
 const locallyInsertedMessageIds = new Set();
 
 /* ================================================================
-   SAMPLE DATA
-   Replace this with PHP/MySQL data later.
+   COMPANY AND STUDENT RECORDS LOADED FROM MYSQL
 ================================================================ */
 
-let companies = [
-    {
-        id:1,
-        name:"ABC Technology Solutions",
-        location:"Tacloban City, Leyte",
-        contact:"Maria Santos",
-        email:"maria@abctechcompany.com",
-        students:1,
-        status:"active"
-    },
-    {
-        id:2,
-        name:"XYZ Corporation",
-        location:"Palo, Leyte",
-        contact:"John Reyes",
-        email:"john@xyzcorp.com",
-        students:1,
-        status:"active"
-    },
-    {
-        id:3,
-        name:"ABC Trading",
-        location:"Ormoc City, Leyte",
-        contact:"Michael Cruz",
-        email:"michael@abctrading.com",
-        students:0,
-        status:"archived"
-    }
-];
+const COMPANY_DATA_ERROR = <?= json_encode($companyPageError !== "") ?>;
+const COMPANIES_CSRF = <?= json_encode($_SESSION["employee_companies_csrf"], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
 
-let students = [
-    {
-        id:1,
-        name:"Angela Mercado",
-        studentId:"2026-001",
-        program:"BSIT - Web Development",
-        company:"ABC Technology Solutions",
-        status:"Assigned",
-        completed:48,
-        required:360,
-        week:"Week 12",
-        evaluation:"On track"
-    },
-    {
-        id:2,
-        name:"Joshua Reyes",
-        studentId:"2026-002",
-        program:"BSIT - Networking",
-        company:"Not Assigned",
-        status:"Unassigned",
-        completed:16,
-        required:360,
-        week:"Week 11",
-        evaluation:"Needs placement"
-    },
-    {
-        id:3,
-        name:"Camille Dizon",
-        studentId:"2026-003",
-        program:"BSIT - Web Development",
-        company:"XYZ Corporation",
-        status:"Assigned",
-        completed:201,
-        required:360,
-        week:"Week 14",
-        evaluation:"On track"
-    },
-    {
-        id:4,
-        name:"Nathan Flores",
-        studentId:"2026-004",
-        program:"BSIT - Systems Development",
-        company:"Not Assigned",
-        status:"Unassigned",
-        completed:65,
-        required:360,
-        week:"Week 10",
-        evaluation:"Needs placement"
-    }
-];
+let companies = <?= json_encode(
+    array_map(static function (array $companyRecord): array {
+        return [
+            "id" => (int)$companyRecord["id"],
+            "name" => $companyRecord["company_name"],
+            "code" => $companyRecord["company_code"] ?? "",
+            "contact" => $companyRecord["contact_person"],
+            "phone" => $companyRecord["contact_number"],
+            "email" => $companyRecord["email"],
+            "location" => $companyRecord["address"],
+            "building" => $companyRecord["building"] ?? "",
+            "department" => $companyRecord["department"] ?? "",
+            "position" => $companyRecord["position"] ?? "",
+            "createdAt" => $companyRecord["created_at"],
+            "status" => $companyRecord["status"]
+        ];
+    }, $companyRecords),
+    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+) ?>;
+
+let students = <?= json_encode(
+    array_map(static function (array $studentRecord): array {
+        return [
+            "id" => (int)$studentRecord["id"],
+            "name" => trim(
+                $studentRecord["first_name"] . " " .
+                ($studentRecord["middle_name"] !== "" ? $studentRecord["middle_name"] . " " : "") .
+                $studentRecord["last_name"]
+            ),
+            "studentId" => $studentRecord["student_id"],
+            "program" => $studentRecord["course"],
+            "email" => $studentRecord["institutional_email"],
+            "mobileNumber" => $studentRecord["mobile_number"],
+            "schoolName" => $studentRecord["school_name"],
+            "createdAt" => $studentRecord["created_at"],
+            "company" => $studentProgressByStudentId[$studentRecord["student_id"]]["company"] ?? null,
+            "portalLinked" => $studentProgressByStudentId[$studentRecord["student_id"]]["portalLinked"] ?? false,
+            "completedHours" => $studentProgressByStudentId[$studentRecord["student_id"]]["completedHours"] ?? null,
+            "status" => !empty($studentProgressByStudentId[$studentRecord["student_id"]]["company"])
+                ? "Assigned"
+                : "Unassigned"
+        ];
+    }, $studentRecords),
+    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+) ?>;
+
+let evaluationsByStudentId = <?= json_encode(
+    array_map(static function (array $evaluationRecord): array {
+        return [
+            "id" => (int)$evaluationRecord["id"],
+            "evaluationDate" => $evaluationRecord["evaluation_date"],
+            "attendancePunctuality" => (int)$evaluationRecord["attendance_punctuality"],
+            "qualityOfWork" => (int)$evaluationRecord["quality_of_work"],
+            "productivity" => (int)$evaluationRecord["productivity"],
+            "communication" => (int)$evaluationRecord["communication"],
+            "teamwork" => (int)$evaluationRecord["teamwork"],
+            "initiative" => (int)$evaluationRecord["initiative"],
+            "professionalism" => (int)$evaluationRecord["professionalism"],
+            "adaptability" => (int)$evaluationRecord["adaptability"],
+            "problemSolving" => (int)$evaluationRecord["problem_solving"],
+            "technicalSkills" => (int)$evaluationRecord["technical_skills"],
+            "overallRating" => $evaluationRecord["overall_rating"] !== null
+                ? (float)$evaluationRecord["overall_rating"]
+                : null,
+            "overallPerformance" => $evaluationRecord["overall_performance"] ?? "",
+            "strengths" => $evaluationRecord["strengths"] ?? "",
+            "areasForImprovement" => $evaluationRecord["areas_for_improvement"] ?? "",
+            "comments" => $evaluationRecord["comments"] ?? "",
+            "recommendation" => $evaluationRecord["recommendation"] ?? "",
+            "status" => $evaluationRecord["status"]
+        ];
+    }, $evaluationRecordsByStudentId),
+    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+) ?>;
 
 /* ================================================================
    HELPERS
@@ -1150,46 +2769,96 @@ const sidebarOverlay = document.getElementById("sidebarOverlay");
 const menuToggle = document.getElementById("menuToggle");
 const themeToggle = document.getElementById("themeToggle");
 const themeToggleIcon = document.getElementById("themeToggleIcon");
+const topbarPageName = document.getElementById("topbarPageName");
+const themeStorageKey = "ojt360-employee-theme-" + CURRENT_EMPLOYEE_ID;
+let keepSidebarOpen = false;
 
 function setDashboardTheme(theme){
-    const isDark = theme === "dark";
+    const isDark = theme === "dark" ||
+        (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
     document.body.dataset.theme = isDark ? "dark" : "light";
-    themeToggleIcon.textContent = isDark ? "☀" : "☾";
-    themeToggle.setAttribute("aria-label", isDark ? "Enable light mode" : "Enable dark mode");
-    themeToggle.title = isDark ? "Enable light mode" : "Enable dark mode";
+    themeToggle.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+    themeToggle.title = isDark ? "Switch to light mode" : "Switch to dark mode";
+
+    document.querySelectorAll("[data-settings-theme]").forEach(button => {
+        const selected = button.dataset.settingsTheme === theme;
+        button.classList.toggle("selected", selected);
+        button.setAttribute("aria-pressed", String(selected));
+    });
 }
 
 let savedTheme = "light";
 try{
-    savedTheme = localStorage.getItem("ojt360-employee-theme") === "dark" ? "dark" : "light";
+    savedTheme = localStorage.getItem(themeStorageKey) ||
+        localStorage.getItem("ojt360-employee-theme") ||
+        "light";
+    if(!["light", "dark", "system"].includes(savedTheme)) savedTheme = "light";
 }catch(error){
     console.error("Unable to load the saved dashboard theme.", error);
 }
 setDashboardTheme(savedTheme);
 
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if(savedTheme === "system") setDashboardTheme("system");
+});
+
 themeToggle.addEventListener("click", () => {
-    const nextTheme = document.body.dataset.theme === "dark" ? "light" : "dark";
+    savedTheme = document.body.dataset.theme === "dark" ? "light" : "dark";
+    const nextTheme = savedTheme;
     setDashboardTheme(nextTheme);
     try{
-        localStorage.setItem("ojt360-employee-theme", nextTheme);
+        localStorage.setItem(themeStorageKey, nextTheme);
     }catch(error){
         console.error("Unable to save the dashboard theme preference.", error);
     }
 });
 
+document.querySelectorAll("[data-settings-theme]").forEach(button => {
+    button.addEventListener("click", () => {
+        savedTheme = button.dataset.settingsTheme;
+        setDashboardTheme(savedTheme);
+        try{
+            localStorage.setItem(themeStorageKey, savedTheme);
+        }catch(error){
+            console.error("Unable to save the dashboard theme preference.", error);
+            showToast("Unable to save your theme preference on this device.");
+        }
+    });
+});
+
 function closeSidebar(){
-    sidebar.classList.remove("open");
+    if(window.innerWidth <= 1000){
+        sidebar.classList.remove("open");
+    }
     sidebarOverlay.classList.remove("show");
     menuToggle.setAttribute("aria-expanded", "false");
 }
 
 function openSidebar(){
-    sidebar.classList.add("open");
-    sidebarOverlay.classList.add("show");
-    menuToggle.setAttribute("aria-expanded", "true");
+    if(window.innerWidth > 1000){
+        sidebar.classList.remove("compact");
+        keepSidebarOpen = true;
+        settingsSidebarToggle.checked = true;
+        employeeSettings.keep_sidebar_open = true;
+        persistEmployeeSettings();
+    } else {
+        sidebar.classList.add("open");
+        sidebarOverlay.classList.add("show");
+        menuToggle.setAttribute("aria-expanded", "true");
+    }
 }
 
 function showPage(pageName){
+    const pageLabels = {
+        overview: "Employee",
+        interns: "Interns",
+        evaluations: "Evaluations",
+        messages: "Messages",
+        reports: "Reports",
+        support: "Help & Support",
+        settings: "Settings"
+    };
+
     pages.forEach(page => {
         page.classList.toggle("active", page.id === "page-" + pageName);
     });
@@ -1198,8 +2867,14 @@ function showPage(pageName){
         link.classList.toggle("active", link.dataset.page === pageName);
     });
 
+    topbarPageName.dataset.currentPage = pageLabels[pageName] || "Employee";
     closeSidebar();
     window.scrollTo({top:0,behavior:"smooth"});
+}
+
+const requestedSection = new URLSearchParams(window.location.search).get("section");
+if(["settings", "interns", "evaluations"].includes(requestedSection)){
+    showPage(requestedSection);
 }
 
 navLinks.forEach(link => {
@@ -1207,11 +2882,17 @@ navLinks.forEach(link => {
 });
 
 menuToggle.addEventListener("click", () => {
-    if(sidebar.classList.contains("open")){
-        closeSidebar();
-    }else{
-        openSidebar();
+    if(window.innerWidth > 1000){
+        keepSidebarOpen = sidebar.classList.contains("compact");
+        sidebar.classList.toggle("compact", !keepSidebarOpen);
+        settingsSidebarToggle.checked = keepSidebarOpen;
+        employeeSettings.keep_sidebar_open = keepSidebarOpen;
+        persistEmployeeSettings();
+        return;
     }
+
+    if(sidebar.classList.contains("open")) closeSidebar();
+    else openSidebar();
 });
 
 document.getElementById("sidebarClose").addEventListener("click", closeSidebar);
@@ -1228,11 +2909,19 @@ function renderCompanies(){
     const search = document.getElementById("companySearch").value.trim().toLowerCase();
     const tbody = document.getElementById("companyTable");
 
+    if(COMPANY_DATA_ERROR){
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty">Company records could not be loaded.</div></td></tr>`;
+        return;
+    }
+
     let filtered = companies.filter(company => {
         const matchesSearch =
             company.name.toLowerCase().includes(search) ||
             company.contact.toLowerCase().includes(search) ||
-            company.email.toLowerCase().includes(search);
+            company.email.toLowerCase().includes(search) ||
+            company.phone.toLowerCase().includes(search) ||
+            company.location.toLowerCase().includes(search) ||
+            company.code.toLowerCase().includes(search);
 
         const matchesFilter =
             companyFilter === "all" ||
@@ -1244,7 +2933,7 @@ function renderCompanies(){
     if(!filtered.length){
         tbody.innerHTML = `
             <tr>
-                <td colspan="6">
+                <td colspan="7">
                     <div class="empty">No companies found.</div>
                 </td>
             </tr>
@@ -1259,34 +2948,57 @@ function renderCompanies(){
                     <div class="mini-avatar">${initials(company.name)}</div>
                     <div>
                         <div class="person-name">${escapeHtml(company.name)}</div>
-                        <div class="person-sub">${escapeHtml(company.location)}</div>
+                        <div class="person-sub">${escapeHtml(company.code || "No company code")}</div>
                     </div>
                 </div>
             </td>
 
             <td>${escapeHtml(company.contact)}</td>
             <td>${escapeHtml(company.email)}</td>
-            <td>${company.students} ${company.students === 1 ? "Student" : "Students"}</td>
+            <td>${escapeHtml(company.phone)}</td>
+            <td>${escapeHtml(company.location)}</td>
 
             <td>
                 <span class="badge ${company.status === "active" ? "green" : "yellow"}">
-                    ${company.status === "active" ? "Active" : "Archived"}
+                    ${company.status === "active" ? "Active" : "Inactive"}
                 </span>
             </td>
 
             <td>
                 <div class="action-row">
-                    <button class="small-btn" onclick="viewCompany(${company.id})">View</button>
-
-                    ${
-                        company.status === "active"
-                        ? `<button class="small-btn" onclick="archiveCompany(${company.id})">Archive</button>`
-                        : `<button class="small-btn" onclick="activateCompany(${company.id})">Activate</button>`
-                    }
+                    <button class="small-btn company-view-button" type="button" data-company-id="${company.id}">View</button>
+                    <form class="company-status-form" method="post" action="Employee-Dashboard">
+                        <input type="hidden" name="company_action" value="set_status">
+                        <input type="hidden" name="companies_csrf" value="${COMPANIES_CSRF}">
+                        <input type="hidden" name="company_database_id" value="${company.id}">
+                        <input type="hidden" name="status" value="${company.status === "active" ? "inactive" : "active"}">
+                        <button class="small-btn" type="submit">${company.status === "active" ? "Archive" : "Restore"}</button>
+                    </form>
                 </div>
             </td>
         </tr>
     `).join("");
+
+    tbody.querySelectorAll(".company-view-button").forEach(button => {
+        button.addEventListener("click", () => viewCompany(Number(button.dataset.companyId)));
+    });
+
+    tbody.querySelectorAll(".company-status-form").forEach(form => {
+        form.addEventListener("submit", event => {
+            const company = companies.find(item => item.id === Number(form.elements.company_database_id.value));
+            if(company && company.status === "active"){
+                event.preventDefault();
+                openActionConfirmation({
+                    title: "Archive company",
+                    message: "This company will be marked inactive and remain in your records. You can restore it later.",
+                    actionLabel: "Archive company",
+                    summaryLabel: "Company",
+                    summaryValue: company.name,
+                    onConfirm: () => form.submit()
+                });
+            }
+        });
+    });
 }
 
 document.getElementById("companySearch").addEventListener("input", renderCompanies);
@@ -1304,73 +3016,31 @@ function viewCompany(id){
     const company = companies.find(c => c.id === id);
     if(!company) return;
 
-    const assignedStudents = students.filter(student =>
-        student.company === company.name && student.status === "Assigned"
-    );
-
     document.getElementById("companyDetailsName").textContent = company.name;
     document.getElementById("companyDetailsContact").textContent = company.contact || "Not provided";
     document.getElementById("companyDetailsEmail").textContent = company.email || "Not provided";
-    document.getElementById("companyDetailsPhone").textContent = company.phone || company.contactNumber || "";
-    document.getElementById("companyDetailsCount").textContent = assignedStudents.length;
+    document.getElementById("companyDetailsPhone").textContent = company.phone || "No contact number";
+    document.getElementById("companyDetailsCode").textContent = company.code || "Not provided";
+    document.getElementById("companyDetailsBuilding").textContent = company.building || "Not provided";
+    document.getElementById("companyDetailsDepartment").textContent =
+        [company.department, company.position].filter(Boolean).join(" / ") || "Not provided";
     document.getElementById("companyDetailsLocation").textContent = company.location || "Not provided";
+    document.getElementById("companyDetailsCreated").textContent = company.createdAt
+        ? new Date(company.createdAt).toLocaleDateString()
+        : "Not provided";
     document.getElementById("companyDetailsStatus").innerHTML =
         `<span class="badge ${company.status === "active" ? "green" : "yellow"}">` +
-        `${company.status === "active" ? "Active" : "Archived"}</span>`;
-
-    document.getElementById("companyDetailsStudents").innerHTML = assignedStudents.length
-        ? assignedStudents.map(student => `
-            <div class="company-student-row">
-                <div class="company-student-field">
-                    <strong class="company-student-name">${escapeHtml(student.name)}</strong>
-                    <div class="company-student-sub">${escapeHtml(student.studentId)} · ${escapeHtml(student.program)}</div>
-                </div>
-                <div class="company-student-field">
-                    <label>Department</label>
-                    <span>${escapeHtml(student.department || student.program || "Not provided")}</span>
-                </div>
-                <div class="company-student-field">
-                    <label>Building</label>
-                    <span>${escapeHtml(student.building || "Not provided")}</span>
-                </div>
-                <span class="badge green">Assigned</span>
-            </div>
-        `).join("")
-        : `<div class="company-details-empty">No students are assigned to this company.</div>`;
+        `${company.status === "active" ? "Active" : "Inactive"}</span>`;
 
     document.getElementById("companyDetailsModal").classList.add("show");
 }
 
-function archiveCompany(id){
-    const company = companies.find(c => c.id === id);
-    if(!company) return;
-
-    if(!confirm("Archive " + company.name + "?")) return;
-
-    company.status = "archived";
-    renderCompanies();
-    updateOverviewStats();
-}
-
-function activateCompany(id){
-    const company = companies.find(c => c.id === id);
-    if(!company) return;
-
-    company.status = "active";
-    renderCompanies();
-    updateOverviewStats();
-}
-
 function updateOverviewStats(){
     const active = companies.filter(c => c.status === "active").length;
-    const archived = companies.filter(c => c.status === "archived").length;
-    const assigned = students.filter(s => s.status === "Assigned").length;
-    const unassigned = students.filter(s => s.status !== "Assigned").length;
+    const inactive = companies.filter(c => c.status === "inactive").length;
 
     document.getElementById("activeCompanyCount").textContent = active;
-    document.getElementById("archivedCompanyCount").textContent = archived;
-    document.getElementById("assignedCount").textContent = assigned;
-    document.getElementById("unassignedCount").textContent = unassigned;
+    document.getElementById("inactiveCompanyCount").textContent = inactive;
 }
 
 /* ================================================================
@@ -1379,6 +3049,11 @@ function updateOverviewStats(){
 
 function renderAssignments(){
     const tbody = document.getElementById("assignmentTable");
+
+    if(STUDENT_DATA_ERROR){
+        tbody.innerHTML = `<tr><td colspan="6"><div class="empty">Student records could not be loaded.</div></td></tr>`;
+        return;
+    }
 
     if(!students.length){
         tbody.innerHTML = `<tr><td colspan="6"><div class="empty">No students found.</div></td></tr>`;
@@ -1398,21 +3073,9 @@ function renderAssignments(){
 
             <td>${escapeHtml(student.studentId)}</td>
             <td>${escapeHtml(student.program)}</td>
-            <td>${escapeHtml(student.company)}</td>
-
-            <td>
-                <span class="badge ${student.status === "Assigned" ? "green" : "yellow"}">
-                    ${student.status}
-                </span>
-            </td>
-
-            <td>
-                ${
-                    student.status === "Assigned"
-                    ? `<button class="small-btn" onclick="assignCompany(${student.id})">Manage Assignment</button>`
-                    : `<button class="small-btn primary" onclick="assignCompany(${student.id})">Assign Company</button>`
-                }
-            </td>
+            <td>${escapeHtml(student.email)}</td>
+            <td>${escapeHtml(student.mobileNumber)}</td>
+            <td>${escapeHtml(student.schoolName)}</td>
         </tr>
     `).join("");
 }
@@ -1459,109 +3122,14 @@ document.getElementById("assignmentForm").addEventListener("submit", event => {
     student.status = "Assigned";
     closeModal("assignmentModal");
     renderAssignments();
-    renderInterns();
     renderCompanies();
     renderEvaluations();
     updateOverviewStats();
 });
 
 /* ================================================================
-   INTERN PAGE
+   INTERN STUDENT RECORDS ARE RENDERED FROM MYSQL
 ================================================================ */
-
-function renderInterns(){
-    const tbody = document.getElementById("internTable");
-
-    updateInternStats();
-
-    if(!students.length){
-        tbody.innerHTML = `<tr><td colspan="7"><div class="empty">No students found.</div></td></tr>`;
-        return;
-    }
-
-    tbody.innerHTML = students.map(student => {
-        const pct = progressPercent(student.completed, student.required);
-
-        return `
-            <tr>
-                <td>
-                    <div class="person">
-                        <div class="mini-avatar">${initials(student.name)}</div>
-                        <div>
-                            <div class="person-name">${escapeHtml(student.name)}</div>
-                            <div class="person-sub">${escapeHtml(student.studentId)}</div>
-                        </div>
-                    </div>
-                </td>
-
-                <td>${escapeHtml(student.studentId)}</td>
-                <td>${escapeHtml(student.program)}</td>
-                <td>${escapeHtml(student.company)}</td>
-
-                <td>
-                    <span class="badge ${student.status === "Assigned" ? "green" : "yellow"}">
-                        ${student.status}
-                    </span>
-                </td>
-
-                <td>
-                    <div class="hours-box">
-                        <div class="hours-line">
-                            <strong>${student.completed} hrs / ${student.required} hrs</strong>
-                            <span>${pct}%</span>
-                        </div>
-                        <div class="progress">
-                            <span style="width:${pct}%"></span>
-                        </div>
-                        <div class="progress-meta">${student.required - student.completed > 0 ? (student.required - student.completed) + " hrs remaining" : "Completed"}</div>
-                    </div>
-                </td>
-
-                <td>
-                    <div class="intern-action-row">
-                        ${
-                            student.status === "Assigned"
-                            ? `<button class="small-btn intern-assignment-action" onclick="assignCompany(${student.id})">Manage Assignment</button>`
-                            : `<button class="small-btn primary intern-assignment-action" onclick="assignCompany(${student.id})">Assign Company</button>`
-                        }
-                        <button class="small-btn danger intern-remove-action" onclick="removeStudent(${student.id})">Remove</button>
-                    </div>
-                </td>
-            </tr>
-        `;
-    }).join("");
-}
-
-function updateInternStats(){
-    const assigned = students.filter(student => student.status === "Assigned").length;
-    const totalProgress = students.reduce((sum, student) =>
-        sum + progressPercent(student.completed, student.required), 0
-    );
-    const averageProgress = students.length ? Math.round(totalProgress / students.length) : 0;
-
-    document.getElementById("internTotalCount").textContent = students.length;
-    document.getElementById("internAssignedCount").textContent = assigned;
-    document.getElementById("internUnassignedCount").textContent = students.length - assigned;
-    document.getElementById("internAverageProgress").textContent = averageProgress + "%";
-    document.getElementById("overviewStudentTotal").textContent = students.length;
-}
-
-function removeStudent(id){
-    const student = students.find(s => s.id === id);
-    if(!student) return;
-
-    if(!confirm("Remove " + student.name + " from the student list? This cannot be undone.")) return;
-
-    const company = companies.find(c => c.name === student.company);
-    if(company && company.students > 0) company.students--;
-    students = students.filter(s => s.id !== id);
-
-    renderInterns();
-    renderAssignments();
-    renderCompanies();
-    renderEvaluations();
-    updateOverviewStats();
-}
 
 /* ================================================================
    ADD COMPANY
@@ -1569,30 +3137,6 @@ function removeStudent(id){
 
 document.getElementById("addCompanyBtn").addEventListener("click", () => {
     document.getElementById("companyModal").classList.add("show");
-});
-
-document.getElementById("companyForm").addEventListener("submit", e => {
-    e.preventDefault();
-
-    const form = new FormData(e.target);
-
-    const company = {
-        id:Date.now(),
-        name:form.get("company"),
-        location:"Location not set",
-        contact:form.get("contact"),
-        email:form.get("email"),
-        students:0,
-        status:form.get("status")
-    };
-
-    companies.push(company);
-
-    e.target.reset();
-    closeModal("companyModal");
-
-    renderCompanies();
-    updateOverviewStats();
 });
 
 /* ================================================================
@@ -1603,79 +3147,182 @@ document.getElementById("addInternBtn").addEventListener("click", () => {
     document.getElementById("internModal").classList.add("show");
 });
 
-document.getElementById("internForm").addEventListener("submit", e => {
-    e.preventDefault();
-
-    const form = new FormData(e.target);
-
-    const required = Number(form.get("requiredHours")) || 360;
-    const completed = Math.max(0, Number(form.get("completedHours")) || 0);
-    const company = form.get("company") || "Not Assigned";
-
-    const student = {
-        id:Date.now(),
-        name:form.get("name"),
-        studentId:form.get("studentId"),
-        program:form.get("program"),
-        company:company,
-        status:company === "Not Assigned" ? "Unassigned" : "Assigned",
-        completed:Math.min(completed,required),
-        required:required,
-        week:"Week 1",
-        evaluation:"Not evaluated"
-    };
-
-    students.push(student);
-
-    if(company !== "Not Assigned"){
-        const existingCompany = companies.find(c => c.name === company);
-        if(existingCompany) existingCompany.students++;
-    }
-
-    e.target.reset();
-
-    document.querySelector('#internForm [name="requiredHours"]').value = 360;
-    document.querySelector('#internForm [name="completedHours"]').value = 0;
-
-    closeModal("internModal");
-
-    renderInterns();
-    renderAssignments();
-    renderEvaluations();
-    renderCompanies();
-    updateOverviewStats();
+document.querySelectorAll(".remove-student-form").forEach(form => {
+    form.addEventListener("submit", event => {
+        event.preventDefault();
+        const studentName = form.dataset.studentName || "this student";
+        openActionConfirmation({
+            title: "Remove intern",
+            message: "This action permanently deletes the intern and their account from the database. It cannot be undone.",
+            actionLabel: "Remove intern",
+            summaryLabel: "Intern",
+            summaryValue: studentName,
+            danger: true,
+            onConfirm: () => form.submit()
+        });
+    });
 });
 
 /* ================================================================
    EVALUATIONS
 ================================================================ */
 
+const evaluationCriteria = [
+    ["attendance_punctuality", "Attendance & punctuality"],
+    ["quality_of_work", "Quality of work"],
+    ["productivity", "Productivity"],
+    ["communication", "Communication"],
+    ["teamwork", "Teamwork"],
+    ["initiative", "Initiative"],
+    ["professionalism", "Professionalism"],
+    ["adaptability", "Adaptability"],
+    ["problem_solving", "Problem solving"],
+    ["technical_skills", "Technical skills"]
+];
+
+document.getElementById("evaluationCriteria").innerHTML = evaluationCriteria.map(([key, label]) => `
+    <div class="evaluation-criterion">
+        <span class="evaluation-criterion-name">${escapeHtml(label)}</span>
+        <div class="evaluation-rating-options" role="radiogroup" aria-label="${escapeHtml(label)} rating">
+            ${[1, 2, 3, 4, 5].map(rating => `
+                <label class="evaluation-rating-option" for="evaluationScore-${key}-${rating}">
+                    <input id="evaluationScore-${key}-${rating}" type="radio" name="scores[${key}]" value="${rating}" required>
+                    <span>${rating}</span>
+                </label>
+            `).join("")}
+        </div>
+    </div>
+`).join("");
+
+function openEvaluationModal(studentId = "", draft = null){
+    if(EVALUATION_DATA_ERROR){
+        showToast("Evaluation records are unavailable. Check that the intern_evaluations table exists and try again.");
+        return;
+    }
+    if(!students.length){
+        showToast("Add a registered student before recording an evaluation.");
+        return;
+    }
+
+    const form = document.querySelector("#evaluationModal form");
+    const studentSelect = document.getElementById("evaluationStudent");
+    form.reset();
+    document.getElementById("evaluationRecordId").value = draft ? String(draft.id) : "";
+    studentSelect.innerHTML = `<option value="">Select a student</option>` + students.map(student =>
+        `<option value="${student.id}">${escapeHtml(student.name)} (${escapeHtml(student.studentId)})</option>`
+    ).join("");
+    studentSelect.value = studentId ? String(studentId) : "";
+    if(draft){
+        document.getElementById("evaluationDate").value = draft.evaluationDate;
+        document.getElementById("evaluationPerformance").value = draft.overallPerformance;
+        document.getElementById("evaluationStatus").value = draft.status;
+        document.getElementById("evaluationStrengths").value = draft.strengths;
+        document.getElementById("evaluationImprovements").value = draft.areasForImprovement;
+        document.getElementById("evaluationComments").value = draft.comments;
+        document.getElementById("evaluationRecommendation").value = draft.recommendation;
+        evaluationCriteria.forEach(([key]) => {
+            const camelCaseKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+            const rating = document.querySelector(
+                `input[name="scores[${key}]"][value="${draft[camelCaseKey]}"]`
+            );
+            if(rating) rating.checked = true;
+        });
+        document.querySelector("#evaluationModal .modal-head h2").textContent = "Continue draft evaluation";
+        document.querySelector("#evaluationModal .modal-foot .btn-primary").textContent = "Save changes";
+    } else {
+        document.querySelector("#evaluationModal .modal-head h2").textContent = "Record intern evaluation";
+        document.querySelector("#evaluationModal .modal-foot .btn-primary").textContent = "Save evaluation";
+    }
+    document.getElementById("evaluationModal").classList.add("show");
+}
+
+function viewStudentEvaluation(studentId){
+    const student = students.find(item => item.id === Number(studentId));
+    const evaluation = evaluationsByStudentId[studentId];
+    if(!student || !evaluation) return;
+
+    document.getElementById("studentEvaluationName").textContent = student.name;
+    document.getElementById("studentEvaluationIdentity").textContent =
+        `Student ID: ${student.studentId} · ${student.email}`;
+    document.getElementById("studentEvaluationProgram").textContent = student.program || "Not provided";
+    document.getElementById("studentEvaluationDate").textContent = new Date(
+        evaluation.evaluationDate + "T00:00:00"
+    ).toLocaleDateString(undefined, {year: "numeric", month: "long", day: "numeric"});
+    document.getElementById("studentEvaluationPerformance").textContent =
+        evaluation.overallPerformance || "Not provided";
+    document.getElementById("studentEvaluationRating").textContent =
+        evaluation.overallRating === null ? "Not provided" : `${Number(evaluation.overallRating).toFixed(2)} / 5`;
+    document.getElementById("studentEvaluationStatus").textContent = evaluation.status;
+
+    document.getElementById("studentEvaluationScores").innerHTML = evaluationCriteria.map(([key, label]) => {
+        const camelCaseKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+        return `<tr><td>${escapeHtml(label)}</td><td><strong>${escapeHtml(evaluation[camelCaseKey])} / 5</strong></td></tr>`;
+    }).join("");
+
+    const feedbackFields = [
+        ["studentEvaluationStrengths", evaluation.strengths],
+        ["studentEvaluationImprovements", evaluation.areasForImprovement],
+        ["studentEvaluationComments", evaluation.comments],
+        ["studentEvaluationRecommendation", evaluation.recommendation]
+    ];
+    feedbackFields.forEach(([elementId, value]) => {
+        document.getElementById(elementId).textContent = value || "No feedback provided.";
+    });
+
+    document.getElementById("studentEvaluationModal").classList.add("show");
+}
+
 function renderEvaluations(){
     const roster = document.getElementById("evaluationRoster");
 
-    roster.innerHTML = students.map(student => `
-        <div class="eval-row">
-            <div class="person">
-                <div class="mini-avatar">${initials(student.name)}</div>
-                <div>
-                    <div class="person-name">${escapeHtml(student.name)}</div>
-                    <div class="person-sub">${escapeHtml(student.program)}</div>
+    if(STUDENT_DATA_ERROR){
+        roster.innerHTML = `<div class="empty">Student records could not be loaded.</div>`;
+        return;
+    }
+
+    if(EVALUATION_DATA_ERROR){
+        roster.innerHTML = `<div class="empty">Evaluation records could not be loaded. Check the intern_evaluations table and try again.</div>`;
+        return;
+    }
+
+    if(!students.length){
+        roster.innerHTML = `<div class="empty">No registered students found.</div>`;
+        return;
+    }
+
+    roster.innerHTML = students.map(student => {
+        const evaluation = evaluationsByStudentId[student.id];
+        const hasEvaluation = Boolean(evaluation);
+
+        return `
+            <div class="eval-row">
+                <div class="person">
+                    <div class="mini-avatar">${initials(student.name)}</div>
+                    <div>
+                        <div class="person-name">${escapeHtml(student.name)}</div>
+                        <div class="person-sub">${escapeHtml(student.studentId)}</div>
+                    </div>
+                </div>
+
+                <div class="week">${escapeHtml(student.program)}</div>
+                <div class="evaluation-placement evaluation-company">
+                    <span>Company</span>
+                    <strong>${escapeHtml(STUDENT_PROGRESS_DATA_ERROR ? "Unavailable" : !student.portalLinked ? "Student account not linked" : student.company || "Not assigned")}</strong>
+                </div>
+                <div class="evaluation-placement evaluation-hours">
+                    <span>Working hours</span>
+                    <strong>${escapeHtml(STUDENT_PROGRESS_DATA_ERROR || student.completedHours === null ? "Unavailable" : `${Number(student.completedHours).toFixed(1)} hrs`)}</strong>
+                </div>
+                <div class="week">${hasEvaluation ? `${Number(evaluation.overallRating).toFixed(2)} / 5 · ${escapeHtml(evaluation.evaluationDate)}` : "No evaluation yet"}</div>
+                <span class="badge ${hasEvaluation && evaluation.status === "Completed" ? "green" : "yellow"}">${hasEvaluation ? escapeHtml(evaluation.status) : "Not evaluated"}</span>
+                <div class="evaluation-actions">
+                    ${hasEvaluation ? `<button class="small-btn evaluation-view-button" type="button" data-student-id="${student.id}">View evaluation</button>` : ""}
+                    ${hasEvaluation && evaluation.status === "Draft" ? `<button class="small-btn evaluation-continue-button" type="button" data-student-id="${student.id}">Continue draft</button>` : ""}
+                    <button class="small-btn evaluation-action-button" type="button" data-student-id="${student.id}">${hasEvaluation ? "New evaluation" : "Evaluate"}</button>
                 </div>
             </div>
-
-            <div class="eval-hours">${student.completed} / ${student.required} hrs</div>
-
-            <div class="week">${student.week}</div>
-
-            <div>
-                <span class="badge ${student.status === "Assigned" ? "green" : "yellow"}">
-                    ${student.status === "Assigned" ? "On track" : "Awaiting placement"}
-                </span>
-            </div>
-
-            <button class="small-btn">Review</button>
-        </div>
-    `).join("");
+        `;
+    }).join("");
 }
 
 document.getElementById("evalSearch").addEventListener("input", function(){
@@ -1686,22 +3333,110 @@ document.getElementById("evalSearch").addEventListener("input", function(){
     });
 });
 
-document.getElementById("startEvaluationBtn").addEventListener("click", () => {
-    alert("Evaluation workflow opened.");
+document.getElementById("evaluationRoster").addEventListener("click", event => {
+    const target = event.target;
+    if(!(target instanceof Element)) return;
+
+    const viewButton = target.closest(".evaluation-view-button");
+    if(viewButton){
+        viewStudentEvaluation(viewButton.dataset.studentId);
+        return;
+    }
+
+    const continueButton = target.closest(".evaluation-continue-button");
+    if(continueButton){
+        const studentId = continueButton.dataset.studentId;
+        openEvaluationModal(studentId, evaluationsByStudentId[studentId]);
+        return;
+    }
+
+    const evaluationButton = target.closest(".evaluation-action-button");
+    if(evaluationButton){
+        openEvaluationModal(evaluationButton.dataset.studentId);
+    }
 });
 
-document.getElementById("feedbackBtn").addEventListener("click", () => {
-    alert("Evaluation form opened.");
-});
+document.getElementById("startEvaluationBtn").addEventListener("click", () => openEvaluationModal());
 
 /* ================================================================
    MESSAGES - SUPABASE
 ================================================================ */
 
-const conversationElements = document.querySelectorAll(".conversation");
+let conversationElements = [];
+const conversationList = document.getElementById("companyConversationList");
+const conversationSearch = document.getElementById("conversationSearch");
+const chatInput = document.getElementById("messageInput");
+const sendMessageButton = document.getElementById("sendMessageBtn");
+
+function renderCompanyConversations(){
+    if(!conversationList) return;
+
+    if(COMPANY_DATA_ERROR){
+        conversationList.innerHTML = `<div class="empty">Company records could not be loaded.</div>`;
+        conversationElements = [];
+        return;
+    }
+
+    if(!companies.length){
+        conversationList.innerHTML = `<div class="empty">No companies are registered yet.</div>`;
+        conversationElements = [];
+        return;
+    }
+
+    const searchTerm = conversationSearch.value.trim().toLowerCase();
+    const filteredCompanies = companies.filter(company =>
+        company.name.toLowerCase().includes(searchTerm) ||
+        company.code.toLowerCase().includes(searchTerm) ||
+        company.contact.toLowerCase().includes(searchTerm)
+    );
+
+    if(!filteredCompanies.length){
+        conversationList.innerHTML = `<div class="empty">No matching companies found.</div>`;
+        conversationElements = [];
+        return;
+    }
+
+    conversationList.innerHTML = filteredCompanies.map(company => `
+        <button class="conversation${currentConversation && currentConversation.receiverId === company.name ? " active" : ""}"
+            type="button"
+            data-chat="${escapeHtml(company.name)}"
+            data-receiver-type="company"
+            data-receiver-id="${escapeHtml(company.name)}">
+            <span class="conversation-top">
+                <span class="conversation-name">${escapeHtml(company.name)}</span>
+                <span class="badge ${company.status === "active" ? "green" : "yellow"}">${company.status === "active" ? "Active" : "Inactive"}</span>
+            </span>
+            <span class="conversation-msg">${escapeHtml(company.contact)} · ${escapeHtml(company.email)}</span>
+        </button>
+    `).join("");
+
+    conversationElements = Array.from(conversationList.querySelectorAll(".conversation"));
+    conversationElements.forEach(conversation => {
+        conversation.addEventListener("click", async () => {
+            conversationElements.forEach(item => item.classList.remove("active"));
+            conversation.classList.add("active");
+
+            const info = getConversationInfo(conversation);
+            currentConversation = info;
+            document.getElementById("chatName").textContent = info.name;
+            const selectedCompany = companies.find(company => company.name === info.receiverId);
+            const chatStatus = document.getElementById("chatStatus");
+            chatStatus.textContent = selectedCompany && selectedCompany.status === "active"
+                ? "Active company"
+                : "Inactive company";
+            chatStatus.dataset.companyStatus = selectedCompany ? selectedCompany.status : "";
+            chatInput.disabled = false;
+            sendMessageButton.disabled = false;
+            chatInput.focus();
+            await loadMessages(info);
+        });
+    });
+}
+
+conversationSearch.addEventListener("input", renderCompanyConversations);
 
 function getActiveConversation(){
-    return document.querySelector(".conversation.active");
+    return conversationList.querySelector(".conversation.active");
 }
 
 function getConversationInfo(conversation){
@@ -1724,7 +3459,7 @@ function setChatLoading(){
 
 function setChatEmpty(){
     document.getElementById("chatBody").innerHTML = `
-        <div style="padding:24px;text-align:center;color:#8597a6;font-size:12px;">
+        <div data-empty-chat="true" style="padding:24px;text-align:center;color:#8597a6;font-size:12px;">
             No messages yet. Start the conversation.
         </div>
     `;
@@ -1857,23 +3592,10 @@ function subscribeToMessages(){
         });
 }
 
-conversationElements.forEach(conversation => {
-    conversation.addEventListener("click", async () => {
-        conversationElements.forEach(c => c.classList.remove("active"));
-        conversation.classList.add("active");
-
-        const info = getConversationInfo(conversation);
-        document.getElementById("chatName").textContent = info.name;
-
-        await loadMessages(info);
-    });
-});
-
 async function sendMessage(){
     const input = document.getElementById("messageInput");
     const value = input.value.trim();
-    const activeConversation = getActiveConversation();
-    const conversationInfo = getConversationInfo(activeConversation);
+    const conversationInfo = currentConversation;
 
     if(!value) return;
 
@@ -1887,7 +3609,7 @@ async function sendMessage(){
         return;
     }
 
-    const sendButton = document.getElementById("sendMessageBtn");
+    const sendButton = sendMessageButton;
     sendButton.disabled = true;
 
     // Updated insert payload and select field to 'messages'
@@ -1929,31 +3651,34 @@ document.getElementById("messageInput").addEventListener("keydown", e => {
     }
 });
 
-/* Start realtime and load the first conversation. */
+/* Start realtime listening before loading the selected company conversation. */
 if(supabaseReady){
     subscribeToMessages();
+}
 
-    const firstConversation = getActiveConversation();
-    if(firstConversation){
-        const firstInfo = getConversationInfo(firstConversation);
-        document.getElementById("chatName").textContent = firstInfo.name;
-        loadMessages(firstInfo);
+renderCompanyConversations();
+
+if(!COMPANY_DATA_ERROR && companies.length){
+    const initialCompany = companies.find(company => company.status === "active") || companies[0];
+    const initialConversation = conversationElements.find(
+        conversation => conversation.dataset.receiverId === initialCompany.name
+    );
+
+    if(initialConversation){
+        initialConversation.click();
     }
 }
 
 document.getElementById("newMessageBtn").addEventListener("click", () => {
+    conversationSearch.value = "";
+    renderCompanyConversations();
     const firstConversation = conversationElements[0];
 
     if(firstConversation){
-        conversationElements.forEach(c => c.classList.remove("active"));
-        firstConversation.classList.add("active");
-
-        const info = getConversationInfo(firstConversation);
-        document.getElementById("chatName").textContent = info.name;
-        loadMessages(info);
+        firstConversation.click();
+    } else {
+        showToast("No company is available for messaging.");
     }
-
-    document.getElementById("messageInput").focus();
 });
 
 /* ================================================================
@@ -1977,10 +3702,14 @@ document.getElementById("supportBtn").addEventListener("click", () => {
 ================================================================ */
 
 document.getElementById("signOutBtn").addEventListener("click", () => {
-    if(confirm("Are you sure you want to sign out?")){
-        // Replace with your real logout URL.
-        window.location.href = "logout.php";
-    }
+    openActionConfirmation({
+        title: "Sign out",
+        message: "You will be signed out of your employee account and returned to the login page.",
+        actionLabel: "Sign out",
+        summaryLabel: "Account",
+        summaryValue: <?= json_encode($displayName, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>,
+        onConfirm: () => { window.location.href = "logout.php"; }
+    });
 });
 
 /* ================================================================
@@ -2065,130 +3794,138 @@ function showToast(message){
     }, 2500);
 }
 
+const settingsKey = "ojt360-employee-settings-" + CURRENT_EMPLOYEE_ID;
+const settingsScheduleForm = document.getElementById("settingsScheduleForm");
+const settingsGoalForm = document.getElementById("settingsGoalForm");
+const settingsSidebarToggle = document.getElementById("settingsSidebarToggle");
+const settingsMotionToggle = document.getElementById("settingsMotionToggle");
+let employeeSettings = {
+    shift_start: "08:00",
+    grace_minutes: "15",
+    daily_target: "8",
+    required_hours: "480",
+    keep_sidebar_open: true,
+    reduce_motion: false
+};
 
-/* ================================================================
-   OJT360 AI ASSISTANT
-================================================================ */
-
-const aiLauncher = document.getElementById("aiLauncher");
-const aiPanel = document.getElementById("aiPanel");
-const aiClose = document.getElementById("aiClose");
-const aiBody = document.getElementById("aiBody");
-const aiForm = document.getElementById("aiForm");
-const aiInput = document.getElementById("aiInput");
-
-function openAssistant(){
-    aiPanel.classList.add("open");
-    setTimeout(() => aiInput.focus(), 180);
+try{
+    const savedSettings = JSON.parse(localStorage.getItem(settingsKey) || "{}");
+    if(savedSettings && typeof savedSettings === "object" && !Array.isArray(savedSettings)){
+        employeeSettings = {...employeeSettings, ...savedSettings};
+    }
+}catch(error){
+    console.error("Unable to load employee settings.", error);
 }
 
-function closeAssistant(){
-    aiPanel.classList.remove("open");
+function persistEmployeeSettings(){
+    try{
+        localStorage.setItem(settingsKey, JSON.stringify(employeeSettings));
+        return true;
+    }catch(error){
+        console.error("Unable to save employee settings.", error);
+        showToast("Unable to save your settings on this device.");
+        return false;
+    }
 }
 
-function addAssistantMessage(message, isUser = false){
-    const row = document.createElement("div");
-    row.className = "ai-row" + (isUser ? " user" : "");
+Object.entries(employeeSettings).forEach(([name, value]) => {
+    const field = settingsScheduleForm.elements.namedItem(name) ||
+        settingsGoalForm.elements.namedItem(name);
+    if(field && typeof value !== "boolean") field.value = value;
+});
 
-    if(!isUser){
-        const avatar = document.createElement("div");
-        avatar.className = "ai-mini-avatar";
-        avatar.textContent = "✦";
-        row.appendChild(avatar);
-    }
+settingsSidebarToggle.checked = employeeSettings.keep_sidebar_open === true;
+keepSidebarOpen = settingsSidebarToggle.checked;
+sidebar.classList.toggle("compact", !keepSidebarOpen);
+settingsMotionToggle.checked = employeeSettings.reduce_motion === true;
+document.documentElement.classList.toggle("reduce-motion", settingsMotionToggle.checked);
 
-    const bubble = document.createElement("div");
-    bubble.className = "ai-bubble";
-    bubble.textContent = message;
+settingsSidebarToggle.addEventListener("change", () => {
+    employeeSettings.keep_sidebar_open = settingsSidebarToggle.checked;
+    keepSidebarOpen = settingsSidebarToggle.checked;
+    sidebar.classList.toggle("compact", !keepSidebarOpen);
+    persistEmployeeSettings();
+});
 
-    const time = document.createElement("span");
-    time.className = "ai-time";
-    time.textContent = new Date().toLocaleTimeString([], {
-        hour:"numeric",
-        minute:"2-digit"
-    });
+settingsMotionToggle.addEventListener("change", () => {
+    employeeSettings.reduce_motion = settingsMotionToggle.checked;
+    document.documentElement.classList.toggle("reduce-motion", settingsMotionToggle.checked);
+    persistEmployeeSettings();
+});
 
-    bubble.appendChild(time);
-    row.appendChild(bubble);
-    aiBody.appendChild(row);
-    aiBody.scrollTop = aiBody.scrollHeight;
-}
+settingsScheduleForm.addEventListener("submit", event => {
+    event.preventDefault();
+    const formData = new FormData(settingsScheduleForm);
+    employeeSettings.shift_start = formData.get("shift_start");
+    employeeSettings.grace_minutes = formData.get("grace_minutes");
+    employeeSettings.daily_target = formData.get("daily_target");
+    if(persistEmployeeSettings()) showToast("Work schedule saved on this device.");
+});
 
-function getAssistantReply(question){
-    const q = question.toLowerCase();
+settingsGoalForm.addEventListener("submit", event => {
+    event.preventDefault();
+    employeeSettings.required_hours = new FormData(settingsGoalForm).get("required_hours");
+    if(persistEmployeeSettings()) showToast("OJT hours goal saved on this device.");
+});
 
-    if(q.includes("journal")){
-        return "For the OJT journal, keep your daily activities, dates, hours completed, learning reflections, and required signatures or approvals. Follow the current OJT manual used by your program.";
-    }
+document.querySelectorAll("[data-settings-page]").forEach(button => {
+    button.addEventListener("click", () => showPage(button.dataset.settingsPage));
+});
 
-    if(q.includes("qr") || q.includes("attendance")){
-        return "For QR attendance, the intern should scan the assigned attendance QR using a phone while connected to the required network or service. The system should record the time and associate it with the correct OJT placement.";
-    }
+document.getElementById("settingsProfileButton").addEventListener("click", openProfile);
 
-    if(q.includes("assign") || q.includes("company") || q.includes("placement")){
-        return "Open Overview, go to Company Management, open the company, then assign the selected intern to that company. The intern's placement should show the assigned company and status.";
-    }
+const settingsPasswordFields = document.querySelector(
+    '#page-settings form[method="POST"]'
+);
 
-    if(q.includes("evaluation")){
-        return "Evaluations can be prepared from the Evaluations page. Select the intern, review the required criteria, add feedback, and save or submit the evaluation according to your workflow.";
-    }
+settingsPasswordFields.addEventListener("submit", event => {
+    const newPassword = settingsPasswordFields.elements.namedItem("new_password").value;
+    const confirmPassword = settingsPasswordFields.elements.namedItem("confirm_password").value;
 
-    if(q.includes("intern")){
-        return "The Interns page is focused on student placement and OJT progress. You can review assigned companies, completed hours, status, and student information there.";
-    }
-
-    if(q.includes("report")){
-        return "Reports & Analytics can be used to review internship progress, hours, placement information, and administration-ready summaries.";
-    }
-
-    if(q.includes("help") || q.includes("support")){
-        return "You can open Help & Support from the sidebar to submit an issue or request assistance from the OJT coordination team.";
-    }
-
-    return "I can help with OJT journals, QR attendance, evaluations, student placement, companies, reports, and OJT360 navigation. Try asking about one of those topics.";
-}
-
-aiLauncher.addEventListener("click", () => {
-    if(aiPanel.classList.contains("open")){
-        closeAssistant();
-    }else{
-        openAssistant();
+    if(newPassword !== confirmPassword){
+        event.preventDefault();
+        showToast("The new password and confirmation do not match.");
     }
 });
 
-aiClose.addEventListener("click", closeAssistant);
+const settingsFlash = <?= json_encode(
+    $settingsFlash,
+    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+) ?>;
 
-document.querySelectorAll(".ai-suggestion").forEach(button => {
-    button.addEventListener("click", () => {
-        const question = button.dataset.question;
-        addAssistantMessage(question, true);
-
-        setTimeout(() => {
-            addAssistantMessage(getAssistantReply(question));
-        }, 280);
-    });
-});
-
-aiForm.addEventListener("submit", e => {
-    e.preventDefault();
-
-    const question = aiInput.value.trim();
-    if(!question) return;
-
-    addAssistantMessage(question, true);
-    aiInput.value = "";
-
-    setTimeout(() => {
-        addAssistantMessage(getAssistantReply(question));
-    }, 280);
-});
+if(settingsFlash && typeof settingsFlash.message === "string"){
+    showToast(settingsFlash.message);
+}
 
 /* ================================================================
    MODALS
 ================================================================ */
 
+let pendingActionConfirmation = null;
+
+function openActionConfirmation({title, message, actionLabel, summaryLabel, summaryValue, danger = false, onConfirm}){
+    document.getElementById("actionConfirmTitle").textContent = title;
+    document.getElementById("actionConfirmMessage").textContent = message;
+    document.getElementById("actionConfirmLabel").textContent = summaryLabel;
+    document.getElementById("actionConfirmValue").textContent = summaryValue;
+    const actionButton = document.getElementById("actionConfirmButton");
+    actionButton.textContent = actionLabel;
+    actionButton.className = danger ? "btn btn-danger" : "btn btn-primary";
+    pendingActionConfirmation = onConfirm;
+    document.getElementById("actionConfirmModal").classList.add("show");
+    actionButton.focus();
+}
+
+document.getElementById("actionConfirmButton").addEventListener("click", () => {
+    const confirmAction = pendingActionConfirmation;
+    pendingActionConfirmation = null;
+    closeModal("actionConfirmModal");
+    if(confirmAction) confirmAction();
+});
+
 function closeModal(id){
     document.getElementById(id).classList.remove("show");
+    if(id === "actionConfirmModal") pendingActionConfirmation = null;
 }
 
 document.querySelectorAll("[data-close]").forEach(button => {
@@ -2218,10 +3955,13 @@ document.addEventListener("keydown", e => {
 
 renderCompanies();
 renderAssignments();
-renderInterns();
 renderEvaluations();
 updateOverviewStats();
+if(EVALUATION_SUCCESS_MESSAGE){
+    showToast(EVALUATION_SUCCESS_MESSAGE);
+}
 </script>
 <script src="notification.js"></script>
+<script src="chatbot.js"></script>
 </body>
 </html>

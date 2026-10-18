@@ -1,5 +1,62 @@
 <?php
+session_start();
+
 $pageTitle = "OJT360 - Sign In";
+$errorMessage = "";
+
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    isset($_POST["employee_username"], $_POST["employee_password"])
+) {
+    $employeeEmail = trim($_POST["employee_username"]);
+    $employeePassword = $_POST["employee_password"];
+
+    require_once __DIR__ . "/config/database.php";
+
+    $stmt = $conn->prepare(
+        "SELECT employee_id, password_hash
+        FROM employees
+        WHERE email = ? OR username = ?"
+    );
+
+    if ($stmt === false) {
+        $errorMessage = "Unable to process your login right now. Please try again.";
+    } else {
+        $stmt->bind_param("ss", $employeeEmail, $employeeEmail);
+
+        if (!$stmt->execute()) {
+            $errorMessage = "Unable to process your login right now. Please try again.";
+        } else {
+            $employee = null;
+            $employees = $stmt->get_result();
+
+            while ($candidate = $employees->fetch_assoc()) {
+                if (password_verify($employeePassword, $candidate["password_hash"])) {
+                    $employee = $candidate;
+                    break;
+                }
+            }
+
+            if ($employee) {
+                session_regenerate_id(true);
+                $_SESSION["employee_logged_in"] = true;
+                $_SESSION["employee_id"] = $employee["employee_id"];
+
+                $stmt->close();
+                $conn->close();
+
+                header("Location: dashboard(employee).php", true, 303);
+                exit;
+            }
+
+            $errorMessage = "Invalid institutional email or password.";
+        }
+
+        $stmt->close();
+    }
+
+    $conn->close();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -994,6 +1051,15 @@ body {
 
         <div id="login-forms">
 
+            <?php if ($errorMessage !== ""): ?>
+                <p
+                    class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                    role="alert"
+                >
+                    <?= htmlspecialchars($errorMessage, ENT_QUOTES, "UTF-8") ?>
+                </p>
+            <?php endif; ?>
+
             <!-- =================================================
                  STUDENT FORM
             ================================================== -->
@@ -1099,7 +1165,7 @@ body {
                 id="employee-form"
                 class="hidden space-y-4"
                 method="POST"
-                action="dashboard(employee).php"
+                action="login.php"
             >
 
                 <!-- EMAIL -->
@@ -1107,7 +1173,7 @@ body {
                 <div>
 
                     <label class="label">
-                        Institutional email
+                        Institutional email or username
                     </label>
 
                     <input
@@ -1411,6 +1477,10 @@ function selectRole(role) {
     });
 
 }
+
+<?php if ($errorMessage !== ""): ?>
+selectRole('employee');
+<?php endif; ?>
 
 </script>
 
