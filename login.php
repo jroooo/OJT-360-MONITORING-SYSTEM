@@ -20,7 +20,7 @@ if (
     }
 
     $stmt = db()->prepare(
-        'SELECT id, first_name, middle_name, last_name, course, mobile_number, complete_address, student_id, institutional_email, password_hash
+        'SELECT id, student_id, password_hash
          FROM students WHERE student_id = ? LIMIT 1'
     );
     $stmt->execute([$studentId]);
@@ -31,28 +31,8 @@ if (
         exit;
     }
 
-    $userStmt = db()->prepare('SELECT id FROM users WHERE student_no = ? OR email = ? LIMIT 1');
-    $userStmt->execute([$student['student_id'], $student['institutional_email']]);
-    $userId = $userStmt->fetchColumn();
-
-    if (!$userId) {
-        $fullName = trim($student['first_name'] . ' ' . ($student['middle_name'] ? $student['middle_name'] . ' ' : '') . $student['last_name']);
-        $createUser = db()->prepare('INSERT INTO users (full_name, email, password_hash, student_no, course, section, phone, address, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'student\')');
-        $createUser->execute([
-            $fullName,
-            $student['institutional_email'],
-            $student['password_hash'],
-            $student['student_id'],
-            $student['course'],
-            'AI23',
-            $student['mobile_number'],
-            $student['complete_address']
-        ]);
-        $userId = (int) db()->lastInsertId();
-    }
-
     session_regenerate_id(true);
-    $_SESSION['user_id'] = (int) $userId;
+    $_SESSION['student_pk'] = (int) $student['id'];
     $_SESSION['role'] = 'student';
     $_SESSION['student_id'] = $student['student_id'];
     $_SESSION['csrf'] = bin2hex(random_bytes(32));
