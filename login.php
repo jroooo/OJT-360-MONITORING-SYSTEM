@@ -274,6 +274,210 @@ if (
     $conn->close();
 }
 
+
+/* =========================================================
+   COMPANY LOGIN VALIDATION
+========================================================= */
+
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    isset($_POST["company_username"], $_POST["company_password"])
+) {
+
+    /* =====================================================
+       DATABASE CONNECTION
+    ===================================================== */
+
+    $host = "localhost";
+    $username = "root";
+    $password = "";
+    $database = "ojt360";
+
+    $conn = new mysqli(
+        $host,
+        $username,
+        $password,
+        $database
+    );
+
+    /* Check connection */
+
+    if ($conn->connect_error) {
+
+        header(
+            "Location: login.php?company_error=1"
+        );
+
+        exit;
+
+    }
+
+    $conn->set_charset("utf8mb4");
+
+    /* =====================================================
+       GET COMPANY LOGIN DATA
+    ===================================================== */
+
+    $companyUsername =
+        trim($_POST["company_username"]);
+
+    $companyPassword =
+        $_POST["company_password"];
+
+    /* =====================================================
+       FIND COMPANY
+       
+       TABLE: companies
+       
+       company_username
+       password_hash
+    ===================================================== */
+
+    $stmt = $conn->prepare(
+        "SELECT
+            id,
+            company_name,
+            rep_first_name,
+            rep_middle_name,
+            rep_last_name,
+            rep_position,
+            contact_number,
+            representative_email,
+            company_username,
+            password_hash,
+            created_at
+         FROM companies
+         WHERE company_username = ?
+         LIMIT 1"
+    );
+
+    if (!$stmt) {
+
+        $conn->close();
+
+        header(
+            "Location: login.php?company_error=1"
+        );
+
+        exit;
+
+    }
+
+    $stmt->bind_param(
+        "s",
+        $companyUsername
+    );
+
+    $stmt->execute();
+
+    $result =
+        $stmt->get_result();
+
+    /* =====================================================
+       CHECK IF COMPANY EXISTS
+    ===================================================== */
+
+    if ($result->num_rows === 1) {
+
+        $company =
+            $result->fetch_assoc();
+
+        /* =================================================
+           VERIFY COMPANY PASSWORD
+        ================================================= */
+
+        if (
+            password_verify(
+                $companyPassword,
+                $company["password_hash"]
+            )
+        ) {
+
+            /* =============================================
+               COMPANY LOGIN SUCCESS
+            ============================================= */
+
+            session_regenerate_id(true);
+
+            $_SESSION["company_logged_in"] =
+                true;
+
+            $_SESSION["company_id"] =
+                $company["id"];
+
+            $_SESSION["company_name"] =
+                $company["company_name"];
+
+            $_SESSION["company_first_name"] =
+                $company["rep_first_name"];
+
+            $_SESSION["company_middle_name"] =
+                $company["rep_middle_name"];
+
+            $_SESSION["company_last_name"] =
+                $company["rep_last_name"];
+
+            $_SESSION["company_position"] =
+                $company["rep_position"];
+
+            $_SESSION["company_contact"] =
+                $company["contact_number"];
+
+            $_SESSION["company_email"] =
+                $company["representative_email"];
+
+            $_SESSION["company_username"] =
+                $company["company_username"];
+
+            $_SESSION["role"] =
+                "company";
+
+            /* =============================================
+               GO TO COMPANY DASHBOARD
+            ============================================= */
+
+            header(
+                "Location: company_dashboard.php"
+            );
+
+            exit;
+
+        } else {
+
+            /* =============================================
+               WRONG COMPANY PASSWORD
+            ============================================= */
+
+            $stmt->close();
+            $conn->close();
+
+            header(
+                "Location: login.php?company_error=1"
+            );
+
+            exit;
+
+        }
+
+    } else {
+
+        /* =============================================
+           COMPANY USERNAME DOES NOT EXIST
+        ============================================= */
+
+        $stmt->close();
+        $conn->close();
+
+        header(
+            "Location: login.php?company_error=1"
+        );
+
+        exit;
+
+    }
+
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -1309,7 +1513,8 @@ body {
 
             <?php if (
                 isset($_GET["employee_error"]) ||
-                isset($_GET["student_error"])
+                isset($_GET["student_error"]) ||
+                isset($_GET["company_error"])
             ): ?>
 
                 <div
@@ -1619,6 +1824,7 @@ body {
                 id="company-form"
                 class="hidden space-y-4"
                 method="POST"
+                action="login.php"
             >
 
                 <!-- COMPANY EMAIL -->
@@ -1862,6 +2068,24 @@ document.addEventListener(
     function () {
 
         selectRole("student");
+
+    }
+);
+
+<?php endif; ?>
+
+
+/* =========================================================
+   SHOW COMPANY TAB AFTER LOGIN ERROR
+========================================================= */
+
+<?php if (isset($_GET["company_error"])): ?>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        selectRole("company");
 
     }
 );
