@@ -72,6 +72,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             $errorMessage = "Please fill in all required fields.";
 
+        } elseif (!preg_match('/^[0-9]{7}$/', $student_id)) {
+
+            $errorMessage = "Student ID must contain exactly 7 digits.";
+
         } else {
 
             // -----------------------------------------

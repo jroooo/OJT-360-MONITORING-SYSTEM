@@ -1,0 +1,7 @@
+<?php
+/* Copy this file to config.local.php and add your server-side Gemini API key. */
+return [
+    'api_key' => 'PASTE_YOUR_GEMINI_API_KEY_HERE',
+    'model' => 'gemini-2.5-flash',
+    'web_search' => true,
+];
