@@ -4,42 +4,96 @@ session_start();
 
 $pageTitle = "OJT360 - Sign In";
 
+/* =========================================================
+   STUDENT LOGIN VALIDATION
+========================================================= */
+
 if (
     $_SERVER["REQUEST_METHOD"] === "POST" &&
     isset($_POST["student_username"], $_POST["student_password"])
 ) {
+
     require_once __DIR__ . '/ojt360-student-dashboard/config.php';
     require_once __DIR__ . '/ojt360-student-dashboard/includes/helpers.php';
 
     $studentId = trim($_POST["student_username"]);
     $studentPassword = $_POST["student_password"];
 
+    /* =====================================================
+       VALIDATE STUDENT ID
+    ===================================================== */
+
     if (!preg_match('/^[0-9]{7}$/', $studentId)) {
+
         header("Location: login.php?student_error=1");
         exit;
+
     }
+
+    /* =====================================================
+       FIND STUDENT
+    ===================================================== */
 
     $stmt = db()->prepare(
-        'SELECT id, student_id, password_hash
-         FROM students WHERE student_id = ? LIMIT 1'
+        'SELECT
+            id,
+            student_id,
+            password_hash
+         FROM students
+         WHERE student_id = ?
+         LIMIT 1'
     );
+
     $stmt->execute([$studentId]);
+
     $student = $stmt->fetch();
 
-    if (!$student || !password_verify($studentPassword, $student['password_hash'])) {
+    /* =====================================================
+       VERIFY STUDENT
+    ===================================================== */
+
+    if (
+        !$student ||
+        !password_verify(
+            $studentPassword,
+            $student['password_hash']
+        )
+    ) {
+
         header("Location: login.php?student_error=1");
         exit;
+
     }
 
-    session_regenerate_id(true);
-    $_SESSION['student_pk'] = (int) $student['id'];
-    $_SESSION['role'] = 'student';
-    $_SESSION['student_id'] = $student['student_id'];
-    $_SESSION['csrf'] = bin2hex(random_bytes(32));
+    /* =====================================================
+       STUDENT LOGIN SUCCESS
+    ===================================================== */
 
-    header("Location: ojt360-student-dashboard/index.php");
+    session_regenerate_id(true);
+
+    $_SESSION['student_pk'] =
+        (int) $student['id'];
+
+    $_SESSION['role'] =
+        'student';
+
+    $_SESSION['student_id'] =
+        $student['student_id'];
+
+    $_SESSION['csrf'] =
+        bin2hex(random_bytes(32));
+
+    /* =====================================================
+       GO TO STUDENT DASHBOARD
+    ===================================================== */
+
+    header(
+        "Location: ojt360-student-dashboard/index.php"
+    );
+
     exit;
 }
+
 
 /* =========================================================
    EMPLOYEE LOGIN VALIDATION
@@ -143,7 +197,10 @@ if (
                LOGIN SUCCESS
             ============================================= */
 
-            $_SESSION["employee_logged_in"] = true;
+            session_regenerate_id(true);
+
+            $_SESSION["employee_logged_in"] =
+                true;
 
             $_SESSION["employee_id"] =
                 $employee["employee_id"];
@@ -225,6 +282,7 @@ if (
 <head>
 
 <meta charset="UTF-8">
+
 <meta
     name="viewport"
     content="width=device-width, initial-scale=1.0"
@@ -1246,10 +1304,13 @@ body {
 
 
             <!-- =================================================
-                 EMPLOYEE LOGIN ERROR NOTIFICATION
+                 LOGIN ERROR
             ================================================== -->
 
-            <?php if (isset($_GET["employee_error"]) || isset($_GET["student_error"])): ?>
+            <?php if (
+                isset($_GET["employee_error"]) ||
+                isset($_GET["student_error"])
+            ): ?>
 
                 <div
                     class="mt-4 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
@@ -1671,12 +1732,6 @@ body {
 
         </div>
 
-
-        <!-- =================================================
-             ADMIN
-        ================================================== -->
-
-
     </section>
 
 </div>
@@ -1729,21 +1784,15 @@ function togglePassword(role) {
 
 function selectRole(role) {
 
-    /* Change hidden role value */
-
     document.getElementById(
         'selected-role'
     ).value = role;
-
-
-    /* All available roles */
 
     const roles = [
         'student',
         'employee',
         'company'
     ];
-
 
     roles.forEach(function(r) {
 
@@ -1757,9 +1806,6 @@ function selectRole(role) {
                 r + '-form'
             );
 
-
-        /* Selected role */
-
         if (r === role) {
 
             tab.classList.add(
@@ -1770,12 +1816,7 @@ function selectRole(role) {
                 'hidden'
             );
 
-        }
-
-
-        /* Other roles */
-
-        else {
+        } else {
 
             tab.classList.remove(
                 'tab-active'
@@ -1809,7 +1850,26 @@ document.addEventListener(
 
 <?php endif; ?>
 
+
+/* =========================================================
+   SHOW STUDENT TAB AFTER LOGIN ERROR
+========================================================= */
+
+<?php if (isset($_GET["student_error"])): ?>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        selectRole("student");
+
+    }
+);
+
+<?php endif; ?>
+
 </script>
 
 </body>
+
 </html>
