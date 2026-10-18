@@ -59,7 +59,6 @@ $req = (float)($internship['required_hours'] ?? 480);
     <div class="settings-links">
       <a href="profile.php"><?= icon('user') ?><span>Profile & profile picture</span><?= icon('chevR') ?></a>
       <a href="journal.php"><?= icon('journal') ?><span>Weekly journal</span><?= icon('chevR') ?></a>
-      <a href="tasks.php"><?= icon('tasks') ?><span>My tasks</span><?= icon('chevR') ?></a>
       <a href="help.php"><?= icon('help') ?><span>Help & support</span><?= icon('chevR') ?></a>
       <a href="setup-check.php"><?= icon('shield') ?><span>Run setup check</span><?= icon('chevR') ?></a>
     </div>
