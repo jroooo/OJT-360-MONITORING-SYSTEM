@@ -1,47 +1,63 @@
-
 <?php
-require_once __DIR__ . '/includes/bootstrap.php';
+session_start();
 
 $pageTitle = "OJT360 - Sign In";
-$loginError = '';
+$errorMessage = "";
 
-if (is_post() && isset($_POST['company_username'], $_POST['company_password'])) {
-    ojt_start_session();
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    isset($_POST["employee_username"], $_POST["employee_password"])
+) {
+    $employeeEmail = trim($_POST["employee_username"]);
+    $employeePassword = $_POST["employee_password"];
 
-    $username = trim((string) $_POST['company_username']);
-    $password = (string) $_POST['company_password'];
+    require_once __DIR__ . "/config/database.php";
 
-    if ($username === '' || $password === '') {
-        $loginError = 'Please enter your company email and password.';
+    $stmt = $conn->prepare(
+        "SELECT employee_id, password_hash
+        FROM employees
+        WHERE email = ? OR username = ?"
+    );
+
+    if ($stmt === false) {
+        $errorMessage = "Unable to process your login right now. Please try again.";
     } else {
-        try {
-            $stmt = db()->prepare(
-                "SELECT id, company_username, representative_email, password_hash
-                 FROM companies
-                 WHERE company_username = ? OR representative_email = ?
-                 LIMIT 1"
-            );
-            $stmt->execute([$username, $username]);
-            $company = $stmt->fetch();
+        $stmt->bind_param("ss", $employeeEmail, $employeeEmail);
 
-            if ($company && password_verify($password, $company['password_hash'])) {
-                session_regenerate_id(true);
+        if (!$stmt->execute()) {
+            $errorMessage = "Unable to process your login right now. Please try again.";
+        } else {
+            $employee = null;
+            $employees = $stmt->get_result();
 
-                $_SESSION['company_id'] = (int) $company['id'];
-                $_SESSION['last_activity'] = time();
-
-                redirect('company_dashboard.php');
+            while ($candidate = $employees->fetch_assoc()) {
+                if (password_verify($employeePassword, $candidate["password_hash"])) {
+                    $employee = $candidate;
+                    break;
+                }
             }
 
-            $loginError = 'Invalid company email/username or password.';
-        } catch (Throwable $e) {
-            error_log('OJT360 company login failed: ' . $e->getMessage());
-            $loginError = 'Login could not be completed. Please check the server error log.';
+            if ($employee) {
+                session_regenerate_id(true);
+                $_SESSION["employee_logged_in"] = true;
+                $_SESSION["employee_id"] = $employee["employee_id"];
+
+                $stmt->close();
+                $conn->close();
+
+                header("Location: dashboard(employee).php", true, 303);
+                exit;
+            }
+
+            $errorMessage = "Invalid institutional email or password.";
         }
+
+        $stmt->close();
     }
+
+    $conn->close();
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 
@@ -660,7 +676,7 @@ body {
         height: 320px;
     }
 
-    .ring-small {
+    .ring-small {g
 
         width: 210px;
 
@@ -1033,13 +1049,16 @@ body {
              FORMS
         ================================================== -->
 
-        <?php if ($loginError !== ''): ?>
-            <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-                <?= e($loginError) ?>
-            </div>
-        <?php endif; ?>
-
         <div id="login-forms">
+
+            <?php if ($errorMessage !== ""): ?>
+                <p
+                    class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                    role="alert"
+                >
+                    <?= htmlspecialchars($errorMessage, ENT_QUOTES, "UTF-8") ?>
+                </p>
+            <?php endif; ?>
 
             <!-- =================================================
                  STUDENT FORM
@@ -1066,6 +1085,10 @@ body {
                         placeholder="ex. 1234567"
                         required
                         class="input"
+                        pattern="[0-9]{7}"
+                        inputmode="numeric"
+                        maxlength="7"
+                        oninput="this.value = this.value.replace(/\D/g, '').slice(0, 7)"
                     >
 
                 </div>
@@ -1142,6 +1165,7 @@ body {
                 id="employee-form"
                 class="hidden space-y-4"
                 method="POST"
+                action="login.php"
             >
 
                 <!-- EMAIL -->
@@ -1149,7 +1173,7 @@ body {
                 <div>
 
                     <label class="label">
-                        Institutional email
+                        Institutional email or username
                     </label>
 
                     <input
@@ -1347,24 +1371,6 @@ body {
              ADMIN
         ================================================== -->
 
-        <div
-            class="mt-4 pt-3 border-t border-dashed border-slate-200 flex justify-between text-xs text-slate-400"
-        >
-
-            <span>
-                Prototype access
-            </span>
-
-            <a
-                href="#"
-                class="text-slate-600 font-semibold hover:text-sky-600"
-            >
-
-                Open admin demo
-
-            </a>
-
-        </div>
 
     </section>
 
@@ -1471,6 +1477,10 @@ function selectRole(role) {
     });
 
 }
+
+<?php if ($errorMessage !== ""): ?>
+selectRole('employee');
+<?php endif; ?>
 
 </script>
 

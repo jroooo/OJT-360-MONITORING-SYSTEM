@@ -1,2 +1,7 @@
+<<<<<<< HEAD
 config/config.local.php
 .env
+=======
+/config/gemini.local.php
+/config/groq.local.php
+>>>>>>> Dashboard(Employee)
