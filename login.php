@@ -1,12 +1,28 @@
 <?php
-session_start();
-
 $pageTitle = "OJT360 - Sign In";
 $errorMessage = "";
+$loginRole = null;
+
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if (isset($_POST["company_username"], $_POST["company_password"])) {
+        $loginRole = "company";
+    } elseif (isset($_POST["employee_username"], $_POST["employee_password"])) {
+        $loginRole = "employee";
+    }
+}
+
+$activeRole = $loginRole ?? "student";
+
+if ($loginRole === "company") {
+    require_once __DIR__ . "/includes/bootstrap.php";
+    session_name("OJT360_COMPANY");
+    ojt_start_session();
+} else {
+    session_start();
+}
 
 if (
-    $_SERVER["REQUEST_METHOD"] === "POST" &&
-    isset($_POST["employee_username"], $_POST["employee_password"])
+    $loginRole === "employee"
 ) {
     $employeeEmail = trim($_POST["employee_username"]);
     $employeePassword = $_POST["employee_password"];
@@ -56,6 +72,39 @@ if (
     }
 
     $conn->close();
+}
+
+if ($loginRole === "company") {
+    $companyUsername = $_POST["company_username"];
+    $companyPassword = $_POST["company_password"];
+
+    try {
+        $companyQuery = db()->prepare(
+            "SELECT id, password_hash
+            FROM companies
+            WHERE company_username = ?
+            LIMIT 1"
+        );
+        $companyQuery->execute([$companyUsername]);
+        $company = $companyQuery->fetch();
+    } catch (PDOException $exception) {
+        error_log("Unable to process company login: " . $exception->getMessage());
+        $company = false;
+        $errorMessage = "Unable to process your login right now. Please try again.";
+    }
+
+    if ($company && password_verify($companyPassword, $company["password_hash"])) {
+        session_regenerate_id(true);
+        $_SESSION["company_id"] = (int) $company["id"];
+        $_SESSION["last_activity"] = time();
+
+        header("Location: company_dashboard.php", true, 303);
+        exit;
+    }
+
+    if ($errorMessage === "") {
+        $errorMessage = "Invalid company email or password.";
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -1039,10 +1088,10 @@ body {
 
         </div>
 
-        <input
+            <input
             type="hidden"
             id="selected-role"
-            value="student"
+            value="<?= htmlspecialchars($activeRole, ENT_QUOTES, "UTF-8") ?>"
         >
 
         <!-- =================================================
@@ -1177,7 +1226,7 @@ body {
                     </label>
 
                     <input
-                        type="email"
+                        type="text"
                         name="employee_username"
                         placeholder="juan.delacruz@lnu.edu.ph"
                         required
@@ -1479,7 +1528,7 @@ function selectRole(role) {
 }
 
 <?php if ($errorMessage !== ""): ?>
-selectRole('employee');
+selectRole(<?= json_encode($activeRole) ?>);
 <?php endif; ?>
 
 </script>

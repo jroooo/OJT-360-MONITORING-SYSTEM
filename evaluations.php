@@ -1,1452 +1,3047 @@
 <?php
+
+declare(strict_types=1);
+
 require_once __DIR__ . '/includes/bootstrap.php';
 
 $company = require_company();
 $pdo = db();
-$companyId = (int) $company['id'];
 
 $pageKey = 'evaluations';
 $pageTitle = 'Evaluations';
-$eyebrow = 'INTERN PERFORMANCE';
 
 $errors = [];
-$oldInput = [
-    'student_id' => '',
-    'score' => '',
-    'feedback' => '',
+$successMessage = flash_get('success') ?? null;
+
+/*
+|--------------------------------------------------------------------------
+| EVALUATION CRITERIA
+|--------------------------------------------------------------------------
+| Based on the intern_evaluations table.
+|--------------------------------------------------------------------------
+*/
+
+$criteria = [
+    'attendance_punctuality' => 'Attendance & Punctuality',
+    'quality_of_work'        => 'Quality of Work',
+    'productivity'           => 'Productivity',
+    'communication'          => 'Communication',
+    'teamwork'               => 'Teamwork',
+    'initiative'             => 'Initiative',
+    'professionalism'        => 'Professionalism',
+    'adaptability'           => 'Adaptability',
+    'problem_solving'        => 'Problem Solving',
+    'technical_skills'       => 'Technical Skills',
 ];
 
+/*
+|--------------------------------------------------------------------------
+| DEFAULT INPUT
+|--------------------------------------------------------------------------
+*/
+
+$oldInput = [
+    'student_id'             => '',
+    'attendance_punctuality' => '0',
+    'quality_of_work'        => '0',
+    'productivity'           => '0',
+    'communication'          => '0',
+    'teamwork'               => '0',
+    'initiative'              => '0',
+    'professionalism'        => '0',
+    'adaptability'           => '0',
+    'problem_solving'        => '0',
+    'technical_skills'       => '0',
+    'overall_performance'    => '',
+    'strengths'              => '',
+    'areas_for_improvement'  => '',
+    'comments'               => '',
+    'recommendation'         => '',
+    'status'                 => 'Completed',
+];
+
+/*
+|--------------------------------------------------------------------------
+| SAVE EVALUATION
+|--------------------------------------------------------------------------
+*/
+
 if (is_post()) {
+
     require_csrf('evaluations.php');
 
-    $studentId = filter_input(INPUT_POST, 'student_id', FILTER_VALIDATE_INT);
-    $scoreInput = trim((string) ($_POST['score'] ?? ''));
-    $feedback = trim((string) ($_POST['feedback'] ?? ''));
+    $studentId = filter_input(
+        INPUT_POST,
+        'student_id',
+        FILTER_VALIDATE_INT
+    );
 
-    $oldInput = [
-        'student_id' => $studentId ?: '',
-        'score' => $scoreInput,
-        'feedback' => $feedback,
-    ];
+    $oldInput['student_id'] = $studentId ?: '';
 
-    if (!$studentId || $studentId < 1) {
-        $errors[] = 'Please select a valid student.';
+    /*
+    |--------------------------------------------------------------------------
+    | STATUS
+    |--------------------------------------------------------------------------
+    */
+
+    $status = trim(
+        (string)($_POST['status'] ?? 'Completed')
+    );
+
+    if (!in_array($status, ['Draft', 'Completed'], true)) {
+        $status = 'Completed';
     }
 
-    if ($scoreInput === '' || !is_numeric($scoreInput)) {
-        $errors[] = 'Please enter a valid evaluation score.';
-    } elseif ((float) $scoreInput < 0 || (float) $scoreInput > 100) {
-        $errors[] = 'The score must be between 0 and 100.';
-    }
+    $oldInput['status'] = $status;
 
-    if (mb_strlen($feedback) > 2000) {
-        $errors[] = 'Feedback must not exceed 2,000 characters.';
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | RATINGS
+    |--------------------------------------------------------------------------
+    */
 
-    if (!$errors) {
-        $studentCheck = $pdo->prepare(
-            'SELECT id
-             FROM students
-             WHERE id = :student_id
-               AND company_id = :company_id
-             LIMIT 1'
-        );
+    foreach ($criteria as $field => $label) {
 
-        $studentCheck->execute([
-            ':student_id' => $studentId,
-            ':company_id' => $companyId,
-        ]);
+        $value = $_POST[$field] ?? '0';
 
-        if (!$studentCheck->fetch(PDO::FETCH_ASSOC)) {
-            $errors[] = 'That student is not assigned to your company.';
+        if (
+            !is_numeric($value) ||
+            (float)$value < 0 ||
+            (float)$value > 5 ||
+            floor((float)$value) !== (float)$value
+        ) {
+
+            $errors[] =
+                $label . ' must be a whole number from 0 to 5.';
+
+            $oldInput[$field] = '0';
+
+        } else {
+
+            $oldInput[$field] =
+                (string)(int)$value;
         }
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | TEXT FIELDS
+    |--------------------------------------------------------------------------
+    */
+
+    $overallPerformance = trim(
+        (string)($_POST['overall_performance'] ?? '')
+    );
+
+    $strengths = trim(
+        (string)($_POST['strengths'] ?? '')
+    );
+
+    $areasForImprovement = trim(
+        (string)($_POST['areas_for_improvement'] ?? '')
+    );
+
+    $comments = trim(
+        (string)($_POST['comments'] ?? '')
+    );
+
+    $recommendation = trim(
+        (string)($_POST['recommendation'] ?? '')
+    );
+
+    $oldInput['overall_performance'] = $overallPerformance;
+    $oldInput['strengths'] = $strengths;
+    $oldInput['areas_for_improvement'] = $areasForImprovement;
+    $oldInput['comments'] = $comments;
+    $oldInput['recommendation'] = $recommendation;
+
+    /*
+    |--------------------------------------------------------------------------
+    | VALIDATE STUDENT
+    |--------------------------------------------------------------------------
+    */
+
+    $student = null;
+
+    if (!$studentId || $studentId < 1) {
+
+        $errors[] = 'Please select a student.';
+
+    } else {
+
+        $studentStmt = $pdo->prepare(
+            'SELECT
+                id,
+                first_name,
+                middle_name,
+                last_name,
+                course,
+                mobile_number,
+                school_name,
+                complete_address,
+                student_id,
+                institutional_email
+             FROM students
+             WHERE id = :id
+             LIMIT 1'
+        );
+
+        $studentStmt->execute([
+            ':id' => $studentId
+        ]);
+
+        $student =
+            $studentStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$student) {
+            $errors[] =
+                'Selected student does not exist.';
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | TEXT LENGTH VALIDATION
+    |--------------------------------------------------------------------------
+    */
+
+    if (mb_strlen($overallPerformance) > 50) {
+        $errors[] =
+            'Overall performance cannot exceed 50 characters.';
+    }
+
+    if (mb_strlen($recommendation) > 100) {
+        $errors[] =
+            'Recommendation cannot exceed 100 characters.';
+    }
+
+    if (mb_strlen($strengths) > 10000) {
+        $errors[] =
+            'Strengths cannot exceed 10,000 characters.';
+    }
+
+    if (mb_strlen($areasForImprovement) > 10000) {
+        $errors[] =
+            'Areas for improvement cannot exceed 10,000 characters.';
+    }
+
+    if (mb_strlen($comments) > 10000) {
+        $errors[] =
+            'Comments cannot exceed 10,000 characters.';
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | COMPLETED VALIDATION
+    |--------------------------------------------------------------------------
+    */
+
+    if ($status === 'Completed') {
+
+        if ($overallPerformance === '') {
+            $errors[] =
+                'Please select the overall performance.';
+        }
+
+        if ($recommendation === '') {
+            $errors[] =
+                'Please select a recommendation.';
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SAVE TO intern_evaluations
+    |--------------------------------------------------------------------------
+    */
+
     if (!$errors) {
-        $score = round((float) $scoreInput, 2);
-        $status = 'Completed';
 
         try {
+
+            /*
+            |--------------------------------------------------------------------------
+            | CALCULATE OVERALL RATING
+            |--------------------------------------------------------------------------
+            */
+
+            $ratingTotal = 0;
+
+            foreach ($criteria as $field => $label) {
+
+                $ratingTotal +=
+                    (int)$oldInput[$field];
+            }
+
+            $overallRating =
+                round($ratingTotal / 10, 2);
+
             $pdo->beginTransaction();
 
-            $existing = $pdo->prepare(
-                'SELECT student_id
-                 FROM evaluations
-                 WHERE student_id = :student_id
-                   AND company_id = :company_id
+            /*
+            |--------------------------------------------------------------------------
+            | FIND LATEST EVALUATION FOR STUDENT
+            |--------------------------------------------------------------------------
+            */
+
+            $existingStmt = $pdo->prepare(
+                'SELECT id
+                 FROM intern_evaluations
+                 WHERE student_db_id = :student_db_id
+                 ORDER BY id DESC
                  LIMIT 1'
             );
 
-            $existing->execute([
-                ':student_id' => $studentId,
-                ':company_id' => $companyId,
+            $existingStmt->execute([
+                ':student_db_id' => $studentId
             ]);
 
-            if ($existing->fetch(PDO::FETCH_ASSOC)) {
-                $saveEvaluation = $pdo->prepare(
-                    'UPDATE evaluations
-                     SET score = :score,
-                         status = :status,
-                         feedback = :feedback,
-                         updated_at = NOW()
-                     WHERE student_id = :student_id
-                       AND company_id = :company_id'
-                );
-            } else {
-                $saveEvaluation = $pdo->prepare(
-                    'INSERT INTO evaluations
-                        (student_id, company_id, score, status, feedback, updated_at)
-                     VALUES
-                        (:student_id, :company_id, :score, :status, :feedback, NOW())'
-                );
+            $existing =
+                $existingStmt->fetch(PDO::FETCH_ASSOC);
+
+            /*
+            |--------------------------------------------------------------------------
+            | EVALUATOR ID
+            |--------------------------------------------------------------------------
+            |
+            | evaluator_id is nullable according to the table.
+            |
+            */
+
+            $evaluatorId = null;
+
+            /*
+            |--------------------------------------------------------------------------
+            | UPDATE EXISTING EVALUATION
+            |--------------------------------------------------------------------------
+            */
+
+            if ($existing) {
+
+                $evaluationId =
+                    (int)$existing['id'];
+
+                $sql = '
+                    UPDATE intern_evaluations
+                    SET
+                        evaluator_id = :evaluator_id,
+                        evaluation_date = CURDATE(),
+
+                        attendance_punctuality =
+                            :attendance_punctuality,
+
+                        quality_of_work =
+                            :quality_of_work,
+
+                        productivity =
+                            :productivity,
+
+                        communication =
+                            :communication,
+
+                        teamwork =
+                            :teamwork,
+
+                        initiative =
+                            :initiative,
+
+                        professionalism =
+                            :professionalism,
+
+                        adaptability =
+                            :adaptability,
+
+                        problem_solving =
+                            :problem_solving,
+
+                        technical_skills =
+                            :technical_skills,
+
+                        overall_rating =
+                            :overall_rating,
+
+                        overall_performance =
+                            :overall_performance,
+
+                        strengths =
+                            :strengths,
+
+                        areas_for_improvement =
+                            :areas_for_improvement,
+
+                        comments =
+                            :comments,
+
+                        recommendation =
+                            :recommendation,
+
+                        status =
+                            :status,
+
+                        updated_at =
+                            CURRENT_TIMESTAMP
+
+                    WHERE id = :id
+                ';
+
+                $stmt =
+                    $pdo->prepare($sql);
+
+                $stmt->execute([
+
+                    ':evaluator_id' =>
+                        $evaluatorId,
+
+                    ':attendance_punctuality' =>
+                        (int)$oldInput[
+                            'attendance_punctuality'
+                        ],
+
+                    ':quality_of_work' =>
+                        (int)$oldInput[
+                            'quality_of_work'
+                        ],
+
+                    ':productivity' =>
+                        (int)$oldInput[
+                            'productivity'
+                        ],
+
+                    ':communication' =>
+                        (int)$oldInput[
+                            'communication'
+                        ],
+
+                    ':teamwork' =>
+                        (int)$oldInput[
+                            'teamwork'
+                        ],
+
+                    ':initiative' =>
+                        (int)$oldInput[
+                            'initiative'
+                        ],
+
+                    ':professionalism' =>
+                        (int)$oldInput[
+                            'professionalism'
+                        ],
+
+                    ':adaptability' =>
+                        (int)$oldInput[
+                            'adaptability'
+                        ],
+
+                    ':problem_solving' =>
+                        (int)$oldInput[
+                            'problem_solving'
+                        ],
+
+                    ':technical_skills' =>
+                        (int)$oldInput[
+                            'technical_skills'
+                        ],
+
+                    ':overall_rating' =>
+                        $overallRating,
+
+                    ':overall_performance' =>
+                        $overallPerformance !== ''
+                            ? $overallPerformance
+                            : null,
+
+                    ':strengths' =>
+                        $strengths !== ''
+                            ? $strengths
+                            : null,
+
+                    ':areas_for_improvement' =>
+                        $areasForImprovement !== ''
+                            ? $areasForImprovement
+                            : null,
+
+                    ':comments' =>
+                        $comments !== ''
+                            ? $comments
+                            : null,
+
+                    ':recommendation' =>
+                        $recommendation !== ''
+                            ? $recommendation
+                            : null,
+
+                    ':status' =>
+                        $status,
+
+                    ':id' =>
+                        $evaluationId
+                ]);
+
             }
 
-            $saveEvaluation->execute([
-                ':student_id' => $studentId,
-                ':company_id' => $companyId,
-                ':score' => $score,
-                ':status' => $status,
-                ':feedback' => $feedback,
-            ]);
+            /*
+            |--------------------------------------------------------------------------
+            | INSERT NEW EVALUATION
+            |--------------------------------------------------------------------------
+            */
 
-            $syncStudent = $pdo->prepare(
-                'UPDATE students
-                 SET evaluation = :evaluation
-                 WHERE id = :student_id
-                   AND company_id = :company_id'
-            );
+            else {
 
-            $syncStudent->execute([
-                ':evaluation' => $status,
-                ':student_id' => $studentId,
-                ':company_id' => $companyId,
-            ]);
+                $sql = '
+                    INSERT INTO intern_evaluations (
+                        student_db_id,
+                        evaluator_id,
+                        evaluation_date,
+
+                        attendance_punctuality,
+                        quality_of_work,
+                        productivity,
+                        communication,
+                        teamwork,
+                        initiative,
+                        professionalism,
+                        adaptability,
+                        problem_solving,
+                        technical_skills,
+
+                        overall_rating,
+                        overall_performance,
+                        strengths,
+                        areas_for_improvement,
+                        comments,
+                        recommendation,
+                        status
+                    )
+
+                    VALUES (
+                        :student_db_id,
+                        :evaluator_id,
+                        CURDATE(),
+
+                        :attendance_punctuality,
+                        :quality_of_work,
+                        :productivity,
+                        :communication,
+                        :teamwork,
+                        :initiative,
+                        :professionalism,
+                        :adaptability,
+                        :problem_solving,
+                        :technical_skills,
+
+                        :overall_rating,
+                        :overall_performance,
+                        :strengths,
+                        :areas_for_improvement,
+                        :comments,
+                        :recommendation,
+                        :status
+                    )
+                ';
+
+                $stmt =
+                    $pdo->prepare($sql);
+
+                $stmt->execute([
+
+                    ':student_db_id' =>
+                        $studentId,
+
+                    ':evaluator_id' =>
+                        $evaluatorId,
+
+                    ':attendance_punctuality' =>
+                        (int)$oldInput[
+                            'attendance_punctuality'
+                        ],
+
+                    ':quality_of_work' =>
+                        (int)$oldInput[
+                            'quality_of_work'
+                        ],
+
+                    ':productivity' =>
+                        (int)$oldInput[
+                            'productivity'
+                        ],
+
+                    ':communication' =>
+                        (int)$oldInput[
+                            'communication'
+                        ],
+
+                    ':teamwork' =>
+                        (int)$oldInput[
+                            'teamwork'
+                        ],
+
+                    ':initiative' =>
+                        (int)$oldInput[
+                            'initiative'
+                        ],
+
+                    ':professionalism' =>
+                        (int)$oldInput[
+                            'professionalism'
+                        ],
+
+                    ':adaptability' =>
+                        (int)$oldInput[
+                            'adaptability'
+                        ],
+
+                    ':problem_solving' =>
+                        (int)$oldInput[
+                            'problem_solving'
+                        ],
+
+                    ':technical_skills' =>
+                        (int)$oldInput[
+                            'technical_skills'
+                        ],
+
+                    ':overall_rating' =>
+                        $overallRating,
+
+                    ':overall_performance' =>
+                        $overallPerformance !== ''
+                            ? $overallPerformance
+                            : null,
+
+                    ':strengths' =>
+                        $strengths !== ''
+                            ? $strengths
+                            : null,
+
+                    ':areas_for_improvement' =>
+                        $areasForImprovement !== ''
+                            ? $areasForImprovement
+                            : null,
+
+                    ':comments' =>
+                        $comments !== ''
+                            ? $comments
+                            : null,
+
+                    ':recommendation' =>
+                        $recommendation !== ''
+                            ? $recommendation
+                            : null,
+
+                    ':status' =>
+                        $status
+                ]);
+            }
 
             $pdo->commit();
 
-            flash_set('success', 'Evaluation saved successfully.');
+            flash_set(
+                'success',
+                $status === 'Completed'
+                    ? 'Evaluation saved successfully.'
+                    : 'Evaluation draft saved successfully.'
+            );
+
             redirect('evaluations.php');
-        } catch (Throwable $exception) {
+
+        } catch (Throwable $e) {
+
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
 
-            error_log('Evaluation save failed: ' . $exception->getMessage());
-            $errors[] = 'Unable to save the evaluation. Please check your database structure and try again.';
+            $errors[] =
+                'Database error: ' . $e->getMessage();
         }
     }
 }
 
-$stmt = $pdo->prepare(
-    'SELECT
-        s.id,
-        s.first_name,
-        s.last_name,
-        s.student_id_no,
-        s.program,
-        s.avatar,
-        s.department,
-        s.completed_hours,
-        s.required_hours,
-        s.evaluation AS student_evaluation,
-        ev.score,
-        ev.status AS evaluation_status,
-        ev.feedback,
-        ev.updated_at
-     FROM students s
-     LEFT JOIN evaluations ev
-        ON ev.student_id = s.id
-       AND ev.company_id = :evaluation_company_id
-     WHERE s.company_id = :student_company_id
-     ORDER BY s.last_name ASC, s.first_name ASC'
-);
+/*
+|--------------------------------------------------------------------------
+| LOAD STUDENTS + LATEST EVALUATION
+|--------------------------------------------------------------------------
+*/
 
-$stmt->execute([
-    ':evaluation_company_id' => $companyId,
-    ':student_company_id' => $companyId,
-]);
+$students = [];
 
-$students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+try {
 
-$totalStudents = count($students);
+    $sql = '
+        SELECT
+            s.id,
+            s.first_name,
+            s.middle_name,
+            s.last_name,
+            s.course,
+            s.mobile_number,
+            s.school_name,
+            s.complete_address,
+            s.student_id,
+            s.institutional_email,
+
+            e.id AS evaluation_id,
+            e.evaluation_date,
+
+            e.attendance_punctuality,
+            e.quality_of_work,
+            e.productivity,
+            e.communication,
+            e.teamwork,
+            e.initiative,
+            e.professionalism,
+            e.adaptability,
+            e.problem_solving,
+            e.technical_skills,
+
+            e.overall_rating,
+            e.overall_performance,
+            e.strengths,
+            e.areas_for_improvement,
+            e.comments,
+            e.recommendation,
+            e.status AS evaluation_status
+
+        FROM students s
+
+        LEFT JOIN intern_evaluations e
+            ON e.id = (
+                SELECT MAX(e2.id)
+                FROM intern_evaluations e2
+                WHERE e2.student_db_id = s.id
+            )
+
+        ORDER BY
+            s.last_name ASC,
+            s.first_name ASC
+    ';
+
+    $stmt =
+        $pdo->query($sql);
+
+    $students =
+        $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+} catch (Throwable $e) {
+
+    $errors[] =
+        'Unable to load evaluations: ' .
+        $e->getMessage();
+}
+
+/*
+|--------------------------------------------------------------------------
+| HELPER FUNCTIONS
+|--------------------------------------------------------------------------
+*/
+
+function evaluationStudentName(
+    array $student
+): string {
+
+    $parts = [];
+
+    foreach (
+        ['first_name', 'middle_name', 'last_name']
+        as $field
+    ) {
+
+        if (!empty($student[$field])) {
+
+            $parts[] =
+                trim(
+                    (string)$student[$field]
+                );
+        }
+    }
+
+    return trim(
+        implode(' ', $parts)
+    );
+}
+
+function evaluationInitials(
+    array $student
+): string {
+
+    $first =
+        trim(
+            (string)(
+                $student['first_name'] ?? ''
+            )
+        );
+
+    $last =
+        trim(
+            (string)(
+                $student['last_name'] ?? ''
+            )
+        );
+
+    $initials = '';
+
+    if ($first !== '') {
+
+        $initials .=
+            strtoupper(
+                substr($first, 0, 1)
+            );
+    }
+
+    if ($last !== '') {
+
+        $initials .=
+            strtoupper(
+                substr($last, 0, 1)
+            );
+    }
+
+    return $initials ?: 'ST';
+}
+
+function evaluationPercentage(
+    $rating
+): float {
+
+    if (
+        $rating === null ||
+        $rating === ''
+    ) {
+
+        return 0;
+    }
+
+    return round(
+        ((float)$rating / 5) * 100,
+        1
+    );
+}
+
+function evaluationDate(
+    $date
+): string {
+
+    if (!$date) {
+        return '—';
+    }
+
+    $timestamp =
+        strtotime(
+            (string)$date
+        );
+
+    if (!$timestamp) {
+        return (string)$date;
+    }
+
+    return date(
+        'M d, Y',
+        $timestamp
+    );
+}
+
+/*
+|--------------------------------------------------------------------------
+| STATISTICS
+|--------------------------------------------------------------------------
+*/
+
+$totalStudents =
+    count($students);
+
 $completedCount = 0;
+$draftCount = 0;
 $pendingCount = 0;
-$scoreTotal = 0;
-$scoredCount = 0;
+
+$ratingTotal = 0;
+$ratingCount = 0;
 
 foreach ($students as $student) {
-    $hasScore = $student['score'] !== null && $student['score'] !== '';
 
-    if ($hasScore) {
+    $status =
+        $student['evaluation_status']
+        ?? null;
+
+    if ($status === 'Completed') {
+
         $completedCount++;
-        $scoreTotal += (float) $student['score'];
-        $scoredCount++;
+
+        if (
+            $student['overall_rating'] !== null &&
+            $student['overall_rating'] !== ''
+        ) {
+
+            $ratingTotal +=
+                (float)$student['overall_rating'];
+
+            $ratingCount++;
+        }
+
+    } elseif ($status === 'Draft') {
+
+        $draftCount++;
+
     } else {
+
         $pendingCount++;
     }
 }
 
-$averageScore = $scoredCount > 0 ? $scoreTotal / $scoredCount : 0;
+$averageRating =
+    $ratingCount > 0
+        ? round(
+            $ratingTotal / $ratingCount,
+            2
+        )
+        : 0;
 
-function evaluation_score_display($score): string
-{
-    if ($score === null || $score === '') {
-        return '—';
-    }
-
-    return rtrim(rtrim(number_format((float) $score, 2, '.', ''), '0'), '.') . '%';
-}
-
-function evaluation_student_name(array $student): string
-{
-    return trim(($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? ''));
-}
+$averagePercentage =
+    round(
+        ($averageRating / 5) * 100,
+        1
+    );
 
 include __DIR__ . '/includes/layout_top.php';
+
 ?>
 
 <style>
-    .eval-page {
+
+.evaluations-page {
+    width: 100%;
+    padding: 24px;
+    box-sizing: border-box;
+}
+
+.evaluations-header {
+    margin-bottom: 24px;
+}
+
+.evaluations-header h1 {
+    margin: 0;
+    font-size: 30px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.evaluations-header p {
+    margin: 7px 0 0;
+    color: #64748b;
+    font-size: 14px;
+}
+
+.evaluation-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 22px;
+}
+
+.evaluation-stat {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 18px;
+}
+
+.evaluation-stat-label {
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.evaluation-stat-value {
+    margin-top: 8px;
+    font-size: 28px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.evaluation-stat-sub {
+    margin-top: 6px;
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.evaluation-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    overflow: hidden;
+}
+
+.evaluation-toolbar {
+    display: flex;
+    gap: 12px;
+    padding: 18px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.evaluation-search {
+    flex: 1;
+}
+
+.evaluation-search input,
+.evaluation-filter {
+    width: 100%;
+    height: 44px;
+    box-sizing: border-box;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 0 13px;
+    background: #fff;
+    color: #0f172a;
+}
+
+.evaluation-filter {
+    width: 180px;
+}
+
+.evaluation-table-wrap {
+    overflow-x: auto;
+}
+
+.evaluation-table {
+    width: 100%;
+    min-width: 1000px;
+    border-collapse: collapse;
+}
+
+.evaluation-table th {
+    padding: 13px 16px;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 800;
+    text-align: left;
+    text-transform: uppercase;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+}
+
+.evaluation-table td {
+    padding: 15px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+    font-size: 13px;
+    vertical-align: middle;
+}
+
+.evaluation-student {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+}
+
+.evaluation-avatar {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #e0e7ff;
+    color: #3730a3;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.evaluation-student-name {
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.evaluation-student-email {
+    margin-top: 3px;
+    color: #94a3b8;
+    font-size: 11px;
+}
+
+.evaluation-course {
+    display: inline-block;
+    padding: 5px 9px;
+    border-radius: 7px;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.evaluation-rating {
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.evaluation-rating-percent {
+    margin-top: 3px;
+    color: #64748b;
+    font-size: 11px;
+}
+
+.evaluation-status {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.evaluation-status.completed {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.evaluation-status.draft {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.evaluation-status.pending {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.evaluation-button {
+    border: 0;
+    border-radius: 9px;
+    padding: 9px 13px;
+    background: #0f172a;
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.evaluation-button:hover {
+    background: #1e293b;
+}
+
+.evaluation-footer {
+    padding: 15px 18px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+/*
+|--------------------------------------------------------------------------
+| MODAL
+|--------------------------------------------------------------------------
+*/
+
+.evaluation-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: rgba(15, 23, 42, .60);
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.evaluation-modal.open {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.evaluation-modal-box {
+    width: min(900px, 100%);
+    margin: 25px auto;
+    background: #fff;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, .25);
+}
+
+.evaluation-modal-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.evaluation-modal-header h2 {
+    margin: 0;
+    font-size: 20px;
+    color: #0f172a;
+}
+
+.evaluation-modal-header p {
+    margin: 5px 0 0;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.evaluation-close {
+    width: 35px;
+    height: 35px;
+    border: 0;
+    border-radius: 8px;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 21px;
+    cursor: pointer;
+}
+
+.evaluation-modal-body {
+    padding: 24px;
+}
+
+.evaluation-student-info {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 14px;
+    margin-bottom: 24px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 13px;
+}
+
+.evaluation-modal-name {
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.evaluation-modal-details {
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.evaluation-section {
+    margin-top: 24px;
+}
+
+.evaluation-section-title {
+    margin: 0 0 13px;
+    color: #0f172a;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.evaluation-criteria {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.evaluation-criterion {
+    padding: 13px;
+    border: 1px solid #e2e8f0;
+    border-radius: 11px;
+}
+
+.evaluation-criterion label,
+.evaluation-field label {
+    display: block;
+    margin-bottom: 7px;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.evaluation-criterion select,
+.evaluation-field select,
+.evaluation-field textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #cbd5e1;
+    border-radius: 9px;
+    padding: 10px;
+    color: #0f172a;
+    background: #fff;
+    font: inherit;
+    font-size: 13px;
+}
+
+.evaluation-field {
+    margin-bottom: 15px;
+}
+
+.evaluation-field textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+.evaluation-two-columns {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+}
+
+.evaluation-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 17px 24px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+}
+
+.evaluation-cancel,
+.evaluation-save {
+    border: 0;
+    border-radius: 9px;
+    padding: 10px 17px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.evaluation-cancel {
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.evaluation-save {
+    background: #0f172a;
+    color: #fff;
+}
+
+.evaluation-alert {
+    padding: 13px 15px;
+    border-radius: 10px;
+    margin-bottom: 18px;
+    font-size: 13px;
+}
+
+.evaluation-alert.error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.evaluation-alert.success {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+.evaluation-alert ul {
+    margin: 7px 0 0;
+    padding-left: 20px;
+}
+
+@media (max-width: 900px) {
+
+    .evaluation-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 650px) {
+
+    .evaluations-page {
+        padding: 15px;
+    }
+
+    .evaluation-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .evaluation-toolbar {
+        flex-direction: column;
+    }
+
+    .evaluation-filter {
         width: 100%;
-        max-width: 100%;
-        color: #0f172a;
     }
 
-    .eval-page *,
-    .eval-page *::before,
-    .eval-page *::after {
-        box-sizing: border-box;
+    .evaluation-criteria,
+    .evaluation-two-columns {
+        grid-template-columns: 1fr;
     }
+}
 
-    .eval-page-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 20px;
-        margin-bottom: 24px;
-    }
-
-    .eval-page-header h1 {
-        margin: 0 0 7px;
-        font-size: clamp(23px, 3vw, 30px);
-        font-weight: 800;
-        letter-spacing: -0.04em;
-        color: #0f172a;
-    }
-
-    .eval-page-header p {
-        margin: 0;
-        color: #64748b;
-        font-size: 14px;
-        line-height: 1.6;
-    }
-
-    .eval-eyebrow {
-        display: inline-flex;
-        align-items: center;
-        gap: 7px;
-        margin-bottom: 9px;
-        color: #0284c7;
-        font-size: 11px;
-        font-weight: 800;
-        letter-spacing: .13em;
-        text-transform: uppercase;
-    }
-
-    .eval-stat-grid {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 16px;
-        margin-bottom: 24px;
-    }
-
-    .eval-stat {
-        min-width: 0;
-        padding: 20px;
-        background: #fff;
-        border: 1px solid #e8edf5;
-        border-radius: 16px;
-        box-shadow: 0 2px 8px rgba(15, 23, 42, .025);
-        transition: background .2s, border-color .2s;
-    }
-
-    .eval-stat-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 18px;
-    }
-
-    .eval-stat-label {
-        color: #64748b;
-        font-size: 12px;
-        font-weight: 700;
-    }
-
-    .eval-stat-icon {
-        display: grid;
-        place-items: center;
-        flex-shrink: 0;
-        width: 36px;
-        height: 36px;
-        border-radius: 11px;
-        background: #eef2ff;
-        color: #4338ca;
-        font-size: 17px;
-        font-weight: 800;
-    }
-
-    .eval-stat-number {
-        margin-bottom: 5px;
-        color: #0f172a;
-        font-size: 29px;
-        font-weight: 800;
-        line-height: 1.1;
-        letter-spacing: -.04em;
-    }
-
-    .eval-stat-note {
-        color: #94a3b8;
-        font-size: 12px;
-    }
-
-    .eval-card {
-        overflow: hidden;
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        border-radius: 17px;
-        box-shadow: 0 3px 12px rgba(15, 23, 42, .035);
-        transition: background .2s, border-color .2s;
-    }
-
-    .eval-card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 20px;
-        padding: 23px 24px;
-        border-bottom: 1px solid #edf1f6;
-    }
-
-    .eval-card-heading h2 {
-        margin: 0 0 6px;
-        color: #0f172a;
-        font-size: 17px;
-        font-weight: 800;
-        letter-spacing: -.02em;
-    }
-
-    .eval-card-heading p {
-        margin: 0;
-        color: #64748b;
-        font-size: 12px;
-        line-height: 1.6;
-    }
-
-    .eval-roster-count {
-        flex-shrink: 0;
-        padding: 7px 11px;
-        color: #4338ca;
-        background: #eef2ff;
-        border-radius: 9px;
-        font-size: 11px;
-        font-weight: 800;
-        white-space: nowrap;
-    }
-
-    .eval-toolbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 12px;
-        padding: 16px 24px;
-        background: #fff;
-        border-bottom: 1px solid #edf1f6;
-    }
-
-    .eval-search-wrap {
-        position: relative;
-        flex: 1 1 240px;
-        max-width: 390px;
-        min-width: 180px;
-    }
-
-    .eval-search-icon {
-        position: absolute;
-        top: 50%;
-        left: 13px;
-        transform: translateY(-50%);
-        color: #94a3b8;
-        pointer-events: none;
-        font-size: 15px;
-    }
-
-    .eval-search,
-    .eval-filter {
-        display: block;
-        width: 100%;
-        min-height: 42px;
-        margin: 0;
-        padding: 10px 13px;
-        color: #334155;
-        background: #fff;
-        border: 1px solid #dbe3ee;
-        border-radius: 10px;
-        outline: none;
-        font-family: inherit;
-        font-size: 13px;
-        transition: border-color .15s, box-shadow .15s;
-    }
-
-    .eval-search {
-        padding-left: 38px;
-    }
-
-    .eval-search:focus,
-    .eval-filter:focus {
-        border-color: #818cf8;
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, .1);
-    }
-
-    .eval-filter-wrap {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex: 0 0 190px;
-    }
-
-    .eval-filter-label {
-        color: #64748b;
-        font-size: 12px;
-        font-weight: 700;
-        white-space: nowrap;
-    }
-
-    .eval-filter {
-        min-width: 0;
-        cursor: pointer;
-    }
-
-    .eval-table-scroll {
-        width: 100%;
-        overflow-x: auto;
-        overscroll-behavior-x: contain;
-    }
-
-    .eval-table {
-        width: 100%;
-        min-width: 920px;
-        table-layout: fixed;
-        border-collapse: separate;
-        border-spacing: 0;
-    }
-
-    .eval-table thead th {
-        padding: 13px 16px;
-        color: #64748b;
-        background: #f8fafc;
-        border-bottom: 1px solid #e8edf5;
-        text-align: left;
-        font-size: 10px;
-        font-weight: 800;
-        letter-spacing: .075em;
-        text-transform: uppercase;
-        white-space: nowrap;
-    }
-
-    .eval-table thead th:first-child,
-    .eval-table tbody td:first-child {
-        padding-left: 24px;
-    }
-
-    .eval-table tbody td {
-        padding: 16px;
-        border-bottom: 1px solid #f0f3f8;
-        vertical-align: middle;
-        color: #334155;
-        font-size: 12px;
-    }
-
-    .eval-table tbody tr:last-child td {
-        border-bottom: 0;
-    }
-
-    .eval-table tbody tr {
-        transition: background .15s ease;
-    }
-
-    .eval-table tbody tr:hover {
-        background: #fafbff;
-    }
-
-    .eval-table .col-student { width: 27%; }
-    .eval-table .col-id { width: 13%; }
-    .eval-table .col-program { width: 16%; }
-    .eval-table .col-hours { width: 12%; }
-    .eval-table .col-score { width: 10%; }
-    .eval-table .col-status { width: 11%; }
-    .eval-table .col-action { width: 11%; }
-
-    .eval-student-cell {
-        display: flex;
-        align-items: center;
-        gap: 11px;
-        min-width: 0;
-    }
-
-    .eval-avatar {
-        display: grid;
-        place-items: center;
-        flex-shrink: 0;
-        width: 39px;
-        height: 39px;
-        overflow: hidden;
-        border-radius: 12px;
-        background: #eef2ff;
-        color: #4338ca;
-        font-size: 12px;
-        font-weight: 800;
-    }
-
-    .eval-avatar img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    .eval-student-details {
-        min-width: 0;
-    }
-
-    .eval-student-name {
-        overflow: hidden;
-        margin-bottom: 4px;
-        color: #0f172a;
-        font-size: 12px;
-        font-weight: 800;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .eval-student-sub {
-        overflow: hidden;
-        color: #94a3b8;
-        font-size: 11px;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .eval-id-text,
-    .eval-program-text {
-        display: block;
-        overflow: hidden;
-        color: #475569;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .eval-hours-main {
-        color: #334155;
-        font-size: 12px;
-        font-weight: 800;
-        white-space: nowrap;
-    }
-
-    .eval-hours-sub {
-        margin-top: 4px;
-        color: #94a3b8;
-        font-size: 10px;
-        white-space: nowrap;
-    }
-
-    .eval-score {
-        color: #0f172a;
-        font-size: 13px;
-        font-weight: 800;
-        white-space: nowrap;
-    }
-
-    .eval-status {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        max-width: 100%;
-        padding: 6px 9px;
-        border-radius: 8px;
-        font-size: 10px;
-        font-weight: 800;
-        white-space: nowrap;
-    }
-
-    .eval-status::before {
-        content: "";
-        width: 6px;
-        height: 6px;
-        flex-shrink: 0;
-        border-radius: 50%;
-        background: currentColor;
-    }
-
-    .eval-status-completed {
-        color: #047857;
-        background: #d1fae5;
-    }
-
-    .eval-status-pending {
-        color: #b45309;
-        background: #fef3c7;
-    }
-
-    .eval-action-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        min-height: 34px;
-        padding: 8px 10px;
-        color: #fff;
-        background: #172554;
-        border: 1px solid #172554;
-        border-radius: 8px;
-        cursor: pointer;
-        font-family: inherit;
-        font-size: 11px;
-        font-weight: 800;
-        white-space: nowrap;
-        transition: background .15s, transform .15s;
-    }
-
-    .eval-action-btn:hover {
-        background: #1e40af;
-        transform: translateY(-1px);
-    }
-
-    .eval-empty {
-        padding: 48px 20px !important;
-        text-align: center;
-    }
-
-    .eval-empty-icon {
-        display: grid;
-        place-items: center;
-        width: 48px;
-        height: 48px;
-        margin: 0 auto 13px;
-        color: #64748b;
-        background: #f1f5f9;
-        border-radius: 15px;
-        font-size: 22px;
-    }
-
-    .eval-empty-title {
-        margin-bottom: 6px;
-        color: #334155;
-        font-size: 14px;
-        font-weight: 800;
-    }
-
-    .eval-empty-description {
-        color: #94a3b8;
-        font-size: 12px;
-    }
-
-    .eval-table-footer {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 10px;
-        padding: 15px 24px;
-        color: #64748b;
-        background: #fff;
-        border-top: 1px solid #edf1f6;
-        font-size: 11px;
-    }
-
-    .eval-scroll-hint {
-        color: #94a3b8;
-    }
-
-    .eval-alert {
-        margin-bottom: 18px;
-        padding: 13px 16px;
-        border: 1px solid;
-        border-radius: 11px;
-        font-size: 13px;
-    }
-
-    .eval-alert-error {
-        color: #991b1b;
-        background: #fef2f2;
-        border-color: #fecaca;
-    }
-
-    .eval-modal {
-        position: fixed;
-        z-index: 10000;
-        inset: 0;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 20px;
-        background: rgba(15, 23, 42, .58);
-        backdrop-filter: blur(4px);
-    }
-
-    .eval-modal.is-open {
-        display: flex;
-    }
-
-    .eval-modal-panel {
-        width: 100%;
-        max-width: 510px;
-        max-height: calc(100vh - 40px);
-        overflow-y: auto;
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        border-radius: 19px;
-        box-shadow: 0 25px 80px rgba(15, 23, 42, .25);
-        animation: evalModalIn .18s ease-out;
-    }
-
-    @keyframes evalModalIn {
-        from { opacity: 0; transform: translateY(8px) scale(.99); }
-        to { opacity: 1; transform: translateY(0) scale(1); }
-    }
-
-    .eval-modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 15px;
-        padding: 22px 24px;
-        border-bottom: 1px solid #edf1f6;
-    }
-
-    .eval-modal-header h2 {
-        margin: 0 0 5px;
-        color: #0f172a;
-        font-size: 19px;
-        font-weight: 800;
-    }
-
-    .eval-modal-header p {
-        margin: 0;
-        color: #64748b;
-        font-size: 12px;
-    }
-
-    .eval-modal-close {
-        display: grid;
-        place-items: center;
-        width: 34px;
-        height: 34px;
-        flex-shrink: 0;
-        color: #64748b;
-        background: #f1f5f9;
-        border: 0;
-        border-radius: 9px;
-        cursor: pointer;
-        font-size: 20px;
-    }
-
-    .eval-modal-body {
-        padding: 22px 24px;
-    }
-
-    .eval-form-student {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 23px;
-        padding: 14px;
-        background: #f8fafc;
-        border: 1px solid #e8edf5;
-        border-radius: 12px;
-    }
-
-    .eval-form-student-name {
-        margin-bottom: 4px;
-        color: #0f172a;
-        font-size: 13px;
-        font-weight: 800;
-    }
-
-    .eval-form-student-sub {
-        color: #64748b;
-        font-size: 11px;
-    }
-
-    .eval-form-group {
-        margin-bottom: 18px;
-    }
-
-    .eval-form-group label {
-        display: block;
-        margin-bottom: 8px;
-        color: #334155;
-        font-size: 12px;
-        font-weight: 800;
-    }
-
-    .eval-form-group input,
-    .eval-form-group textarea {
-        display: block;
-        width: 100%;
-        margin: 0;
-        padding: 12px 13px;
-        color: #0f172a;
-        background: #fff;
-        border: 1px solid #dbe3ee;
-        border-radius: 10px;
-        outline: none;
-        font-family: inherit;
-        font-size: 13px;
-    }
-
-    .eval-form-group input:focus,
-    .eval-form-group textarea:focus {
-        border-color: #818cf8;
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, .1);
-    }
-
-    .eval-form-group textarea {
-        min-height: 115px;
-        resize: vertical;
-        line-height: 1.6;
-    }
-
-    .eval-form-help {
-        margin-top: 7px;
-        color: #94a3b8;
-        font-size: 11px;
-    }
-
-    .eval-modal-footer {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
-        padding: 17px 24px;
-        background: #f8fafc;
-        border-top: 1px solid #edf1f6;
-    }
-
-    .eval-btn-secondary,
-    .eval-btn-primary {
-        min-height: 40px;
-        padding: 10px 15px;
-        border-radius: 9px;
-        cursor: pointer;
-        font-family: inherit;
-        font-size: 12px;
-        font-weight: 800;
-    }
-
-    .eval-btn-secondary {
-        color: #475569;
-        background: #fff;
-        border: 1px solid #dbe3ee;
-    }
-
-    .eval-btn-primary {
-        color: #fff;
-        background: #172554;
-        border: 1px solid #172554;
-    }
-
-    .eval-btn-primary:hover {
-        background: #1e40af;
-    }
-
-    /* DARK MODE ADAPTATION */
-    html[data-theme="dark"] .eval-page-header h1, .dark .eval-page-header h1,
-    html[data-theme="dark"] .eval-card-heading h2, .dark .eval-card-heading h2,
-    html[data-theme="dark"] .eval-modal-header h2, .dark .eval-modal-header h2,
-    html[data-theme="dark"] .eval-form-student-name, .dark .eval-form-student-name,
-    html[data-theme="dark"] .eval-student-name, .dark .eval-student-name,
-    html[data-theme="dark"] .eval-score, .dark .eval-score,
-    html[data-theme="dark"] .eval-stat-number, .dark .eval-stat-number { color: #f8fafc !important; }
-    html[data-theme="dark"] .eval-page-header p, .dark .eval-page-header p,
-    html[data-theme="dark"] .eval-card-heading p, .dark .eval-card-heading p,
-    html[data-theme="dark"] .eval-modal-header p, .dark .eval-modal-header p,
-    html[data-theme="dark"] .eval-stat-label, .dark .eval-stat-label,
-    html[data-theme="dark"] .eval-stat-note, .dark .eval-stat-note,
-    html[data-theme="dark"] .eval-filter-label, .dark .eval-filter-label,
-    html[data-theme="dark"] .eval-table-footer, .dark .eval-table-footer,
-    html[data-theme="dark"] .eval-empty-description, .dark .eval-empty-description,
-    html[data-theme="dark"] .eval-student-sub, .dark .eval-student-sub { color: #94a3b8 !important; }
-    html[data-theme="dark"] .eval-stat, .dark .eval-stat,
-    html[data-theme="dark"] .eval-card, .dark .eval-card,
-    html[data-theme="dark"] .eval-modal-panel, .dark .eval-modal-panel {
-        background: #111c38 !important;
-        border-color: #1e293b !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
-    }
-    html[data-theme="dark"] .eval-card-header, .dark .eval-card-header,
-    html[data-theme="dark"] .eval-toolbar, .dark .eval-toolbar,
-    html[data-theme="dark"] .eval-table-footer, .dark .eval-table-footer,
-    html[data-theme="dark"] .eval-modal-header, .dark .eval-modal-header,
-    html[data-theme="dark"] .eval-modal-footer, .dark .eval-modal-footer {
-        border-color: #1e293b !important;
-        background: #111c38 !important;
-    }
-    html[data-theme="dark"] .eval-search, .dark .eval-search,
-    html[data-theme="dark"] .eval-filter, .dark .eval-filter,
-    html[data-theme="dark"] .eval-form-group input, .dark .eval-form-group input,
-    html[data-theme="dark"] .eval-form-group textarea, .dark .eval-form-group textarea {
-        background: #16223f !important;
-        border-color: #233354 !important;
-        color: #f8fafc !important;
-    }
-    html[data-theme="dark"] .eval-table thead th, .dark .eval-table thead th {
-        background: #16223f !important;
-        color: #94a3b8 !important;
-        border-bottom-color: #1e293b !important;
-    }
-    html[data-theme="dark"] .eval-table tbody td, .dark .eval-table tbody td {
-        border-bottom-color: #1e293b !important;
-        color: #e2e8f0 !important;
-    }
-    html[data-theme="dark"] .eval-table tbody tr:hover, .dark .eval-table tbody tr:hover {
-        background: #16223f !important;
-    }
-    html[data-theme="dark"] .eval-form-student, .dark .eval-form-student {
-        background: #16223f !important;
-        border-color: #233354 !important;
-    }
-    html[data-theme="dark"] .eval-modal-close, .dark .eval-modal-close {
-        background: #16223f !important;
-        color: #94a3b8 !important;
-        border-color: #233354 !important;
-    }
-    html[data-theme="dark"] .eval-btn-secondary, .dark .eval-btn-secondary {
-        background: #16223f !important;
-        border-color: #233354 !important;
-        color: #f8fafc !important;
-    }
-
-    @media (max-width: 1100px) {
-        .eval-stat-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-    }
-
-    @media (max-width: 640px) {
-        .eval-page-header {
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .eval-stat-grid {
-            gap: 10px;
-        }
-
-        .eval-stat {
-            padding: 15px;
-        }
-
-        .eval-stat-number {
-            font-size: 25px;
-        }
-
-        .eval-stat-top {
-            margin-bottom: 13px;
-        }
-
-        .eval-card-header {
-            padding: 18px;
-        }
-
-        .eval-toolbar {
-            align-items: stretch;
-            padding: 14px 18px;
-        }
-
-        .eval-search-wrap {
-            max-width: none;
-            flex-basis: 100%;
-        }
-
-        .eval-filter-wrap {
-            flex-basis: 100%;
-        }
-
-        .eval-table-footer {
-            padding: 14px 18px;
-        }
-
-        .eval-modal {
-            padding: 10px;
-        }
-
-        .eval-modal-panel {
-            max-height: calc(100vh - 20px);
-        }
-
-        .eval-modal-header,
-        .eval-modal-body {
-            padding: 18px;
-        }
-
-        .eval-modal-footer {
-            padding: 14px 18px;
-        }
-    }
 </style>
 
-<div class="eval-page">
-    <div class="eval-page-header">
-        <div>
-            <div class="eval-eyebrow"><?= e($eyebrow) ?></div>
-            <h1>Student Evaluations</h1>
-            <p>Review intern performance, record scores, and provide feedback to help students improve.</p>
-        </div>
+
+<div class="evaluations-page">
+
+    <div class="evaluations-header">
+
+        <h1>Intern Evaluations</h1>
+
+        <p>
+            Evaluate and monitor the performance of your interns.
+        </p>
+
     </div>
+
 
     <?php if ($errors): ?>
-        <div class="eval-alert eval-alert-error" role="alert">
-            <strong>Please check the following:</strong>
-            <ul style="margin:8px 0 0;padding-left:20px;">
+
+        <div class="evaluation-alert error">
+
+            <strong>
+                Please check the following:
+            </strong>
+
+            <ul>
+
                 <?php foreach ($errors as $error): ?>
-                    <li><?= e($error) ?></li>
+
+                    <li>
+                        <?= htmlspecialchars(
+                            $error,
+                            ENT_QUOTES,
+                            'UTF-8'
+                        ) ?>
+                    </li>
+
                 <?php endforeach; ?>
+
             </ul>
+
         </div>
+
     <?php endif; ?>
 
-    <div class="eval-stat-grid">
-        <div class="eval-stat">
-            <div class="eval-stat-top">
-                <span class="eval-stat-label">Total Students</span>
-                <span class="eval-stat-icon">♙</span>
-            </div>
-            <div class="eval-stat-number"><?= number_format($totalStudents) ?></div>
-            <div class="eval-stat-note">Students assigned to your company</div>
+
+    <?php if ($successMessage): ?>
+
+        <div class="evaluation-alert success">
+
+            <?= htmlspecialchars(
+                (string)$successMessage,
+                ENT_QUOTES,
+                'UTF-8'
+            ) ?>
+
         </div>
 
-        <div class="eval-stat">
-            <div class="eval-stat-top">
-                <span class="eval-stat-label">Evaluations Completed</span>
-                <span class="eval-stat-icon" style="color:#047857;background:#d1fae5;">✓</span>
+    <?php endif; ?>
+
+
+    <!-- =========================================================
+         STATISTICS
+    ========================================================== -->
+
+    <div class="evaluation-stats">
+
+        <div class="evaluation-stat">
+
+            <div class="evaluation-stat-label">
+                Total Students
             </div>
-            <div class="eval-stat-number"><?= number_format($completedCount) ?></div>
-            <div class="eval-stat-note">Students with a recorded score</div>
+
+            <div class="evaluation-stat-value">
+                <?= number_format($totalStudents) ?>
+            </div>
+
+            <div class="evaluation-stat-sub">
+                Registered students
+            </div>
+
         </div>
 
-        <div class="eval-stat">
-            <div class="eval-stat-top">
-                <span class="eval-stat-label">Pending Evaluations</span>
-                <span class="eval-stat-icon" style="color:#b45309;background:#fef3c7;">◷</span>
+
+        <div class="evaluation-stat">
+
+            <div class="evaluation-stat-label">
+                Completed
             </div>
-            <div class="eval-stat-number"><?= number_format($pendingCount) ?></div>
-            <div class="eval-stat-note">Students still awaiting a score</div>
+
+            <div class="evaluation-stat-value">
+                <?= number_format($completedCount) ?>
+            </div>
+
+            <div class="evaluation-stat-sub">
+                Completed evaluations
+            </div>
+
         </div>
 
-        <div class="eval-stat">
-            <div class="eval-stat-top">
-                <span class="eval-stat-label">Average Score</span>
-                <span class="eval-stat-icon" style="color:#0369a1;background:#e0f2fe;">%</span>
+
+        <div class="evaluation-stat">
+
+            <div class="evaluation-stat-label">
+                Pending
             </div>
-            <div class="eval-stat-number">
-                <?= $scoredCount > 0 ? e(number_format($averageScore, 1) . '%') : '—' ?>
+
+            <div class="evaluation-stat-value">
+                <?= number_format(
+                    $pendingCount + $draftCount
+                ) ?>
             </div>
-            <div class="eval-stat-note">Average of completed evaluations</div>
+
+            <div class="evaluation-stat-sub">
+                Pending or draft
+            </div>
+
         </div>
+
+
+        <div class="evaluation-stat">
+
+            <div class="evaluation-stat-label">
+                Average Rating
+            </div>
+
+            <div class="evaluation-stat-value">
+                <?= number_format(
+                    $averageRating,
+                    2
+                ) ?>/5
+            </div>
+
+            <div class="evaluation-stat-sub">
+                <?= number_format(
+                    $averagePercentage,
+                    1
+                ) ?>% equivalent
+            </div>
+
+        </div>
+
     </div>
 
-    <section class="eval-card">
-        <div class="eval-card-header">
-            <div class="eval-card-heading">
-                <h2>Evaluation Roster</h2>
-                <p>Manage student evaluations and review submitted feedback.</p>
-            </div>
-            <span class="eval-roster-count">
-                <?= number_format($totalStudents) ?> <?= $totalStudents === 1 ? 'STUDENT' : 'STUDENTS' ?>
-            </span>
-        </div>
 
-        <div class="eval-toolbar">
-            <div class="eval-search-wrap">
-                <span class="eval-search-icon">⌕</span>
+    <!-- =========================================================
+         EVALUATION TABLE
+    ========================================================== -->
+
+    <section class="evaluation-card">
+
+        <div class="evaluation-toolbar">
+
+            <div class="evaluation-search">
+
                 <input
                     type="search"
-                    class="eval-search"
-                    id="evalSearch"
-                    placeholder="Search name, student ID, or program..."
-                    aria-label="Search students"
+                    id="evaluationSearch"
+                    placeholder="Search student, ID, course, or email..."
+                    autocomplete="off"
                 >
+
             </div>
 
-            <div class="eval-filter-wrap">
-                <label class="eval-filter-label" for="evalStatusFilter">Status</label>
-                <select class="eval-filter" id="evalStatusFilter">
-                    <option value="all">All evaluations</option>
-                    <option value="completed">Completed</option>
-                    <option value="pending">Pending</option>
-                </select>
-            </div>
+
+            <select
+                id="evaluationFilter"
+                class="evaluation-filter"
+            >
+
+                <option value="all">
+                    All Status
+                </option>
+
+                <option value="pending">
+                    Pending
+                </option>
+
+                <option value="Draft">
+                    Draft
+                </option>
+
+                <option value="Completed">
+                    Completed
+                </option>
+
+            </select>
+
         </div>
 
-        <div class="eval-table-scroll">
-            <table class="eval-table">
+
+        <div class="evaluation-table-wrap">
+
+            <table class="evaluation-table">
+
                 <thead>
+
                     <tr>
-                        <th class="col-student">Student</th>
-                        <th class="col-id">Student ID</th>
-                        <th class="col-program">Program</th>
-                        <th class="col-hours">OJT Hours</th>
-                        <th class="col-score">Score</th>
-                        <th class="col-status">Status</th>
-                        <th class="col-action">Action</th>
+
+                        <th>Student</th>
+                        <th>Student ID</th>
+                        <th>Course</th>
+                        <th>Overall Rating</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th>Action</th>
+
                     </tr>
+
                 </thead>
 
-                <tbody id="evalTableBody">
+
+                <tbody id="evaluationTableBody">
+
                     <?php if (!$students): ?>
+
                         <tr>
-                            <td colspan="7" class="eval-empty">
-                                <div class="eval-empty-icon">♙</div>
-                                <div class="eval-empty-title">No students assigned yet</div>
-                                <div class="eval-empty-description">
-                                    Students assigned to your company will appear here.
+
+                            <td colspan="7">
+
+                                <div
+                                    style="
+                                        padding:50px;
+                                        text-align:center;
+                                        color:#64748b;
+                                    "
+                                >
+
+                                    <strong>
+                                        No students found.
+                                    </strong>
+
                                 </div>
+
                             </td>
+
                         </tr>
-                    <?php else: ?>
-                        <?php foreach ($students as $student): ?>
-                            <?php
-                                $studentName = evaluation_student_name($student);
-                                $studentIdNo = trim((string) ($student['student_id_no'] ?? ''));
-                                $program = trim((string) ($student['program'] ?? ''));
-                                $department = trim((string) ($student['department'] ?? ''));
-                                $avatar = trim((string) ($student['avatar'] ?? ''));
-                                $hasScore = $student['score'] !== null && $student['score'] !== '';
-                                $status = $hasScore ? 'completed' : 'pending';
-                                $hoursCompleted = (float) ($student['completed_hours'] ?? 0);
-                                $hoursRequired = (float) ($student['required_hours'] ?? 0);
-                                $studentInitials = initials($studentName);
-                            ?>
-                            <tr
-                                class="eval-student-row"
-                                data-search="<?= e(mb_strtolower($studentName . ' ' . $studentIdNo . ' ' . $program . ' ' . $department)) ?>"
-                                data-status="<?= e($status) ?>"
-                            >
-                                <td>
-                                    <div class="eval-student-cell">
-                                        <div class="eval-avatar">
-                                            <?php if ($avatar !== ''): ?>
-                                                <img
-                                                    src="<?= e($avatar) ?>"
-                                                    alt="<?= e($studentName) ?>"
-                                                    loading="lazy"
-                                                    onerror="this.style.display='none';this.parentElement.textContent='<?= e($studentInitials) ?>';"
-                                                >
-                                            <?php else: ?>
-                                                <?= e($studentInitials) ?>
-                                            <?php endif; ?>
-                                        </div>
-                                        <div class="eval-student-details">
-                                            <div class="eval-student-name" title="<?= e($studentName) ?>">
-                                                <?= e($studentName !== '' ? $studentName : 'Unnamed Student') ?>
-                                            </div>
-                                            <div class="eval-student-sub" title="<?= e($department) ?>">
-                                                <?= e($department !== '' ? $department : 'OJT Intern') ?>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </td>
 
-                                <td>
-                                    <span class="eval-id-text" title="<?= e($studentIdNo) ?>">
-                                        <?= e($studentIdNo !== '' ? $studentIdNo : '—') ?>
-                                    </span>
-                                </td>
-
-                                <td>
-                                    <span class="eval-program-text" title="<?= e($program) ?>">
-                                        <?= e($program !== '' ? $program : '—') ?>
-                                    </span>
-                                </td>
-
-                                <td>
-                                    <div class="eval-hours-main">
-                                        <?= e(number_format($hoursCompleted, 0)) ?>
-                                        <span style="color:#94a3b8;font-weight:500;">/ <?= e(number_format($hoursRequired, 0)) ?></span>
-                                    </div>
-                                    <div class="eval-hours-sub">completed / required</div>
-                                </td>
-
-                                <td>
-                                    <span class="eval-score">
-                                        <?= e(evaluation_score_display($student['score'])) ?>
-                                    </span>
-                                </td>
-
-                                <td>
-                                    <?php if ($hasScore): ?>
-                                        <span class="eval-status eval-status-completed">Completed</span>
-                                    <?php else: ?>
-                                        <span class="eval-status eval-status-pending">Pending</span>
-                                    <?php endif; ?>
-                                </td>
-
-                                <td>
-                                    <button
-                                        type="button"
-                                        class="eval-action-btn"
-                                        data-eval-open
-                                        data-student-id="<?= (int) $student['id'] ?>"
-                                        data-student-name="<?= e($studentName) ?>"
-                                        data-student-number="<?= e($studentIdNo) ?>"
-                                        data-student-program="<?= e($program) ?>"
-                                        data-score="<?= e($student['score'] !== null ? (string) $student['score'] : '') ?>"
-                                        data-feedback="<?= e((string) ($student['feedback'] ?? '')) ?>"
-                                    >
-                                        <?= $hasScore ? 'Edit' : 'Evaluate' ?>
-                                        <span aria-hidden="true">→</span>
-                                    </button>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-
-                        <tr id="evalNoResults" style="display:none;">
-                            <td colspan="7" class="eval-empty">
-                                <div class="eval-empty-icon">⌕</div>
-                                <div class="eval-empty-title">No matching students</div>
-                                <div class="eval-empty-description">Try changing your search or status filter.</div>
-                            </td>
-                        </tr>
                     <?php endif; ?>
+
+
+                    <?php foreach ($students as $student): ?>
+
+                        <?php
+
+                        $name =
+                            evaluationStudentName(
+                                $student
+                            );
+
+                        $initials =
+                            evaluationInitials(
+                                $student
+                            );
+
+                        $status =
+                            $student[
+                                'evaluation_status'
+                            ] ?? null;
+
+                        $displayStatus =
+                            $status ?: 'Pending';
+
+                        $rating =
+                            $student[
+                                'overall_rating'
+                            ] ?? null;
+
+                        $percentage =
+                            evaluationPercentage(
+                                $rating
+                            );
+
+                        $statusClass = 'pending';
+
+                        if ($status === 'Completed') {
+
+                            $statusClass = 'completed';
+
+                        } elseif ($status === 'Draft') {
+
+                            $statusClass = 'draft';
+                        }
+
+                        $searchText =
+                            strtolower(
+                                $name . ' ' .
+                                ($student['student_id'] ?? '') . ' ' .
+                                ($student['course'] ?? '') . ' ' .
+                                ($student['institutional_email'] ?? '')
+                            );
+
+                        ?>
+
+
+                        <!-- FIXED: only ONE closing > -->
+
+                        <tr
+                            data-search="<?= htmlspecialchars(
+                                $searchText,
+                                ENT_QUOTES,
+                                'UTF-8'
+                            ) ?>"
+                            data-status="<?= htmlspecialchars(
+                                $status ?: 'pending',
+                                ENT_QUOTES,
+                                'UTF-8'
+                            ) ?>"
+                        >
+
+                            <td>
+
+                                <div class="evaluation-student">
+
+                                    <div class="evaluation-avatar">
+
+                                        <?= htmlspecialchars(
+                                            $initials,
+                                            ENT_QUOTES,
+                                            'UTF-8'
+                                        ) ?>
+
+                                    </div>
+
+
+                                    <div>
+
+                                        <div class="evaluation-student-name">
+
+                                            <?= htmlspecialchars(
+                                                $name,
+                                                ENT_QUOTES,
+                                                'UTF-8'
+                                            ) ?>
+
+                                        </div>
+
+
+                                        <div class="evaluation-student-email">
+
+                                            <?= htmlspecialchars(
+                                                $student[
+                                                    'institutional_email'
+                                                ] ?? '',
+                                                ENT_QUOTES,
+                                                'UTF-8'
+                                            ) ?>
+
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                            </td>
+
+
+                            <td>
+
+                                <?= htmlspecialchars(
+                                    (string)(
+                                        $student['student_id'] ?? ''
+                                    ),
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                ) ?>
+
+                            </td>
+
+
+                            <td>
+
+                                <span class="evaluation-course">
+
+                                    <?= htmlspecialchars(
+                                        (string)(
+                                            $student['course'] ?? ''
+                                        ),
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>
+
+                                </span>
+
+                            </td>
+
+
+                            <td>
+
+                                <?php if (
+                                    $rating !== null &&
+                                    $rating !== ''
+                                ): ?>
+
+                                    <div class="evaluation-rating">
+
+                                        <?= number_format(
+                                            (float)$rating,
+                                            2
+                                        ) ?>/5
+
+                                    </div>
+
+                                    <div class="evaluation-rating-percent">
+
+                                        <?= number_format(
+                                            $percentage,
+                                            1
+                                        ) ?>%
+
+                                    </div>
+
+                                <?php else: ?>
+
+                                    <div class="evaluation-rating">
+                                        —
+                                    </div>
+
+                                    <div class="evaluation-rating-percent">
+                                        Not evaluated
+                                    </div>
+
+                                <?php endif; ?>
+
+                            </td>
+
+
+                            <td>
+
+                                <span
+                                    class="
+                                        evaluation-status
+                                        <?= htmlspecialchars(
+                                            $statusClass,
+                                            ENT_QUOTES,
+                                            'UTF-8'
+                                        ) ?>
+                                    "
+                                >
+
+                                    <?= htmlspecialchars(
+                                        $displayStatus,
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>
+
+                                </span>
+
+                            </td>
+
+
+                            <td>
+
+                                <?= htmlspecialchars(
+                                    evaluationDate(
+                                        $student[
+                                            'evaluation_date'
+                                        ] ?? null
+                                    ),
+                                    ENT_QUOTES,
+                                    'UTF-8'
+                                ) ?>
+
+                            </td>
+
+
+                            <td>
+
+                                <button
+                                    type="button"
+                                    class="evaluation-button"
+                                    data-open-evaluation
+
+                                    data-student-id="<?= (int)$student['id'] ?>"
+
+                                    data-name="<?= htmlspecialchars(
+                                        $name,
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+
+                                    data-student-number="<?= htmlspecialchars(
+                                        (string)(
+                                            $student['student_id'] ?? ''
+                                        ),
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+
+                                    data-course="<?= htmlspecialchars(
+                                        (string)(
+                                            $student['course'] ?? ''
+                                        ),
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+
+                                    data-email="<?= htmlspecialchars(
+                                        (string)(
+                                            $student[
+                                                'institutional_email'
+                                            ] ?? ''
+                                        ),
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+
+                                    data-initials="<?= htmlspecialchars(
+                                        $initials,
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+
+                                    data-attendance-punctuality="<?= (int)(
+                                        $student[
+                                            'attendance_punctuality'
+                                        ] ?? 0
+                                    ) ?>"
+
+                                    data-quality-of-work="<?= (int)(
+                                        $student[
+                                            'quality_of_work'
+                                        ] ?? 0
+                                    ) ?>"
+
+                                    data-productivity="<?= (int)(
+                                        $student[
+                                            'productivity'
+                                        ] ?? 0
+                                    ) ?>"
+
+                                    data-communication="<?= (int)(
+                                        $student[
+                                            'communication'
+                                        ] ?? 0
+                                    ) ?>"
+
+                                    data-teamwork="<?= (int)(
+                                        $student[
+                                            'teamwork'
+                                        ] ?? 0
+                                    ) ?>"
+
+                                    data-initiative="<?= (int)(
+                                        $student[
+                                            'initiative'
+                                        ] ?? 0
+                                    ) ?>"
+
+                                    data-professionalism="<?= (int)(
+                                        $student[
+                                            'professionalism'
+                                        ] ?? 0
+                                    ) ?>"
+
+                                    data-adaptability="<?= (int)(
+                                        $student[
+                                            'adaptability'
+                                        ] ?? 0
+                                    ) ?>"
+
+                                    data-problem-solving="<?= (int)(
+                                        $student[
+                                            'problem_solving'
+                                        ] ?? 0
+                                    ) ?>"
+
+                                    data-technical-skills="<?= (int)(
+                                        $student[
+                                            'technical_skills'
+                                        ] ?? 0
+                                    ) ?>"
+
+                                    data-overall-performance="<?= htmlspecialchars(
+                                        (string)(
+                                            $student[
+                                                'overall_performance'
+                                            ] ?? ''
+                                        ),
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+
+                                    data-strengths="<?= htmlspecialchars(
+                                        (string)(
+                                            $student[
+                                                'strengths'
+                                            ] ?? ''
+                                        ),
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+
+                                    data-areas="<?= htmlspecialchars(
+                                        (string)(
+                                            $student[
+                                                'areas_for_improvement'
+                                            ] ?? ''
+                                        ),
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+
+                                    data-comments="<?= htmlspecialchars(
+                                        (string)(
+                                            $student[
+                                                'comments'
+                                            ] ?? ''
+                                        ),
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+
+                                    data-recommendation="<?= htmlspecialchars(
+                                        (string)(
+                                            $student[
+                                                'recommendation'
+                                            ] ?? ''
+                                        ),
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+
+                                    data-status="<?= htmlspecialchars(
+                                        (string)(
+                                            $student[
+                                                'evaluation_status'
+                                            ] ?? ''
+                                        ),
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+                                >
+
+                                    <?= !empty(
+                                        $student['evaluation_id']
+                                    )
+                                        ? 'Edit'
+                                        : 'Evaluate' ?>
+
+                                </button>
+
+                            </td>
+
+                        </tr>
+
+                    <?php endforeach; ?>
+
                 </tbody>
+
             </table>
+
         </div>
 
-        <div class="eval-table-footer">
-            <span id="evalResultCount">
-                Showing <?= number_format($totalStudents) ?> <?= $totalStudents === 1 ? 'student' : 'students' ?>
+
+        <div class="evaluation-footer">
+
+            <span id="evaluationResultCount">
+
+                Showing
+                <?= number_format($totalStudents) ?>
+                <?= $totalStudents === 1
+                    ? 'student'
+                    : 'students' ?>
+
             </span>
-            <span class="eval-scroll-hint">Scroll horizontally to view all columns on smaller screens.</span>
+
         </div>
+
     </section>
+
 </div>
 
-<div class="eval-modal" id="evalModal" aria-hidden="true">
-    <div
-        class="eval-modal-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="evalModalTitle"
-    >
-        <div class="eval-modal-header">
+
+<!-- =========================================================
+     EVALUATION MODAL
+========================================================== -->
+
+<div
+    class="evaluation-modal"
+    id="evaluationModal"
+>
+
+    <div class="evaluation-modal-box">
+
+
+        <div class="evaluation-modal-header">
+
             <div>
-                <h2 id="evalModalTitle">Evaluate Student</h2>
-                <p>Enter a performance score and optional feedback.</p>
+
+                <h2>
+                    Intern Evaluation
+                </h2>
+
+                <p>
+                    Rate the intern from 0 to 5 for each criterion.
+                </p>
+
             </div>
-            <button type="button" class="eval-modal-close" id="evalModalClose" aria-label="Close modal">×</button>
+
+
+            <button
+                type="button"
+                class="evaluation-close"
+                id="evaluationClose"
+            >
+                ×
+            </button>
+
         </div>
 
-        <form method="post" action="evaluations.php" id="evalForm">
+
+        <form
+            method="post"
+            action="evaluations.php"
+            id="evaluationForm"
+        >
+
             <?= csrf_field() ?>
 
-            <div class="eval-modal-body">
-                <input type="hidden" name="student_id" id="evalStudentId" value="">
 
-                <div class="eval-form-student">
-                    <div class="eval-avatar" id="evalModalAvatar">ST</div>
-                    <div>
-                        <div class="eval-form-student-name" id="evalModalStudentName">Student name</div>
-                        <div class="eval-form-student-sub" id="evalModalStudentInfo">Student details</div>
-                    </div>
-                </div>
+            <div class="evaluation-modal-body">
 
-                <div class="eval-form-group">
-                    <label for="evalScore">Performance Score (%)</label>
-                    <input
-                        type="number"
-                        id="evalScore"
-                        name="score"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        placeholder="Enter a score from 0 to 100"
-                        required
+
+                <input
+                    type="hidden"
+                    name="student_id"
+                    id="evaluationStudentId"
+                >
+
+
+                <div class="evaluation-student-info">
+
+                    <div
+                        class="evaluation-avatar"
+                        id="evaluationAvatar"
                     >
-                    <div class="eval-form-help">Use a score from 0 to 100. Saving a score marks the evaluation as completed.</div>
+                        ST
+                    </div>
+
+
+                    <div>
+
+                        <div
+                            class="evaluation-modal-name"
+                            id="evaluationStudentName"
+                        >
+                            Student
+                        </div>
+
+
+                        <div
+                            class="evaluation-modal-details"
+                            id="evaluationStudentDetails"
+                        ></div>
+
+                    </div>
+
                 </div>
 
-                <div class="eval-form-group">
-                    <label for="evalFeedback">Feedback <span style="color:#94a3b8;font-weight:500;">(Optional)</span></label>
-                    <textarea
-                        id="evalFeedback"
-                        name="feedback"
-                        maxlength="2000"
-                        placeholder="Write comments about the student's performance, strengths, and areas for improvement..."
-                    ></textarea>
-                    <div class="eval-form-help"><span id="evalFeedbackCount">0</span>/2000 characters</div>
+
+                <!-- PERFORMANCE CRITERIA -->
+
+                <div class="evaluation-section">
+
+                    <h3 class="evaluation-section-title">
+                        Performance Criteria
+                    </h3>
+
+
+                    <div class="evaluation-criteria">
+
+                        <?php foreach (
+                            $criteria as $field => $label
+                        ): ?>
+
+                            <div class="evaluation-criterion">
+
+                                <label
+                                    for="eval_<?= htmlspecialchars(
+                                        $field,
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+                                >
+
+                                    <?= htmlspecialchars(
+                                        $label,
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>
+
+                                </label>
+
+
+                                <select
+                                    id="eval_<?= htmlspecialchars(
+                                        $field,
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+                                    name="<?= htmlspecialchars(
+                                        $field,
+                                        ENT_QUOTES,
+                                        'UTF-8'
+                                    ) ?>"
+                                >
+
+                                    <option value="0">
+                                        0 — Not Rated
+                                    </option>
+
+                                    <option value="1">
+                                        1 — Poor
+                                    </option>
+
+                                    <option value="2">
+                                        2 — Needs Improvement
+                                    </option>
+
+                                    <option value="3">
+                                        3 — Satisfactory
+                                    </option>
+
+                                    <option value="4">
+                                        4 — Very Good
+                                    </option>
+
+                                    <option value="5">
+                                        5 — Excellent
+                                    </option>
+
+                                </select>
+
+                            </div>
+
+                        <?php endforeach; ?>
+
+                    </div>
+
                 </div>
+
+
+                <!-- OVERALL ASSESSMENT -->
+
+                <div class="evaluation-section">
+
+                    <h3 class="evaluation-section-title">
+                        Overall Assessment
+                    </h3>
+
+
+                    <div class="evaluation-two-columns">
+
+
+                        <div class="evaluation-field">
+
+                            <label>
+                                Overall Performance
+                            </label>
+
+
+                            <select
+                                name="overall_performance"
+                                id="overallPerformance"
+                            >
+
+                                <option value="">
+                                    Select performance
+                                </option>
+
+                                <option value="Excellent">
+                                    Excellent
+                                </option>
+
+                                <option value="Very Good">
+                                    Very Good
+                                </option>
+
+                                <option value="Good">
+                                    Good
+                                </option>
+
+                                <option value="Satisfactory">
+                                    Satisfactory
+                                </option>
+
+                                <option value="Needs Improvement">
+                                    Needs Improvement
+                                </option>
+
+                                <option value="Poor">
+                                    Poor
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <div class="evaluation-field">
+
+                            <label>
+                                Recommendation
+                            </label>
+
+
+                            <select
+                                name="recommendation"
+                                id="recommendation"
+                            >
+
+                                <option value="">
+                                    Select recommendation
+                                </option>
+
+                                <option value="Highly Recommended">
+                                    Highly Recommended
+                                </option>
+
+                                <option value="Recommended">
+                                    Recommended
+                                </option>
+
+                                <option value="Recommended with Improvement">
+                                    Recommended with Improvement
+                                </option>
+
+                                <option value="Not Recommended">
+                                    Not Recommended
+                                </option>
+
+                            </select>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- WRITTEN EVALUATION -->
+
+                <div class="evaluation-section">
+
+                    <h3 class="evaluation-section-title">
+                        Written Evaluation
+                    </h3>
+
+
+                    <div class="evaluation-field">
+
+                        <label>
+                            Strengths
+                        </label>
+
+
+                        <textarea
+                            name="strengths"
+                            id="strengths"
+                            maxlength="10000"
+                            placeholder="Describe the intern's strengths..."
+                        ></textarea>
+
+                    </div>
+
+
+                    <div class="evaluation-field">
+
+                        <label>
+                            Areas for Improvement
+                        </label>
+
+
+                        <textarea
+                            name="areas_for_improvement"
+                            id="areasForImprovement"
+                            maxlength="10000"
+                            placeholder="Describe areas for improvement..."
+                        ></textarea>
+
+                    </div>
+
+
+                    <div class="evaluation-field">
+
+                        <label>
+                            Comments
+                        </label>
+
+
+                        <textarea
+                            name="comments"
+                            id="comments"
+                            maxlength="10000"
+                            placeholder="Additional comments..."
+                        ></textarea>
+
+                    </div>
+
+                </div>
+
+
+                <!-- STATUS -->
+
+                <div class="evaluation-section">
+
+                    <div class="evaluation-field">
+
+                        <label>
+                            Status
+                        </label>
+
+
+                        <select
+                            name="status"
+                            id="evaluationStatus"
+                        >
+
+                            <option value="Completed">
+                                Completed
+                            </option>
+
+                            <option value="Draft">
+                                Draft
+                            </option>
+
+                        </select>
+
+                    </div>
+
+                </div>
+
             </div>
 
-            <div class="eval-modal-footer">
-                <button type="button" class="eval-btn-secondary" id="evalCancel">Cancel</button>
-                <button type="submit" class="eval-btn-primary">Save Evaluation</button>
+
+            <!-- MODAL FOOTER -->
+
+            <div class="evaluation-modal-footer">
+
+                <button
+                    type="button"
+                    class="evaluation-cancel"
+                    id="evaluationCancel"
+                >
+                    Cancel
+                </button>
+
+
+                <button
+                    type="submit"
+                    class="evaluation-save"
+                >
+                    Save Evaluation
+                </button>
+
             </div>
+
         </form>
+
     </div>
+
 </div>
 
+
 <script>
+
 (function () {
+
     'use strict';
 
-    const searchInput = document.getElementById('evalSearch');
-    const statusFilter = document.getElementById('evalStatusFilter');
-    const tableBody = document.getElementById('evalTableBody');
-    const resultCount = document.getElementById('evalResultCount');
-    const noResults = document.getElementById('evalNoResults');
 
-    const modal = document.getElementById('evalModal');
-    const closeButton = document.getElementById('evalModalClose');
-    const cancelButton = document.getElementById('evalCancel');
-    const form = document.getElementById('evalForm');
+    /*
+    |--------------------------------------------------------------------------
+    | ELEMENTS
+    |--------------------------------------------------------------------------
+    */
 
-    const studentIdInput = document.getElementById('evalStudentId');
-    const studentNameDisplay = document.getElementById('evalModalStudentName');
-    const studentInfoDisplay = document.getElementById('evalModalStudentInfo');
-    const avatarDisplay = document.getElementById('evalModalAvatar');
-    const scoreInput = document.getElementById('evalScore');
-    const feedbackInput = document.getElementById('evalFeedback');
-    const feedbackCount = document.getElementById('evalFeedbackCount');
+    const modal =
+        document.getElementById(
+            'evaluationModal'
+        );
 
-    let previousFocus = null;
+    const closeButton =
+        document.getElementById(
+            'evaluationClose'
+        );
 
-    function filterRows() {
-        if (!tableBody) return;
+    const cancelButton =
+        document.getElementById(
+            'evaluationCancel'
+        );
 
-        const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
-        const selectedStatus = statusFilter ? statusFilter.value : 'all';
-        const rows = Array.from(tableBody.querySelectorAll('.eval-student-row'));
+    const form =
+        document.getElementById(
+            'evaluationForm'
+        );
+
+    const studentId =
+        document.getElementById(
+            'evaluationStudentId'
+        );
+
+    const studentName =
+        document.getElementById(
+            'evaluationStudentName'
+        );
+
+    const studentDetails =
+        document.getElementById(
+            'evaluationStudentDetails'
+        );
+
+    const avatar =
+        document.getElementById(
+            'evaluationAvatar'
+        );
+
+    const search =
+        document.getElementById(
+            'evaluationSearch'
+        );
+
+    const filter =
+        document.getElementById(
+            'evaluationFilter'
+        );
+
+    const resultCount =
+        document.getElementById(
+            'evaluationResultCount'
+        );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | CRITERIA
+    |--------------------------------------------------------------------------
+    */
+
+    const criteria = [
+
+        'attendance_punctuality',
+
+        'quality_of_work',
+
+        'productivity',
+
+        'communication',
+
+        'teamwork',
+
+        'initiative',
+
+        'professionalism',
+
+        'adaptability',
+
+        'problem_solving',
+
+        'technical_skills'
+
+    ];
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SNAKE CASE -> CAMEL CASE
+    |--------------------------------------------------------------------------
+    */
+
+    function snakeToCamel(value) {
+
+        return value.replace(
+            /_([a-z])/g,
+            function (_, letter) {
+
+                return letter.toUpperCase();
+
+            }
+        );
+
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | OPEN MODAL
+    |--------------------------------------------------------------------------
+    */
+
+    document
+        .querySelectorAll(
+            '[data-open-evaluation]'
+        )
+        .forEach(
+            function (button) {
+
+                button.addEventListener(
+                    'click',
+                    function () {
+
+                        const data =
+                            button.dataset;
+
+
+                        /*
+                        | STUDENT INFORMATION
+                        */
+
+                        studentId.value =
+                            data.studentId || '';
+
+
+                        studentName.textContent =
+                            data.name || 'Student';
+
+
+                        let details = '';
+
+                        if (data.studentNumber) {
+
+                            details +=
+                                data.studentNumber;
+                        }
+
+                        if (data.course) {
+
+                            if (details !== '') {
+                                details += ' • ';
+                            }
+
+                            details +=
+                                data.course;
+                        }
+
+                        if (data.email) {
+
+                            if (details !== '') {
+                                details += ' • ';
+                            }
+
+                            details +=
+                                data.email;
+                        }
+
+                        studentDetails.textContent =
+                            details;
+
+
+                        avatar.textContent =
+                            data.initials || 'ST';
+
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | LOAD RATINGS
+                        |--------------------------------------------------------------------------
+                        */
+
+                        criteria.forEach(
+                            function (field) {
+
+                                const element =
+                                    document.getElementById(
+                                        'eval_' + field
+                                    );
+
+                                if (!element) {
+                                    return;
+                                }
+
+
+                                const datasetName =
+                                    snakeToCamel(
+                                        field
+                                    );
+
+
+                                element.value =
+                                    data[
+                                        datasetName
+                                    ] ?? '0';
+
+                            }
+                        );
+
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | LOAD TEXT FIELDS
+                        |--------------------------------------------------------------------------
+                        */
+
+                        document.getElementById(
+                            'overallPerformance'
+                        ).value =
+                            data.overallPerformance || '';
+
+
+                        document.getElementById(
+                            'strengths'
+                        ).value =
+                            data.strengths || '';
+
+
+                        document.getElementById(
+                            'areasForImprovement'
+                        ).value =
+                            data.areas || '';
+
+
+                        document.getElementById(
+                            'comments'
+                        ).value =
+                            data.comments || '';
+
+
+                        document.getElementById(
+                            'recommendation'
+                        ).value =
+                            data.recommendation || '';
+
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | LOAD STATUS
+                        |--------------------------------------------------------------------------
+                        */
+
+                        const savedStatus =
+                            data.status;
+
+
+                        document.getElementById(
+                            'evaluationStatus'
+                        ).value =
+                            savedStatus === 'Draft' ||
+                            savedStatus === 'Completed'
+                                ? savedStatus
+                                : 'Completed';
+
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | SHOW MODAL
+                        |--------------------------------------------------------------------------
+                        */
+
+                        modal.classList.add(
+                            'open'
+                        );
+
+                        document.body.style.overflow =
+                            'hidden';
+
+                    }
+                );
+
+            }
+        );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | CLOSE MODAL
+    |--------------------------------------------------------------------------
+    */
+
+    function closeModal() {
+
+        modal.classList.remove(
+            'open'
+        );
+
+        document.body.style.overflow =
+            '';
+
+    }
+
+
+    closeButton.addEventListener(
+        'click',
+        closeModal
+    );
+
+
+    cancelButton.addEventListener(
+        'click',
+        closeModal
+    );
+
+
+    modal.addEventListener(
+        'click',
+        function (event) {
+
+            if (
+                event.target === modal
+            ) {
+
+                closeModal();
+
+            }
+
+        }
+    );
+
+
+    document.addEventListener(
+        'keydown',
+        function (event) {
+
+            if (
+                event.key === 'Escape' &&
+                modal.classList.contains('open')
+            ) {
+
+                closeModal();
+
+            }
+
+        }
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SEARCH + FILTER
+    |--------------------------------------------------------------------------
+    */
+
+    function filterTable() {
+
+        const searchValue =
+            (
+                search.value || ''
+            )
+            .toLowerCase()
+            .trim();
+
+
+        const filterValue =
+            filter.value;
+
+
+        const rows =
+            document.querySelectorAll(
+                '#evaluationTableBody tr[data-search]'
+            );
+
 
         let visible = 0;
 
-        rows.forEach(function (row) {
-            const searchableText = (row.dataset.search || '').toLowerCase();
-            const rowStatus = row.dataset.status || 'pending';
 
-            const matchesSearch = searchableText.includes(query);
-            const matchesStatus = selectedStatus === 'all' || rowStatus === selectedStatus;
-            const show = matchesSearch && matchesStatus;
+        rows.forEach(
+            function (row) {
 
-            row.style.display = show ? '' : 'none';
+                const rowSearch =
+                    (
+                        row.dataset.search || ''
+                    ).toLowerCase();
 
-            if (show) visible++;
-        });
 
-        if (noResults) {
-            noResults.style.display = rows.length > 0 && visible === 0 ? '' : 'none';
-        }
+                const rowStatus =
+                    row.dataset.status ||
+                    'pending';
 
-        if (resultCount) {
-            resultCount.textContent = 'Showing ' + visible + ' of ' + rows.length +
-                (rows.length === 1 ? ' student' : ' students');
-        }
-    }
 
-    if (searchInput) searchInput.addEventListener('input', filterRows);
-    if (statusFilter) statusFilter.addEventListener('change', filterRows);
+                const matchesSearch =
+                    searchValue === '' ||
+                    rowSearch.includes(
+                        searchValue
+                    );
 
-    function openModal(button) {
-        if (!modal || !form) return;
 
-        previousFocus = document.activeElement;
+                let matchesStatus = true;
 
-        studentIdInput.value = button.dataset.studentId || '';
-        studentNameDisplay.textContent = button.dataset.studentName || 'Unnamed Student';
 
-        const studentNumber = button.dataset.studentNumber || 'No student ID';
-        const program = button.dataset.studentProgram || 'No program specified';
-        studentInfoDisplay.textContent = studentNumber + ' · ' + program;
+                if (
+                    filterValue !== 'all'
+                ) {
 
-        const name = (button.dataset.studentName || '').trim();
-        const initials = name
-            .split(/\s+/)
-            .filter(Boolean)
-            .slice(0, 2)
-            .map(function (part) { return part.charAt(0).toUpperCase(); })
-            .join('');
+                    if (
+                        filterValue === 'pending'
+                    ) {
 
-        avatarDisplay.textContent = initials || 'ST';
-        scoreInput.value = button.dataset.score || '';
-        feedbackInput.value = button.dataset.feedback || '';
-        updateFeedbackCount();
+                        matchesStatus =
+                            rowStatus === 'pending';
 
-        modal.classList.add('is-open');
-        modal.setAttribute('aria-hidden', 'false');
-        document.body.style.overflow = 'hidden';
+                    } else {
 
-        window.setTimeout(function () {
-            scoreInput.focus();
-        }, 50);
-    }
+                        matchesStatus =
+                            rowStatus ===
+                            filterValue;
+                    }
 
-    function closeModal() {
-        if (!modal) return;
+                }
 
-        modal.classList.remove('is-open');
-        modal.setAttribute('aria-hidden', 'true');
-        document.body.style.overflow = '';
 
-        if (previousFocus && typeof previousFocus.focus === 'function') {
-            previousFocus.focus();
-        }
-    }
+                const show =
+                    matchesSearch &&
+                    matchesStatus;
 
-    function updateFeedbackCount() {
-        if (feedbackCount && feedbackInput) {
-            feedbackCount.textContent = String(feedbackInput.value.length);
-        }
-    }
 
-    document.querySelectorAll('[data-eval-open]').forEach(function (button) {
-        button.addEventListener('click', function () {
-            openModal(button);
-        });
-    });
+                row.style.display =
+                    show ? '' : 'none';
 
-    if (closeButton) closeButton.addEventListener('click', closeModal);
-    if (cancelButton) cancelButton.addEventListener('click', closeModal);
-    if (feedbackInput) feedbackInput.addEventListener('input', updateFeedbackCount);
 
-    if (modal) {
-        modal.addEventListener('click', function (event) {
-            if (event.target === modal) {
-                closeModal();
+                if (show) {
+                    visible++;
+                }
+
             }
-        });
+        );
+
+
+        resultCount.textContent =
+            'Showing ' +
+            visible +
+            ' ' +
+            (
+                visible === 1
+                    ? 'student'
+                    : 'students'
+            );
+
     }
 
-    document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape' && modal && modal.classList.contains('is-open')) {
-            closeModal();
-        }
-    });
 
-    if (form) {
-        form.addEventListener('submit', function (event) {
-            const score = Number(scoreInput.value);
+    search.addEventListener(
+        'input',
+        filterTable
+    );
 
-            if (scoreInput.value.trim() === '' || !Number.isFinite(score) || score < 0 || score > 100) {
+
+    filter.addEventListener(
+        'change',
+        filterTable
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | FORM VALIDATION
+    |--------------------------------------------------------------------------
+    */
+
+    form.addEventListener(
+        'submit',
+        function (event) {
+
+            /*
+            |--------------------------------------------------------------------------
+            | STUDENT
+            |--------------------------------------------------------------------------
+            */
+
+            if (!studentId.value) {
+
                 event.preventDefault();
-                scoreInput.focus();
-                alert('Please enter a valid score between 0 and 100.');
-            }
-        });
-    }
 
-    filterRows();
+                alert(
+                    'Please select a student.'
+                );
+
+                return;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | VALIDATE 10 RATINGS
+            |--------------------------------------------------------------------------
+            */
+
+            for (
+                let i = 0;
+                i < criteria.length;
+                i++
+            ) {
+
+                const element =
+                    document.getElementById(
+                        'eval_' +
+                        criteria[i]
+                    );
+
+
+                const value =
+                    Number(
+                        element.value
+                    );
+
+
+                if (
+                    !Number.isInteger(value) ||
+                    value < 0 ||
+                    value > 5
+                ) {
+
+                    event.preventDefault();
+
+                    alert(
+                        'Each rating must be between 0 and 5.'
+                    );
+
+                    element.focus();
+
+                    return;
+                }
+
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | COMPLETED VALIDATION
+            |--------------------------------------------------------------------------
+            */
+
+            const status =
+                document.getElementById(
+                    'evaluationStatus'
+                ).value;
+
+
+            if (
+                status === 'Completed'
+            ) {
+
+                const performance =
+                    document.getElementById(
+                        'overallPerformance'
+                    ).value;
+
+
+                const recommendation =
+                    document.getElementById(
+                        'recommendation'
+                    ).value;
+
+
+                if (!performance) {
+
+                    event.preventDefault();
+
+                    alert(
+                        'Please select the overall performance.'
+                    );
+
+                    return;
+                }
+
+
+                if (!recommendation) {
+
+                    event.preventDefault();
+
+                    alert(
+                        'Please select the recommendation.'
+                    );
+
+                    return;
+                }
+
+            }
+
+        }
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | INITIAL FILTER
+    |--------------------------------------------------------------------------
+    */
+
+    filterTable();
+
+
 })();
+
 </script>
 
-<?php include __DIR__ . '/includes/layout_bottom.php'; ?>
+
+<?php
+
+include __DIR__ . '/includes/layout_bottom.php';
+
+?>
