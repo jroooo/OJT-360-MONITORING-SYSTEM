@@ -993,6 +993,250 @@ $displayUsername = htmlspecialchars($employeeUsername, ENT_QUOTES, "UTF-8");
 $displayEmployeeId = htmlspecialchars($employeeId, ENT_QUOTES, "UTF-8");
 $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
 
+/* =========================================================
+   EMPLOYEE <-> COMPANY MESSAGES API (MYSQL)
+   Uses messages.company_id = companies.id
+   and messages.employee_id = employees.id.
+   The Employee-managed company table is linked to the
+   registered companies account by company_name.
+========================================================= */
+if (isset($_GET["message_api"])) {
+    header("Content-Type: application/json; charset=utf-8");
+
+    $jsonResponse = static function (array $payload, int $status = 200): void {
+        http_response_code($status);
+        echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    };
+
+    $messageApi = (string)$_GET["message_api"];
+    $currentEmployeeDbId = (int)$employee["id"];
+
+    try {
+        if ($messageApi === "companies") {
+            $stmt = $conn->prepare("
+                SELECT
+                    c.id,
+                    c.company_name,
+                    c.company_code,
+                    c.contact_person,
+                    c.contact_number,
+                    c.email,
+                    c.status,
+                    registered.id AS registered_company_id,
+                    (
+                        SELECT m.message
+                        FROM messages m
+                        WHERE m.company_id = registered.id
+                          AND m.employee_id = ?
+                        ORDER BY m.created_at DESC, m.id DESC
+                        LIMIT 1
+                    ) AS last_message,
+                    (
+                        SELECT m.created_at
+                        FROM messages m
+                        WHERE m.company_id = registered.id
+                          AND m.employee_id = ?
+                        ORDER BY m.created_at DESC, m.id DESC
+                        LIMIT 1
+                    ) AS last_message_time,
+                    (
+                        SELECT COUNT(*)
+                        FROM messages m
+                        WHERE m.company_id = registered.id
+                          AND m.employee_id = ?
+                          AND m.sender_type = 'company'
+                          AND m.is_read = 0
+                    ) AS unread_count
+                FROM company c
+                LEFT JOIN companies registered
+                    ON registered.company_name = c.company_name
+                ORDER BY last_message_time IS NULL ASC,
+                         last_message_time DESC,
+                         c.company_name ASC
+            ");
+
+            if (!$stmt) {
+                $jsonResponse(["success" => false, "message" => "Unable to load company conversations."], 500);
+            }
+
+            $stmt->bind_param("iii", $currentEmployeeDbId, $currentEmployeeDbId, $currentEmployeeDbId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $rows = [];
+
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = [
+                    "id" => (int)$row["id"],
+                    "name" => $row["company_name"],
+                    "code" => $row["company_code"] ?? "",
+                    "contact" => $row["contact_person"] ?? "",
+                    "phone" => $row["contact_number"] ?? "",
+                    "email" => $row["email"] ?? "",
+                    "status" => $row["status"] ?? "inactive",
+                    "registeredCompanyId" => $row["registered_company_id"] !== null ? (int)$row["registered_company_id"] : null,
+                    "lastMessage" => $row["last_message"] ?? "",
+                    "lastMessageTime" => $row["last_message_time"] ?? null,
+                    "unreadCount" => (int)($row["unread_count"] ?? 0)
+                ];
+            }
+
+            $stmt->close();
+            $jsonResponse(["success" => true, "companies" => $rows]);
+        }
+
+        $companyId = filter_input(INPUT_GET, "company_id", FILTER_VALIDATE_INT);
+        if (!$companyId || $companyId < 1) {
+            $jsonResponse(["success" => false, "message" => "Invalid company."], 400);
+        }
+
+        $resolve = $conn->prepare("
+            SELECT registered.id AS registered_company_id
+            FROM company c
+            INNER JOIN companies registered
+                ON registered.company_name = c.company_name
+            WHERE c.id = ?
+            LIMIT 1
+        ");
+
+        if (!$resolve) {
+            $jsonResponse(["success" => false, "message" => "Unable to resolve company."], 500);
+        }
+
+        $resolve->bind_param("i", $companyId);
+        $resolve->execute();
+        $resolveResult = $resolve->get_result();
+        $companyRow = $resolveResult->fetch_assoc();
+        $resolve->close();
+
+        if (!$companyRow) {
+            $jsonResponse([
+                "success" => false,
+                "message" => "This company has not registered a Company account yet."
+            ], 404);
+        }
+
+        $registeredCompanyId = (int)$companyRow["registered_company_id"];
+
+        if ($messageApi === "thread") {
+            $mark = $conn->prepare("
+                UPDATE messages
+                SET is_read = 1
+                WHERE company_id = ?
+                  AND employee_id = ?
+                  AND sender_type = 'company'
+                  AND is_read = 0
+            ");
+            if ($mark) {
+                $mark->bind_param("ii", $registeredCompanyId, $currentEmployeeDbId);
+                $mark->execute();
+                $mark->close();
+            }
+
+            $stmt = $conn->prepare("
+                SELECT id, company_id, employee_id, sender_type, sender_id,
+                       message, is_read, created_at
+                FROM messages
+                WHERE company_id = ?
+                  AND employee_id = ?
+                ORDER BY created_at ASC, id ASC
+            ");
+
+            if (!$stmt) {
+                $jsonResponse(["success" => false, "message" => "Unable to load messages."], 500);
+            }
+
+            $stmt->bind_param("ii", $registeredCompanyId, $currentEmployeeDbId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $messages = [];
+
+            while ($row = $result->fetch_assoc()) {
+                $messages[] = [
+                    "id" => (int)$row["id"],
+                    "sender_type" => $row["sender_type"],
+                    "sender_id" => (int)$row["sender_id"],
+                    "message" => $row["message"],
+                    "is_read" => (int)$row["is_read"],
+                    "created_at" => $row["created_at"]
+                ];
+            }
+
+            $stmt->close();
+            $jsonResponse(["success" => true, "messages" => $messages]);
+        }
+
+        if ($messageApi === "send") {
+            if ($_SERVER["REQUEST_METHOD"] !== "POST") {
+                $jsonResponse(["success" => false, "message" => "Invalid request method."], 405);
+            }
+
+            $message = trim((string)($_POST["message"] ?? ""));
+            if ($message === "") {
+                $jsonResponse(["success" => false, "message" => "Message cannot be empty."], 400);
+            }
+
+            if (mb_strlen($message) > 5000) {
+                $jsonResponse(["success" => false, "message" => "Message is too long."], 400);
+            }
+
+            $stmt = $conn->prepare("
+                INSERT INTO messages
+                    (company_id, employee_id, sender_type, sender_id, message, is_read)
+                VALUES
+                    (?, ?, 'employee', ?, ?, 0)
+            ");
+
+            if (!$stmt) {
+                $jsonResponse(["success" => false, "message" => "Unable to send message."], 500);
+            }
+
+            $stmt->bind_param("iiis", $registeredCompanyId, $currentEmployeeDbId, $currentEmployeeDbId, $message);
+            $stmt->execute();
+            $newId = (int)$conn->insert_id;
+            $stmt->close();
+
+            $jsonResponse([
+                "success" => true,
+                "message" => [
+                    "id" => $newId,
+                    "sender_type" => "employee",
+                    "sender_id" => $currentEmployeeDbId,
+                    "message" => $message,
+                    "is_read" => 0,
+                    "created_at" => date("Y-m-d H:i:s")
+                ]
+            ]);
+        }
+
+        if ($messageApi === "mark_read") {
+            $stmt = $conn->prepare("
+                UPDATE messages
+                SET is_read = 1
+                WHERE company_id = ?
+                  AND employee_id = ?
+                  AND sender_type = 'company'
+                  AND is_read = 0
+            ");
+
+            if (!$stmt) {
+                $jsonResponse(["success" => false, "message" => "Unable to mark messages as read."], 500);
+            }
+
+            $stmt->bind_param("ii", $registeredCompanyId, $currentEmployeeDbId);
+            $stmt->execute();
+            $stmt->close();
+
+            $jsonResponse(["success" => true]);
+        }
+
+        $jsonResponse(["success" => false, "message" => "Unknown message API action."], 400);
+    } catch (Throwable $exception) {
+        error_log("Employee messages API error: " . $exception->getMessage());
+        $jsonResponse(["success" => false, "message" => "A server error occurred while processing the message request."], 500);
+    }
+}
+
 $studentRecords = [];
 $internPageError = "";
 try {
@@ -1158,20 +1402,23 @@ $companyPageError = "";
 try {
     $companiesQuery = $conn->query("
         SELECT
-            id,
-            company_name,
-            company_code,
-            contact_person,
-            contact_number,
-            email,
-            address,
-            building,
-            department,
-            position,
-            status,
-            created_at
+            company.id,
+            company.company_name,
+            company.company_code,
+            company.contact_person,
+            company.contact_number,
+            company.email,
+            company.address,
+            company.building,
+            company.department,
+            company.position,
+            company.status,
+            company.created_at,
+            registered.id AS registered_company_id
         FROM company
-        ORDER BY created_at DESC, id DESC
+        LEFT JOIN companies AS registered
+            ON registered.company_name = company.company_name
+        ORDER BY company.created_at DESC, company.id DESC
     ");
 } catch (mysqli_sql_exception $exception) {
     error_log("Unable to load companies: " . $exception->getMessage());
@@ -2596,40 +2843,7 @@ unset($_SESSION["employee_settings_flash"]);
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-/* ================================================================
-   SUPABASE MESSAGING CONFIGURATION
-   Keep using MySQL for employee login/profile.
-   Supabase is used only for company messaging.
-
-   IMPORTANT:
-   - Use your Supabase PROJECT URL here.
-   - Use your Supabase PUBLISHABLE key here.
-   - NEVER put your sb_secret_... key in this file.
-================================================================ */
-const SUPABASE_URL = "https://wezbyqghndbrbcvzbxvx.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_FVmCuHfywH-ygqSTiFNseA_4NWVVIux";
-
-let supabaseClient = null;
-let supabaseReady = false;
-
-if (
-    SUPABASE_URL &&
-    SUPABASE_URL !== "YOUR_SUPABASE_PROJECT_URL" &&
-    SUPABASE_PUBLISHABLE_KEY &&
-    SUPABASE_PUBLISHABLE_KEY !== "YOUR_SUPABASE_PUBLISHABLE_KEY" &&
-    window.supabase
-) {
-    supabaseClient = window.supabase.createClient(
-        SUPABASE_URL,
-        SUPABASE_PUBLISHABLE_KEY
-    );
-    supabaseReady = true;
-} else {
-    console.warn("Supabase messaging is not configured yet. Add your project URL and publishable key.");
-}
-
 const CURRENT_EMPLOYEE_ID = <?= json_encode($employeeId) ?>;
 const CURRENT_EMPLOYEE_TYPE = "employee";
 const STUDENT_DATA_ERROR = <?= json_encode($internPageError !== "") ?>;
@@ -2645,8 +2859,7 @@ const EVALUATION_SUCCESS_MESSAGE = <?= json_encode(
 ) ?>;
 
 let currentConversation = null;
-let currentRealtimeChannel = null;
-const locallyInsertedMessageIds = new Set();
+
 
 /* ================================================================
    COMPANY AND STUDENT RECORDS LOADED FROM MYSQL
@@ -2669,7 +2882,8 @@ let companies = <?= json_encode(
             "department" => $companyRecord["department"] ?? "",
             "position" => $companyRecord["position"] ?? "",
             "createdAt" => $companyRecord["created_at"],
-            "status" => $companyRecord["status"]
+            "status" => $companyRecord["status"],
+            "registeredCompanyId" => $companyRecord["registered_company_id"] !== null ? (int)$companyRecord["registered_company_id"] : null
         ];
     }, $companyRecords),
     JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
@@ -3359,7 +3573,7 @@ document.getElementById("evaluationRoster").addEventListener("click", event => {
 document.getElementById("startEvaluationBtn").addEventListener("click", () => openEvaluationModal());
 
 /* ================================================================
-   MESSAGES - SUPABASE
+   MESSAGES - MYSQL
 ================================================================ */
 
 let conversationElements = [];
@@ -3367,6 +3581,39 @@ const conversationList = document.getElementById("companyConversationList");
 const conversationSearch = document.getElementById("conversationSearch");
 const chatInput = document.getElementById("messageInput");
 const sendMessageButton = document.getElementById("sendMessageBtn");
+const MESSAGE_API_URL = <?= json_encode($_SERVER["PHP_SELF"], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+
+async function messageApi(action, companyId = null, options = {}){
+    const params = new URLSearchParams();
+    params.set("message_api", action);
+    if(companyId !== null) params.set("company_id", String(companyId));
+
+    const fetchOptions = {
+        method: options.method || "GET",
+        headers: options.headers || {}
+    };
+
+    if(options.body){
+        fetchOptions.body = options.body;
+    }
+
+    const response = await fetch(MESSAGE_API_URL + "?" + params.toString(), fetchOptions);
+    const text = await response.text();
+    let data;
+
+    try {
+        data = JSON.parse(text);
+    } catch(error) {
+        console.error("Message API returned non-JSON:", text);
+        throw new Error("The server returned an invalid response.");
+    }
+
+    if(!response.ok || !data.success){
+        throw new Error(data.message || "Message request failed.");
+    }
+
+    return data;
+}
 
 function renderCompanyConversations(){
     if(!conversationList) return;
@@ -3396,19 +3643,24 @@ function renderCompanyConversations(){
         return;
     }
 
-    conversationList.innerHTML = filteredCompanies.map(company => `
-        <button class="conversation${currentConversation && currentConversation.receiverId === company.name ? " active" : ""}"
-            type="button"
-            data-chat="${escapeHtml(company.name)}"
-            data-receiver-type="company"
-            data-receiver-id="${escapeHtml(company.name)}">
-            <span class="conversation-top">
-                <span class="conversation-name">${escapeHtml(company.name)}</span>
-                <span class="badge ${company.status === "active" ? "green" : "yellow"}">${company.status === "active" ? "Active" : "Inactive"}</span>
-            </span>
-            <span class="conversation-msg">${escapeHtml(company.contact)} · ${escapeHtml(company.email)}</span>
-        </button>
-    `).join("");
+    conversationList.innerHTML = filteredCompanies.map(company => {
+        const isRegistered = !!company.registeredCompanyId;
+        const unread = Number(company.unreadCount || 0);
+        const preview = company.lastMessage || (isRegistered ? `${company.contact} · ${company.email}` : "Company account not registered");
+
+        return `
+            <button class="conversation${currentConversation && String(currentConversation.companyId) === String(company.id) ? " active" : ""}"
+                type="button"
+                data-company-id="${escapeHtml(String(company.id))}">
+                <span class="conversation-top">
+                    <span class="conversation-name">${escapeHtml(company.name)}</span>
+                    <span class="badge ${isRegistered ? (company.status === "active" ? "green" : "yellow") : "yellow"}">${isRegistered ? (company.status === "active" ? "Active" : "Inactive") : "Not registered"}</span>
+                </span>
+                <span class="conversation-msg">${escapeHtml(preview)}</span>
+                ${unread > 0 ? `<span style="display:inline-flex;margin-top:5px;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#1688ba;color:#fff;font-size:11px;font-weight:700;">${unread}</span>` : ""}
+            </button>
+        `;
+    }).join("");
 
     conversationElements = Array.from(conversationList.querySelectorAll(".conversation"));
     conversationElements.forEach(conversation => {
@@ -3416,38 +3668,39 @@ function renderCompanyConversations(){
             conversationElements.forEach(item => item.classList.remove("active"));
             conversation.classList.add("active");
 
-            const info = getConversationInfo(conversation);
-            currentConversation = info;
-            document.getElementById("chatName").textContent = info.name;
-            const selectedCompany = companies.find(company => company.name === info.receiverId);
+            const companyId = Number(conversation.dataset.companyId);
+            const selectedCompany = companies.find(company => Number(company.id) === companyId);
+            if(!selectedCompany) return;
+
+            currentConversation = {
+                companyId: selectedCompany.id,
+                name: selectedCompany.name
+            };
+
+            document.getElementById("chatName").textContent = selectedCompany.name;
             const chatStatus = document.getElementById("chatStatus");
-            chatStatus.textContent = selectedCompany && selectedCompany.status === "active"
-                ? "Active company"
-                : "Inactive company";
-            chatStatus.dataset.companyStatus = selectedCompany ? selectedCompany.status : "";
+            chatStatus.textContent = selectedCompany.registeredCompanyId
+                ? (selectedCompany.status === "active" ? "Active company" : "Inactive company")
+                : "Company account not registered";
+            chatStatus.dataset.companyStatus = selectedCompany.status || "";
+
+            if(!selectedCompany.registeredCompanyId){
+                chatInput.disabled = true;
+                sendMessageButton.disabled = true;
+                setChatEmpty();
+                showToast("This company does not have a registered Company account yet.");
+                return;
+            }
+
             chatInput.disabled = false;
             sendMessageButton.disabled = false;
             chatInput.focus();
-            await loadMessages(info);
+            await loadMessages(currentConversation);
         });
     });
 }
 
 conversationSearch.addEventListener("input", renderCompanyConversations);
-
-function getActiveConversation(){
-    return conversationList.querySelector(".conversation.active");
-}
-
-function getConversationInfo(conversation){
-    if(!conversation) return null;
-
-    return {
-        name: conversation.dataset.chat || "Company",
-        receiverType: conversation.dataset.receiverType || "company",
-        receiverId: conversation.dataset.receiverId || conversation.dataset.chat || ""
-    };
-}
 
 function setChatLoading(){
     document.getElementById("chatBody").innerHTML = `
@@ -3493,103 +3746,68 @@ function renderMessages(messages){
     body.innerHTML = "";
 
     if(!messages.length){
-        const empty = document.createElement("div");
-        empty.dataset.emptyChat = "true";
-        empty.style.cssText = "padding:24px;text-align:center;color:#8597a6;font-size:12px;";
-        empty.textContent = "No messages yet. Start the conversation.";
-        body.appendChild(empty);
+        setChatEmpty();
         return;
     }
 
     messages.forEach(row => {
         const isMine =
             row.sender_type === CURRENT_EMPLOYEE_TYPE &&
-            String(row.sender_id) === String(CURRENT_EMPLOYEE_ID);
+            String(row.sender_id) === String(<?= json_encode($employee["id"]) ?>);
 
-        // Updated row.messages to match the Supabase table column
-        appendMessageBubble(row.messages || "", isMine, row.id);
+        appendMessageBubble(row.message || "", isMine, row.id);
     });
 }
 
 async function loadMessages(conversationInfo){
-    if(!supabaseReady || !supabaseClient){
-        setChatEmpty();
-        showToast("Supabase messaging is not configured yet.");
-        return;
-    }
+    if(!conversationInfo || !conversationInfo.companyId) return;
 
     currentConversation = conversationInfo;
     setChatLoading();
 
-    // Updated select query to fetch 'messages' column instead of 'message'
-    const { data, error } = await supabaseClient
-        .from("message")
-        .select("id,sender_type,sender_id,receiver_type,receiver_id,messages,is_read,created_at")
-        .or(
-            `and(sender_type.eq.${CURRENT_EMPLOYEE_TYPE},sender_id.eq.${String(CURRENT_EMPLOYEE_ID)},receiver_type.eq.${conversationInfo.receiverType},receiver_id.eq.${conversationInfo.receiverId}),` +
-            `and(sender_type.eq.${conversationInfo.receiverType},sender_id.eq.${conversationInfo.receiverId},receiver_type.eq.${CURRENT_EMPLOYEE_TYPE},receiver_id.eq.${String(CURRENT_EMPLOYEE_ID)})`
-        )
-        .order("created_at", { ascending: true });
-
-    if(error){
-        console.error("Supabase load messages error:", error);
+    try {
+        const data = await messageApi("thread", conversationInfo.companyId);
+        renderMessages(data.messages || []);
+        await loadMessageCompanies(false);
+    } catch(error) {
+        console.error("MySQL load messages error:", error);
         setChatEmpty();
-        showToast("Unable to load messages.");
-        return;
+        showToast(error.message || "Unable to load messages.");
     }
-
-    renderMessages(data || []);
 }
 
-function subscribeToMessages(){
-    if(!supabaseReady || !supabaseClient) return;
+async function loadMessageCompanies(preserveCurrent = true){
+    try {
+        const data = await messageApi("companies");
+        const previousCompanyId = preserveCurrent && currentConversation ? currentConversation.companyId : null;
 
-    if(currentRealtimeChannel){
-        supabaseClient.removeChannel(currentRealtimeChannel);
-        currentRealtimeChannel = null;
+        companies = (data.companies || []).map(row => ({
+            id: Number(row.id),
+            name: row.name || "",
+            code: row.code || "",
+            contact: row.contact || "",
+            phone: row.phone || "",
+            email: row.email || "",
+            status: row.status || "inactive",
+            registeredCompanyId: row.registeredCompanyId ? Number(row.registeredCompanyId) : null,
+            lastMessage: row.lastMessage || "",
+            lastMessageTime: row.lastMessageTime || null,
+            unreadCount: Number(row.unreadCount || 0)
+        }));
+
+        renderCompanyConversations();
+
+        if(previousCompanyId !== null){
+            const active = conversationElements.find(el => Number(el.dataset.companyId) === Number(previousCompanyId));
+            if(active) active.classList.add("active");
+        }
+    } catch(error) {
+        console.error("MySQL company conversations error:", error);
+        if(!companies.length){
+            conversationList.innerHTML = `<div class="empty">Unable to load company conversations.</div>`;
+        }
+        showToast(error.message || "Unable to load company conversations.");
     }
-
-    currentRealtimeChannel = supabaseClient
-        .channel("employee-messages-" + String(CURRENT_EMPLOYEE_ID))
-        .on(
-            "postgres_changes",
-            {
-                event: "INSERT",
-                schema: "public",
-                table: "message"
-            },
-            payload => {
-                const row = payload.new;
-                if(!currentConversation || !row) return;
-
-                const isCurrentConversation =
-                    (
-                        String(row.sender_type) === CURRENT_EMPLOYEE_TYPE &&
-                        String(row.sender_id) === String(CURRENT_EMPLOYEE_ID) &&
-                        String(row.receiver_type) === String(currentConversation.receiverType) &&
-                        String(row.receiver_id) === String(currentConversation.receiverId)
-                    ) ||
-                    (
-                        String(row.sender_type) === String(currentConversation.receiverType) &&
-                        String(row.sender_id) === String(currentConversation.receiverId) &&
-                        String(row.receiver_type) === CURRENT_EMPLOYEE_TYPE &&
-                        String(row.receiver_id) === String(CURRENT_EMPLOYEE_ID)
-                    );
-
-                if(!isCurrentConversation) return;
-
-                // Updated row.messages to match the Supabase table column
-                appendMessageBubble(
-                    row.messages || "",
-                    String(row.sender_type) === CURRENT_EMPLOYEE_TYPE &&
-                    String(row.sender_id) === String(CURRENT_EMPLOYEE_ID),
-                    row.id
-                );
-            }
-        )
-        .subscribe(status => {
-            console.log("Supabase realtime status:", status);
-        });
 }
 
 async function sendMessage(){
@@ -3599,75 +3817,75 @@ async function sendMessage(){
 
     if(!value) return;
 
-    if(!supabaseReady || !supabaseClient){
-        showToast("Configure Supabase first.");
-        return;
-    }
-
-    if(!conversationInfo || !conversationInfo.receiverId){
+    if(!conversationInfo || !conversationInfo.companyId){
         showToast("Please select a company conversation first.");
         return;
     }
 
-    const sendButton = sendMessageButton;
-    sendButton.disabled = true;
-
-    // Updated insert payload and select field to 'messages'
-    const { data, error } = await supabaseClient
-        .from("message")
-        .insert({
-            sender_type: CURRENT_EMPLOYEE_TYPE,
-            sender_id: String(CURRENT_EMPLOYEE_ID),
-            receiver_type: conversationInfo.receiverType,
-            receiver_id: String(conversationInfo.receiverId),
-            messages: value,
-            is_read: false
-        })
-        .select("id,sender_type,sender_id,receiver_type,receiver_id,messages,is_read,created_at")
-        .single();
-
-    sendButton.disabled = false;
-
-    if(error){
-        console.error("Supabase send message error:", error);
-        showToast("Message was not sent.");
+    const selectedCompany = companies.find(company => Number(company.id) === Number(conversationInfo.companyId));
+    if(!selectedCompany || !selectedCompany.registeredCompanyId){
+        showToast("This company does not have a registered Company account yet.");
         return;
     }
 
-    input.value = "";
+    sendMessageButton.disabled = true;
 
-    // If realtime is delayed, show the inserted row immediately using 'messages'
-    if(data){
-        appendMessageBubble(data.messages || "", true, data.id);
+    try {
+        const body = new URLSearchParams();
+        body.set("message", value);
+
+        const data = await messageApi("send", conversationInfo.companyId, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
+            body
+        });
+
+        input.value = "";
+        if(data.message){
+            appendMessageBubble(data.message.message || "", true, data.message.id);
+        }
+
+        await loadMessageCompanies(true);
+    } catch(error) {
+        console.error("MySQL send message error:", error);
+        showToast(error.message || "Message was not sent.");
+    } finally {
+        sendMessageButton.disabled = false;
+        input.focus();
     }
 }
 
 document.getElementById("sendMessageBtn").addEventListener("click", sendMessage);
 
 document.getElementById("messageInput").addEventListener("keydown", e => {
-    if(e.key === "Enter"){
+    if(e.key === "Enter" && !e.shiftKey){
         e.preventDefault();
         sendMessage();
     }
 });
 
-/* Start realtime listening before loading the selected company conversation. */
-if(supabaseReady){
-    subscribeToMessages();
-}
+loadMessageCompanies(false).then(() => {
+    if(!COMPANY_DATA_ERROR && companies.length){
+        const initialCompany = companies.find(company => company.registeredCompanyId && company.status === "active") ||
+            companies.find(company => company.registeredCompanyId) ||
+            companies[0];
 
-renderCompanyConversations();
+        const initialConversation = conversationElements.find(
+            conversation => Number(conversation.dataset.companyId) === Number(initialCompany.id)
+        );
 
-if(!COMPANY_DATA_ERROR && companies.length){
-    const initialCompany = companies.find(company => company.status === "active") || companies[0];
-    const initialConversation = conversationElements.find(
-        conversation => conversation.dataset.receiverId === initialCompany.name
-    );
-
-    if(initialConversation){
-        initialConversation.click();
+        if(initialConversation){
+            initialConversation.click();
+        }
     }
-}
+});
+
+setInterval(() => {
+    loadMessageCompanies(true);
+    if(currentConversation && currentConversation.companyId){
+        loadMessages(currentConversation);
+    }
+}, 5000);
 
 document.getElementById("newMessageBtn").addEventListener("click", () => {
     conversationSearch.value = "";
