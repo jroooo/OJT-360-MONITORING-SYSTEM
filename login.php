@@ -1,8 +1,36 @@
 <?php
 
-session_start();
+/*
+|--------------------------------------------------------------------------
+| OJT360 Login
+|--------------------------------------------------------------------------
+| Student  -> normal PHP session
+| Employee -> normal PHP session
+| Company  -> OJT360_COMPANY session from bootstrap.php
+|--------------------------------------------------------------------------
+*/
+
+/*
+ * IMPORTANT:
+ * Do NOT call session_start() here when this is a Company login.
+ *
+ * Company authentication uses the custom session:
+ * OJT360_COMPANY
+ */
+
+$isCompanyLogin =
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    isset(
+        $_POST["company_username"],
+        $_POST["company_password"]
+    );
+
+if (!$isCompanyLogin) {
+    session_start();
+}
 
 $pageTitle = "OJT360 - Sign In";
+
 
 /* =========================================================
    STUDENT LOGIN VALIDATION
@@ -10,14 +38,21 @@ $pageTitle = "OJT360 - Sign In";
 
 if (
     $_SERVER["REQUEST_METHOD"] === "POST" &&
-    isset($_POST["student_username"], $_POST["student_password"])
+    isset(
+        $_POST["student_username"],
+        $_POST["student_password"]
+    )
 ) {
 
     require_once __DIR__ . '/ojt360-student-dashboard/config.php';
     require_once __DIR__ . '/ojt360-student-dashboard/includes/helpers.php';
 
-    $studentId = trim($_POST["student_username"]);
-    $studentPassword = $_POST["student_password"];
+    $studentId =
+        trim($_POST["student_username"]);
+
+    $studentPassword =
+        $_POST["student_password"];
+
 
     /* =====================================================
        VALIDATE STUDENT ID
@@ -25,10 +60,13 @@ if (
 
     if (!preg_match('/^[0-9]{7}$/', $studentId)) {
 
-        header("Location: login.php?student_error=1");
-        exit;
+        header(
+            "Location: login.php?student_error=1"
+        );
 
+        exit;
     }
+
 
     /* =====================================================
        FIND STUDENT
@@ -44,9 +82,13 @@ if (
          LIMIT 1'
     );
 
-    $stmt->execute([$studentId]);
+    $stmt->execute([
+        $studentId
+    ]);
 
-    $student = $stmt->fetch();
+    $student =
+        $stmt->fetch();
+
 
     /* =====================================================
        VERIFY STUDENT
@@ -60,10 +102,13 @@ if (
         )
     ) {
 
-        header("Location: login.php?student_error=1");
-        exit;
+        header(
+            "Location: login.php?student_error=1"
+        );
 
+        exit;
     }
+
 
     /* =====================================================
        STUDENT LOGIN SUCCESS
@@ -82,6 +127,7 @@ if (
 
     $_SESSION['csrf'] =
         bin2hex(random_bytes(32));
+
 
     /* =====================================================
        GO TO STUDENT DASHBOARD
@@ -108,10 +154,18 @@ if (
        DATABASE CONNECTION
     ===================================================== */
 
-    $host = "localhost";
-    $username = "root";
-    $password = "";
-    $database = "ojt360";
+    $host =
+        "localhost";
+
+    $username =
+        "root";
+
+    $password =
+        "";
+
+    $database =
+        "ojt360";
+
 
     $conn = new mysqli(
         $host,
@@ -120,7 +174,10 @@ if (
         $database
     );
 
-    /* Check connection */
+
+    /* =====================================================
+       CHECK CONNECTION
+    ===================================================== */
 
     if ($conn->connect_error) {
 
@@ -128,8 +185,11 @@ if (
             "Database connection failed: " .
             $conn->connect_error
         );
-
     }
+
+
+    $conn->set_charset("utf8mb4");
+
 
     /* =====================================================
        GET EMPLOYEE LOGIN DATA
@@ -140,6 +200,7 @@ if (
 
     $employeePassword =
         $_POST["employee_password"];
+
 
     /* =====================================================
        FIND EMPLOYEE
@@ -163,15 +224,31 @@ if (
          LIMIT 1"
     );
 
+
+    if (!$stmt) {
+
+        $conn->close();
+
+        header(
+            "Location: login.php?employee_error=1"
+        );
+
+        exit;
+    }
+
+
     $stmt->bind_param(
         "s",
         $employeeUsername
     );
 
+
     $stmt->execute();
+
 
     $result =
         $stmt->get_result();
+
 
     /* =====================================================
        CHECK IF EMPLOYEE EXISTS
@@ -181,6 +258,7 @@ if (
 
         $employee =
             $result->fetch_assoc();
+
 
         /* =================================================
            VERIFY PASSWORD
@@ -194,10 +272,11 @@ if (
         ) {
 
             /* =============================================
-               LOGIN SUCCESS
+               EMPLOYEE LOGIN SUCCESS
             ============================================= */
 
             session_regenerate_id(true);
+
 
             $_SESSION["employee_logged_in"] =
                 true;
@@ -232,6 +311,7 @@ if (
             $_SESSION["employee_position"] =
                 $employee["position"];
 
+
             /* =============================================
                GO TO EMPLOYEE DASHBOARD
             ============================================= */
@@ -248,12 +328,14 @@ if (
                WRONG PASSWORD
             ============================================= */
 
+            $stmt->close();
+            $conn->close();
+
             header(
                 "Location: login.php?employee_error=1"
             );
 
             exit;
-
         }
 
     } else {
@@ -262,16 +344,15 @@ if (
            USERNAME DOES NOT EXIST
         ============================================= */
 
+        $stmt->close();
+        $conn->close();
+
         header(
             "Location: login.php?employee_error=1"
         );
 
         exit;
-
     }
-
-    $stmt->close();
-    $conn->close();
 }
 
 
@@ -281,17 +362,43 @@ if (
 
 if (
     $_SERVER["REQUEST_METHOD"] === "POST" &&
-    isset($_POST["company_username"], $_POST["company_password"])
+    isset(
+        $_POST["company_username"],
+        $_POST["company_password"]
+    )
 ) {
+
+    /* =====================================================
+       LOAD COMPANY BOOTSTRAP
+       
+       This starts the custom:
+       
+       OJT360_COMPANY
+       
+       session.
+    ===================================================== */
+
+    require_once __DIR__ . '/includes/bootstrap.php';
+
+    ojt_start_session();
+
 
     /* =====================================================
        DATABASE CONNECTION
     ===================================================== */
 
-    $host = "localhost";
-    $username = "root";
-    $password = "";
-    $database = "ojt360";
+    $host =
+        "localhost";
+
+    $username =
+        "root";
+
+    $password =
+        "";
+
+    $database =
+        "ojt360";
+
 
     $conn = new mysqli(
         $host,
@@ -300,7 +407,10 @@ if (
         $database
     );
 
-    /* Check connection */
+
+    /* =====================================================
+       CHECK CONNECTION
+    ===================================================== */
 
     if ($conn->connect_error) {
 
@@ -309,10 +419,11 @@ if (
         );
 
         exit;
-
     }
 
+
     $conn->set_charset("utf8mb4");
+
 
     /* =====================================================
        GET COMPANY LOGIN DATA
@@ -324,13 +435,9 @@ if (
     $companyPassword =
         $_POST["company_password"];
 
+
     /* =====================================================
        FIND COMPANY
-       
-       TABLE: companies
-       
-       company_username
-       password_hash
     ===================================================== */
 
     $stmt = $conn->prepare(
@@ -351,6 +458,11 @@ if (
          LIMIT 1"
     );
 
+
+    /* =====================================================
+       CHECK PREPARE
+    ===================================================== */
+
     if (!$stmt) {
 
         $conn->close();
@@ -360,18 +472,21 @@ if (
         );
 
         exit;
-
     }
+
 
     $stmt->bind_param(
         "s",
         $companyUsername
     );
 
+
     $stmt->execute();
+
 
     $result =
         $stmt->get_result();
+
 
     /* =====================================================
        CHECK IF COMPANY EXISTS
@@ -381,6 +496,7 @@ if (
 
         $company =
             $result->fetch_assoc();
+
 
         /* =================================================
            VERIFY COMPANY PASSWORD
@@ -397,13 +513,26 @@ if (
                COMPANY LOGIN SUCCESS
             ============================================= */
 
+            /*
+             * At this point:
+             *
+             * session_name() = OJT360_COMPANY
+             *
+             * because bootstrap.php was loaded above.
+             */
+
             session_regenerate_id(true);
+
+
+            /* =============================================
+               COMPANY SESSION DATA
+            ============================================= */
 
             $_SESSION["company_logged_in"] =
                 true;
 
             $_SESSION["company_id"] =
-                $company["id"];
+                (int) $company["id"];
 
             $_SESSION["company_name"] =
                 $company["company_name"];
@@ -432,6 +561,31 @@ if (
             $_SESSION["role"] =
                 "company";
 
+
+            /* =============================================
+               COMPANY SESSION ACTIVITY
+            ============================================= */
+
+            $_SESSION["last_activity"] =
+                time();
+
+
+            /* =============================================
+               COMPANY CSRF TOKEN
+            ============================================= */
+
+            $_SESSION["csrf"] =
+                bin2hex(random_bytes(32));
+
+
+            /* =============================================
+               CLOSE DATABASE
+            ============================================= */
+
+            $stmt->close();
+            $conn->close();
+
+
             /* =============================================
                GO TO COMPANY DASHBOARD
             ============================================= */
@@ -456,7 +610,6 @@ if (
             );
 
             exit;
-
         }
 
     } else {
@@ -473,14 +626,13 @@ if (
         );
 
         exit;
-
     }
-
 }
 
 ?>
 
 <!DOCTYPE html>
+
 <html lang="en">
 
 <head>
@@ -494,11 +646,13 @@ if (
 
 <title><?= $pageTitle ?></title>
 
+
 <!-- =====================================================
      TAILWIND CSS
 ===================================================== -->
 
 <script src="https://cdn.tailwindcss.com"></script>
+
 
 <!-- =====================================================
      GOOGLE FONT
@@ -511,7 +665,7 @@ if (
 
 <link
     rel="preconnect"
-    href="https://fonts.gstatic.com"
+    href="https://fonts.googleapis.com"
     crossorigin
 >
 
@@ -519,6 +673,7 @@ if (
     href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
     rel="stylesheet"
 >
+
 
 <style>
 
@@ -531,8 +686,11 @@ if (
 }
 
 body {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family:
+        'Plus Jakarta Sans',
+        sans-serif;
 }
+
 
 /* =========================================================
    BACKGROUND
@@ -549,6 +707,7 @@ body {
         );
 
 }
+
 
 /* =========================================================
    ORBIT VISUAL
@@ -574,6 +733,7 @@ body {
     opacity: .75;
 
 }
+
 
 /* =========================================================
    ORBIT GLOW
@@ -601,6 +761,7 @@ body {
         pulse 3.4s ease-in-out infinite;
 
 }
+
 
 /* =========================================================
    ORBIT RINGS
@@ -650,6 +811,7 @@ body {
 
 }
 
+
 /* =========================================================
    ORBIT TRACK
 ========================================================= */
@@ -678,6 +840,7 @@ body {
 
 }
 
+
 /* =========================================================
    ORBIT DOT
 ========================================================= */
@@ -705,6 +868,7 @@ body {
     height: 8px;
 
 }
+
 
 /* =========================================================
    DOT COLORS
@@ -743,6 +907,7 @@ body {
 
 }
 
+
 /* =========================================================
    ORBIT CENTER
 ========================================================= */
@@ -780,6 +945,7 @@ body {
 
 }
 
+
 .orbit-center-mark {
 
     position: absolute;
@@ -798,6 +964,7 @@ body {
 
 }
 
+
 .orbit-center-mark span {
 
     width: 10px;
@@ -814,12 +981,14 @@ body {
 
 }
 
+
 .orbit-center-mark span:nth-child(2) {
 
     border-color:
         #60a5fa;
 
 }
+
 
 .orbit-center-mark span:nth-child(3) {
 
@@ -831,6 +1000,7 @@ body {
     margin-top: 18px;
 
 }
+
 
 /* =========================================================
    PARTICLES
@@ -856,12 +1026,14 @@ body {
 
 }
 
+
 .p1 {
 
     top: 20%;
     left: 20%;
 
 }
+
 
 .p2 {
 
@@ -873,6 +1045,7 @@ body {
 
 }
 
+
 .p3 {
 
     top: 78%;
@@ -883,6 +1056,7 @@ body {
 
 }
 
+
 .p4 {
 
     top: 18%;
@@ -892,6 +1066,7 @@ body {
         .5s;
 
 }
+
 
 /* =========================================================
    ANIMATIONS
@@ -917,6 +1092,7 @@ body {
 
 }
 
+
 @keyframes pulse {
 
     0%, 100% {
@@ -938,6 +1114,7 @@ body {
     }
 
 }
+
 
 @keyframes float {
 
@@ -963,6 +1140,7 @@ body {
 
 }
 
+
 /* =========================================================
    LOGIN TAB
 ========================================================= */
@@ -980,6 +1158,7 @@ body {
         rgba(0,0,0,.1);
 
 }
+
 
 /* =========================================================
    FORM LABEL
@@ -999,6 +1178,7 @@ body {
     margin-bottom: 6px;
 
 }
+
 
 /* =========================================================
    FORM INPUT
@@ -1035,6 +1215,7 @@ body {
 
 }
 
+
 .input:focus {
 
     border-color:
@@ -1045,6 +1226,7 @@ body {
         rgba(14,165,233,.15);
 
 }
+
 
 /* =========================================================
    SHOW PASSWORD BUTTON
@@ -1072,6 +1254,7 @@ body {
 
 }
 
+
 /* =========================================================
    OPTIONS
 ========================================================= */
@@ -1092,6 +1275,7 @@ body {
 
 }
 
+
 .options label {
 
     display: flex;
@@ -1103,6 +1287,7 @@ body {
 
 }
 
+
 .options a {
 
     color:
@@ -1112,6 +1297,7 @@ body {
         600;
 
 }
+
 
 /* =========================================================
    LOGIN BUTTON
@@ -1148,6 +1334,7 @@ body {
 
 }
 
+
 .login-btn:hover {
 
     background:
@@ -1157,6 +1344,7 @@ body {
         translateY(-1px);
 
 }
+
 
 /* =========================================================
    MOBILE
@@ -1204,9 +1392,11 @@ body {
 
 </head>
 
+
 <body
     class="hero-bg min-h-screen w-full flex items-center justify-center p-4 sm:p-6 lg:p-8 overflow-x-hidden antialiased relative"
 >
+
 
 <!-- =========================================================
      MAIN CONTAINER
@@ -1216,6 +1406,7 @@ body {
     class="w-full max-w-7xl flex flex-col md:flex-row items-center justify-between gap-8 lg:gap-16 relative z-10 my-auto"
 >
 
+
     <!-- =====================================================
          LEFT SIDE
     ====================================================== -->
@@ -1223,6 +1414,7 @@ body {
     <section
         class="w-full md:w-1/2 text-white relative p-2 sm:p-4"
     >
+
 
         <!-- =================================================
              ORBIT BACKGROUND
@@ -1232,6 +1424,7 @@ body {
 
             <div class="orbit-glow"></div>
 
+
             <!-- RINGS -->
 
             <div class="orbit-ring ring-outer"></div>
@@ -1239,6 +1432,7 @@ body {
             <div class="orbit-ring ring-inner"></div>
 
             <div class="orbit-ring ring-small"></div>
+
 
             <!-- ORBIT DOT 1 -->
 
@@ -1253,6 +1447,7 @@ body {
 
             </div>
 
+
             <!-- ORBIT DOT 2 -->
 
             <div
@@ -1265,6 +1460,7 @@ body {
                 ></div>
 
             </div>
+
 
             <!-- ORBIT DOT 3 -->
 
@@ -1279,6 +1475,7 @@ body {
 
             </div>
 
+
             <!-- ORBIT DOT 4 -->
 
             <div
@@ -1291,6 +1488,7 @@ body {
                 ></div>
 
             </div>
+
 
             <!-- CENTER -->
 
@@ -1308,6 +1506,7 @@ body {
 
             </div>
 
+
             <!-- PARTICLES -->
 
             <div class="orbit-particle p1"></div>
@@ -1320,6 +1519,7 @@ body {
 
         </div>
 
+
         <!-- =================================================
              LEFT CONTENT
         ================================================== -->
@@ -1327,6 +1527,7 @@ body {
         <div
             class="relative z-10 flex flex-col justify-between items-start space-y-8 lg:space-y-12"
         >
+
 
             <!-- =================================================
                  LOGO
@@ -1354,6 +1555,7 @@ body {
 
                 </svg>
 
+
                 <!-- OJT360 -->
 
                 <span
@@ -1365,6 +1567,7 @@ body {
                 </span>
 
             </div>
+
 
             <!-- =================================================
                  SMALL HEADING
@@ -1380,6 +1583,7 @@ body {
 
                 </span>
 
+
                 <!-- MAIN HEADING -->
 
                 <h1
@@ -1389,6 +1593,7 @@ body {
                     Start tracking your internship journey.
 
                 </h1>
+
 
                 <!-- DESCRIPTION -->
 
@@ -1403,6 +1608,7 @@ body {
 
             </div>
 
+
             <!-- =================================================
                  STATISTICS
             ================================================== -->
@@ -1410,6 +1616,7 @@ body {
             <div
                 class="flex items-center space-x-12 pt-6 border-t border-blue-400/20 max-w-xl w-full"
             >
+
 
                 <!-- STAT 1 -->
 
@@ -1433,11 +1640,13 @@ body {
 
                 </div>
 
+
                 <!-- DIVIDER -->
 
                 <div
                     class="h-12 w-px bg-blue-400/20"
                 ></div>
+
 
                 <!-- STAT 2 -->
 
@@ -1476,6 +1685,7 @@ body {
         class="w-full md:w-[540px] lg:w-[560px] bg-white rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] p-6 sm:p-8 text-slate-800 border border-slate-100 relative z-20 my-auto"
     >
 
+
         <!-- =================================================
              HEADER
         ================================================== -->
@@ -1490,6 +1700,7 @@ body {
 
             </span>
 
+
             <h2
                 class="text-2xl font-extrabold text-slate-800 tracking-tight"
             >
@@ -1497,6 +1708,7 @@ body {
                 Sign in to your account
 
             </h2>
+
 
             <p
                 class="text-xs text-slate-500"
@@ -1534,10 +1746,11 @@ body {
                             stroke-linecap="round"
                             stroke-linejoin="round"
                             stroke-width="2"
-                            d="M12 9v3m0 4h.01M10.29 3.86l-7.5 13A2 2 0 004.52 20h14.96a2 2 0 001.73-3.14l-7.5-13a2 2 0 00-3.42 0z"
+                            d="M12 9v3m0 4h.01M10.29 3.86l-7.5 13A2 2 0 004.52 20h14.96a2 2 0 001.73-3.14l-7.5-13a2 2 0 00-1.73-3.14l-7.5-13a2 2 0 00-3.42 0z"
                         ></path>
 
                     </svg>
+
 
                     <span>
                         Invalid username or password. Please try again.
@@ -1558,6 +1771,7 @@ body {
             class="bg-slate-100/80 p-1 rounded-2xl flex items-center justify-between text-xs font-semibold text-slate-500 mb-5"
         >
 
+
             <!-- STUDENT -->
 
             <button
@@ -1571,6 +1785,7 @@ body {
 
             </button>
 
+
             <!-- EMPLOYEE -->
 
             <button
@@ -1583,6 +1798,7 @@ body {
                 Employee
 
             </button>
+
 
             <!-- COMPANY -->
 
@@ -1628,6 +1844,7 @@ body {
                 method="POST"
                 action="login.php"
             >
+
 
                 <!-- STUDENT ID -->
 
@@ -1730,6 +1947,7 @@ body {
                 action="login.php"
             >
 
+
                 <!-- EMAIL -->
 
                 <div>
@@ -1826,6 +2044,7 @@ body {
                 method="POST"
                 action="login.php"
             >
+
 
                 <!-- COMPANY EMAIL -->
 
@@ -1949,6 +2168,7 @@ body {
 
 <script>
 
+
 /* =========================================================
    TOGGLE PASSWORD
 ========================================================= */
@@ -1964,6 +2184,7 @@ function togglePassword(role) {
         document.querySelector(
             `#${role}-form .show-btn`
         );
+
 
     if (input.type === 'password') {
 
@@ -1994,11 +2215,13 @@ function selectRole(role) {
         'selected-role'
     ).value = role;
 
+
     const roles = [
         'student',
         'employee',
         'company'
     ];
+
 
     roles.forEach(function(r) {
 
@@ -2011,6 +2234,7 @@ function selectRole(role) {
             document.getElementById(
                 r + '-form'
             );
+
 
         if (r === role) {
 
@@ -2091,6 +2315,7 @@ document.addEventListener(
 );
 
 <?php endif; ?>
+
 
 </script>
 
