@@ -115,3 +115,153 @@ input[readonly]{background:var(--surface2);color:var(--muted)}
 }
 @media (max-width:560px){.stats,.form-grid{grid-template-columns:1fr}.title{font-size:24px}.crumbs span:first-child,.crumbs .sep{display:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+
+
+/* =========================================================
+   COMPANY DASHBOARD FIXES
+   Append-only overrides: preserve the existing design/theme.
+   ========================================================= */
+
+/* Let the page use the available width beside the sidebar. */
+html,
+body {
+    width: 100%;
+    max-width: 100%;
+}
+
+.shell {
+    width: 100%;
+    min-width: 0;
+}
+
+.main {
+    flex: 1 1 auto;
+    width: calc(100% - 256px);
+    min-width: 0;
+}
+
+html.sb-collapsed .main {
+    width: calc(100% - 78px);
+}
+
+.content {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    padding: clamp(16px, 2vw, 28px);
+    padding-bottom: 48px;
+}
+
+/* Prevent grid children from forcing the whole page wider. */
+.grid-2 {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+}
+
+.grid-eq {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.grid-2 > *,
+.grid-eq > *,
+.stats > *,
+.card,
+.stat {
+    min-width: 0;
+}
+
+/* Keep wide tables inside their own scroll area. */
+.table-wrap {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+}
+
+.table-wrap table {
+    width: 100%;
+}
+
+/* Long names, emails, and messages should wrap instead of stretching cards. */
+.who,
+.who > div {
+    min-width: 0;
+}
+
+.who small {
+    overflow-wrap: anywhere;
+}
+
+.hero > *,
+.page-head > * {
+    min-width: 0;
+}
+
+/* Medium screens: stack dashboard panels before they become cramped. */
+@media (max-width: 1100px) {
+    .grid-2,
+    .grid-eq {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .main,
+    html.sb-collapsed .main {
+        width: 100%;
+    }
+}
+
+/* Mobile/tablet layout. */
+@media (max-width: 900px) {
+    .main,
+    html.sb-collapsed .main {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .content {
+        padding: 16px;
+        padding-bottom: 32px;
+    }
+
+    .topbar {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+}
+
+@media (max-width: 560px) {
+    .stats,
+    .form-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .title {
+        font-size: clamp(22px, 6vw, 24px);
+        overflow-wrap: anywhere;
+    }
+
+    .hero {
+        padding: 20px;
+        border-radius: 16px;
+    }
+
+    .hero h2 {
+        font-size: 21px;
+    }
+
+    .card {
+        padding: 16px;
+    }
+
+    .table-wrap table {
+        min-width: 600px;
+    }
+
+    .row-actions {
+        width: 100%;
+    }
+
+    .row-actions .btn {
+        flex: 1 1 auto;
+    }
+}
