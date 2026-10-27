@@ -1,0 +1,178 @@
+/* Companies sidebar icon only: show the building SVG instead of the generic icon block. */
+.nav-link[data-page="companies"] .nav-icon.company-building-icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 22px !important;
+    width: 22px !important;
+    height: 22px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    color: inherit !important;
+    font-size: 0 !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+}
+.nav-link[data-page="companies"] .nav-icon.company-building-icon::before,
+.nav-link[data-page="companies"] .nav-icon.company-building-icon::after {
+    content: none !important;
+    display: none !important;
+}
+.nav-link[data-page="companies"] .nav-icon.company-building-icon svg {
+    display: block !important;
+    width: 22px !important;
+    height: 22px !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    fill: none !important;
+    stroke: currentColor !important;
+}
+
+
+/* Adviser profile page, styled to match the OJT360 student profile layout. */
+#page-profile{padding-bottom:32px}
+.employee-profile-cover{height:180px;border-radius:20px 20px 0 0;background:linear-gradient(115deg,#2186b8,#08b6df);margin:0 0 -1px;}
+.employee-profile-hero{position:relative;display:flex;align-items:center;gap:24px;background:var(--card,#fff);border:1px solid var(--border,#dce7f2);border-radius:0 0 20px 20px;padding:0 30px 28px;margin-bottom:22px;min-height:150px;}
+.employee-profile-avatar{width:138px;height:138px;flex:0 0 138px;margin-top:-52px;border-radius:50%;display:grid;place-items:center;background:#9cdef9;border:6px solid var(--card,#fff);box-shadow:0 8px 22px #0b47741c;color:#075985;font-size:42px;font-weight:800;}
+.employee-profile-identity{min-width:0;padding-top:18px}.employee-profile-identity h1{margin:0 0 5px;font-size:30px;line-height:1.2;color:var(--text,#10243a)}.employee-profile-identity p{margin:0 0 12px;color:var(--muted,#627b97)}
+.employee-profile-tags{display:flex;gap:9px;flex-wrap:wrap}.employee-profile-tags span{display:inline-flex;padding:6px 12px;border-radius:999px;background:#e5f5ff;color:#0876aa;font-size:12px;font-weight:700}
+.employee-profile-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;margin-bottom:22px}.employee-profile-stats article,.employee-profile-card{background:var(--card,#fff);border:1px solid var(--border,#dce7f2);border-radius:18px;box-shadow:0 3px 10px #143d5b08}
+.employee-profile-stats article{padding:22px;min-width:0;display:flex;flex-direction:column;gap:9px}.employee-profile-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:#e4f5ff;color:#078bc5;font-size:22px}.employee-profile-stats small{color:var(--muted,#627b97)}.employee-profile-stats strong{font-size:16px;overflow-wrap:anywhere;color:var(--text,#10243a)}
+.employee-profile-columns{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);gap:22px}.employee-profile-card{padding:26px}.employee-profile-eyebrow{font-size:11px;letter-spacing:2px;font-weight:800;color:#078bc5;margin-bottom:8px}.employee-profile-card h2{font-size:22px;margin:0 0 22px;color:var(--text,#10243a)}.employee-profile-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 24px}.employee-profile-fields label,.employee-profile-detail span{display:block;font-size:12px;font-weight:700;color:var(--muted,#627b97);margin-bottom:7px}.employee-profile-fields p{margin:0;padding:12px 13px;border:1px solid var(--border,#dce7f2);border-radius:10px;min-height:44px;overflow-wrap:anywhere;color:var(--text,#10243a)}
+.employee-profile-detail{display:flex;justify-content:space-between;gap:20px;padding:15px 0;border-bottom:1px solid var(--border,#e5edf5)}.employee-profile-detail strong{text-align:right;overflow-wrap:anywhere;color:var(--text,#10243a)}.employee-profile-note{line-height:1.65;color:var(--muted,#627b97);font-size:13px;margin:22px 0}.employee-profile-action{display:flex;align-items:center;justify-content:space-between;margin-top:22px;padding:13px 15px;border-radius:11px;background:#e5f5ff;color:#0876aa;text-decoration:none;font-weight:700}.employee-profile-action span{font-size:24px}
+@media(max-width:1100px){.employee-profile-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.employee-profile-columns{grid-template-columns:1fr}}
+@media(max-width:600px){.employee-profile-cover{height:130px}.employee-profile-hero{padding:0 18px 22px;gap:14px;align-items:flex-start;flex-direction:column}.employee-profile-avatar{width:108px;height:108px;flex-basis:108px;margin-top:-42px;font-size:32px}.employee-profile-identity{padding-top:0}.employee-profile-identity h1{font-size:24px}.employee-profile-stats{gap:10px}.employee-profile-stats article{padding:15px}.employee-profile-fields{grid-template-columns:1fr}.employee-profile-card{padding:20px}}
+body[data-theme="dark"] .employee-profile-tags span,body[data-theme="dark"] .employee-profile-action{background:#12374b;color:#9edfff}
+
+/* ==========================================
+   FIX EMPLOYEE PROFILE POSITIONING
+   Keep existing HTML and company icon
+========================================== */
+
+/* Reset the profile page's own spacing */
+#page-profile.page {
+    position: relative !important;
+    margin-top: 0 !important;
+    padding-top: 32px !important;
+    padding-bottom: 32px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+}
+
+/* Make sure the cover starts at the top of the page */
+#page-profile > .employee-profile-cover {
+    position: relative !important;
+    display: block !important;
+    width: 100% !important;
+    height: 180px !important;
+    min-height: 180px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    background: linear-gradient(115deg, #2186b8, #08b6df) !important;
+    border-radius: 20px 20px 0 0 !important;
+    box-sizing: border-box !important;
+}
+
+/* Attach the white profile section directly to the cover */
+#page-profile > .employee-profile-hero {
+    position: relative !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 24px !important;
+    width: 100% !important;
+    min-height: 150px !important;
+    margin: 0 0 22px !important;
+    padding: 0 30px 28px !important;
+    border: 1px solid var(--border, #dce7f2) !important;
+    border-top: 0 !important;
+    border-radius: 0 0 20px 20px !important;
+    background: var(--card, #fff) !important;
+    box-sizing: border-box !important;
+}
+
+/* Avatar overlap */
+#page-profile .employee-profile-avatar {
+    position: relative !important;
+    z-index: 2 !important;
+    flex: 0 0 138px !important;
+    width: 138px !important;
+    height: 138px !important;
+    margin-top: -52px !important;
+    border: 6px solid var(--card, #fff) !important;
+    border-radius: 50% !important;
+    background: #9cdef9 !important;
+    color: #075985 !important;
+    font-size: 42px !important;
+    font-weight: 800 !important;
+    box-sizing: border-box !important;
+}
+
+/* Statistics and information sections */
+#page-profile > .employee-profile-stats {
+    margin-top: 0 !important;
+}
+
+#page-profile > .employee-profile-columns {
+    margin-top: 0 !important;
+}
+
+/* Mobile layout */
+@media (max-width: 600px) {
+    #page-profile.page {
+        padding-top: 20px !important;
+    }
+
+    #page-profile > .employee-profile-cover {
+        height: 130px !important;
+        min-height: 130px !important;
+    }
+
+    #page-profile > .employee-profile-hero {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 14px !important;
+        padding: 0 18px 22px !important;
+    }
+
+    #page-profile .employee-profile-avatar {
+        flex-basis: 108px !important;
+        width: 108px !important;
+        height: 108px !important;
+        margin-top: -42px !important;
+        font-size: 32px !important;
+    }
+}
+
+/* Match the student profile page spacing */
+.employee-profile-cover {
+    display: block;
+    position: relative;
+    width: 100%;
+    height: 180px;
+    margin: 0 0 -1px;
+    padding: 0;
+    background: linear-gradient(115deg, #2186b8, #08b6df);
+    border-radius: 20px 20px 0 0;
+    box-sizing: border-box;
+}
+
+/* Prevent the profile sections from adding unwanted top spacing */
+.employee-profile-hero,
+.employee-profile-stats,
+.employee-profile-columns {
+    margin-top: 0;
+}
+
+/* Responsive layout */
+@media (max-width: 600px) {
+    .employee-profile-cover {
+        height: 130px;
+        border-radius: 16px 16px 0 0;
+    }
+}
