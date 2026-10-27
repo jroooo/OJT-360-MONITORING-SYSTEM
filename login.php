@@ -1795,7 +1795,7 @@ body {
                 class="w-1/3 py-2.5 rounded-xl hover:text-slate-800"
             >
 
-                Employee
+                Adviser
 
             </button>
 
