@@ -155,9 +155,47 @@ document.getElementById("sidebarProfile")?.addEventListener("keydown", event => 
 });
 document.getElementById("topProfileBtn")?.addEventListener("click", openEmployeeProfile);
 
-// Use the existing logout endpoint so the session is cleared securely.
-document.getElementById("signOutBtn")?.addEventListener("click", () => {
+// Sign-out confirmation modal
+const signOutBtn = document.getElementById("signOutBtn");
+const signOutModal = document.getElementById("signoutConfirmModal");
+const staySignedInBtn = document.getElementById("staySignedInBtn");
+const confirmSignOutBtn = document.getElementById("confirmSignOutBtn");
+
+signOutBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+
+    if (!signOutModal) {
+        if (confirm("Are you sure you want to log out?")) {
+            window.location.href = "logout.php";
+        }
+        return;
+    }
+
+    signOutModal.hidden = false;
+    staySignedInBtn?.focus();
+});
+
+staySignedInBtn?.addEventListener("click", () => {
+    signOutModal.hidden = true;
+    signOutBtn?.focus();
+});
+
+confirmSignOutBtn?.addEventListener("click", () => {
     window.location.href = "logout.php";
+});
+
+signOutModal?.addEventListener("click", (event) => {
+    if (event.target === signOutModal) {
+        signOutModal.hidden = true;
+        signOutBtn?.focus();
+    }
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && signOutModal && !signOutModal.hidden) {
+        signOutModal.hidden = true;
+        signOutBtn?.focus();
+    }
 });
 
 // Persist the sidebar and reduced-motion preferences on this browser.

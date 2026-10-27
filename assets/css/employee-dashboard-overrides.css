@@ -176,3 +176,239 @@ body[data-theme="dark"] .employee-profile-tags span,body[data-theme="dark"] .emp
         border-radius: 16px 16px 0 0;
     }
 }
+
+
+/* ==========================================
+   EMPLOYEE PROFILE: FIX TOP GAP AND WIDTH
+========================================== */
+
+#page-profile.page {
+    position: relative !important;
+    top: auto !important;
+    margin-block: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 24px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+}
+
+#page-profile > .employee-profile-cover {
+    display: block !important;
+    position: relative !important;
+    top: auto !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    transform: none !important;
+    box-sizing: border-box !important;
+}
+
+#page-profile > .employee-profile-hero,
+#page-profile > .employee-profile-stats,
+#page-profile > .employee-profile-columns {
+    position: relative !important;
+    top: auto !important;
+    margin-top: 0 !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+}
+
+#page-profile > .employee-profile-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+}
+
+#page-profile > .employee-profile-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+    gap: 22px;
+}
+
+@media (max-width: 1100px) {
+    #page-profile > .employee-profile-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #page-profile > .employee-profile-columns {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    #page-profile.page {
+        padding-top: 0 !important;
+        padding-bottom: 16px !important;
+    }
+
+    #page-profile > .employee-profile-cover {
+        height: 130px !important;
+        min-height: 130px !important;
+    }
+
+    #page-profile > .employee-profile-hero {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 14px !important;
+        padding: 0 18px 22px !important;
+    }
+
+    #page-profile > .employee-profile-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px !important;
+    }
+
+    #page-profile > .employee-profile-columns {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 14px !important;
+    }
+
+    #page-profile .employee-profile-avatar {
+        flex-basis: 108px !important;
+        width: 108px !important;
+        height: 108px !important;
+        margin-top: -42px !important;
+        font-size: 32px !important;
+    }
+}
+
+/* =========================================
+   SIGN OUT CONFIRMATION NOTIFICATION
+========================================= */
+
+.signout-confirm-backdrop[hidden] {
+    display: none !important;
+}
+
+.signout-confirm-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    animation: signoutFadeIn 0.2s ease;
+}
+
+.signout-confirm-box {
+    width: 100%;
+    max-width: 410px;
+    padding: 32px;
+    border: 1px solid #e5eaf2;
+    border-radius: 22px;
+    background: #ffffff;
+    text-align: center;
+    box-shadow: 0 25px 70px rgba(15, 23, 42, 0.22);
+    animation: signoutSlideIn 0.22s ease;
+}
+
+.signout-confirm-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 20px;
+    border-radius: 20px;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 32px;
+}
+
+.signout-confirm-box h2 {
+    margin: 0 0 12px;
+    color: #172033;
+    font-size: 23px;
+    font-weight: 800;
+}
+
+.signout-confirm-box p {
+    margin: 0 auto 26px;
+    max-width: 310px;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.8;
+}
+
+.signout-confirm-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.signout-confirm-actions button {
+    flex: 1;
+    min-height: 46px;
+    padding: 12px 14px;
+    border-radius: 11px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.signout-confirm-actions button:hover {
+    transform: translateY(-1px);
+}
+
+.signout-stay-btn {
+    border: 1px solid #dbe2ea;
+    background: #ffffff;
+    color: #334155;
+}
+
+.signout-stay-btn:hover {
+    background: #f1f5f9;
+}
+
+.signout-logout-btn {
+    border: 1px solid #dc2626;
+    background: #dc2626;
+    color: #ffffff;
+}
+
+.signout-logout-btn:hover {
+    background: #b91c1c;
+}
+
+@keyframes signoutFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes signoutSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@media (max-width: 480px) {
+    .signout-confirm-box {
+        padding: 25px 20px;
+        border-radius: 18px;
+    }
+
+    .signout-confirm-box h2 {
+        font-size: 21px;
+    }
+
+    .signout-confirm-actions {
+        flex-direction: column-reverse;
+    }
+
+    .signout-confirm-actions button {
+        width: 100%;
+    }
+}

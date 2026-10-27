@@ -565,7 +565,9 @@ require __DIR__ . "/includes/employee_company_data.php";
 <?php require __DIR__ . "/pages/employee/support.php"; ?>
 
 <?php require __DIR__ . "/pages/employee/settings.php"; ?>
-<?php require __DIR__ . "/pages/employee/profile.php"; ?>
+<?php if ($section === "profile") { ?>
+    <?php require __DIR__ . "/pages/employee/profile.php"; ?>
+<?php } ?>
 
 <!-- =============================================================
 
@@ -656,6 +658,35 @@ require __DIR__ . "/includes/employee_company_data.php";
  
 
 <div class="toast" id="toast"></div>
+
+<!-- SIGN OUT CONFIRMATION -->
+<div class="signout-confirm-backdrop" id="signoutConfirmModal"
+     role="dialog" aria-modal="true" aria-labelledby="signoutConfirmTitle"
+     aria-describedby="signoutConfirmMessage" hidden>
+
+    <div class="signout-confirm-box">
+        <div class="signout-confirm-icon">↪</div>
+
+        <h2 id="signoutConfirmTitle">Leaving so soon?</h2>
+
+        <p id="signoutConfirmMessage">
+            Are you sure you want to log out of your OJT360 account?
+        </p>
+
+        <div class="signout-confirm-actions">
+            <button type="button" id="staySignedInBtn"
+                    class="signout-stay-btn">
+                Stay signed in
+            </button>
+
+            <button type="button" id="confirmSignOutBtn"
+                    class="signout-logout-btn">
+                Log out
+            </button>
+        </div>
+    </div>
+</div>
+
 
  
 
