@@ -28,7 +28,7 @@ try {
 
             student.id AS student_db_id,
 
-            internship.company_name AS company_name,
+            registered_company.company_name AS company_name,
 
             attendance_total.completed_minutes
 
@@ -47,6 +47,8 @@ try {
                 WHERE latest_internship.student_pk = student.id
 
             )
+        LEFT JOIN companies AS registered_company
+            ON registered_company.company_name = internship.company_name
 
         LEFT JOIN (
 
@@ -145,4 +147,3 @@ try {
 }
 
  
-

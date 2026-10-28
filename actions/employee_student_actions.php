@@ -70,7 +70,7 @@ if (
 
             $companyStmt = $conn->prepare(
 
-                "SELECT company_name FROM company WHERE company_name = ? LIMIT 1"
+                "SELECT company_name FROM companies WHERE company_name = ? LIMIT 1"
 
             );
 
@@ -709,4 +709,3 @@ if (
 }
 
  
-

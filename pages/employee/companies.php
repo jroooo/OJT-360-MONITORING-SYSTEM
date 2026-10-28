@@ -9,22 +9,16 @@
 
  
 
-                <div class="page-heading">
+                <div class="hero">
 
                     <div>
 
-                        <div class="eyebrow" style="color:#1688ba">Placement & Advisory</div>
+                        <div class="eyebrow">Placement & Advisory</div>
 
-                        <h1>Companies &amp; Assigned Interns</h1>
+                        <h1>Companies &amp; Assigned Students</h1>
 
                         <p>View partner companies, assigned students, total logged hours, absence records, and weekly journals.</p>
-
                     </div>
-
- 
-
-                    <button class="btn btn-primary" id="addCompanyPageBtn">+ Add Company</button>
-
                 </div>
 
  
@@ -43,7 +37,7 @@
 
                 <div class="section-card">
 
-                    <div class="section-head">
+                    <div class="section-head company-page-section-head">
 
                         <div>
 
@@ -57,10 +51,8 @@
 
  
 
-                        <div class="toolbar">
-
+                        <div class="company-page-search">
                             <input class="search" id="companyPageSearch" placeholder="Search company or student...">
-
                         </div>
 
                     </div>

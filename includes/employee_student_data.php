@@ -83,4 +83,3 @@ unset($_SESSION["employee_interns_flash"]);
 $studentsCsrf = htmlspecialchars($_SESSION["employee_students_csrf"], ENT_QUOTES, "UTF-8");
 
  
-

@@ -9,11 +9,11 @@
 
  
 
-                <div class="page-heading">
+                <div class="hero">
 
                     <div>
 
-                        <div class="eyebrow" style="color:#1688ba">Placement Management</div>
+                        <div class="eyebrow">Placement Management</div>
 
                         <h1>Intern Students</h1>
 
@@ -52,59 +52,47 @@
  
 
                 <div class="stat-grid">
-
                     <div class="stat-card">
-
-                        <div class="stat-icon">T</div>
-
-                        <div>
-
+                        <div class="stat-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="9" cy="8" r="4"/>
+                                <path d="M2 21v-2a7 7 0 0 1 14 0v2m3-13a4 4 0 0 1 0 8m1 2a5 5 0 0 1 2 4"/>
+                            </svg>
+                        </div>
+                        <div class="interns-stat-content">
                             <div class="stat-label">Registered Students</div>
-
                             <div class="stat-value"><?= count($studentRecords) ?></div>
-
-                            <div class="stat-sub">Records in the students table</div>
-
+                            <div class="stat-sub">Student Data</div>
                         </div>
-
                     </div>
-
- 
 
                     <div class="stat-card">
-
-                        <div class="stat-icon green">A</div>
-
-                        <div>
-
-                            <div class="stat-label">Courses</div>
-
-                            <div class="stat-value"><?= $studentCourseCount ?></div>
-
-                            <div class="stat-sub">Unique courses represented</div>
-
+                        <div class="stat-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M6 3h9l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/>
+                                <path d="M14 3v5h5M8 12h8m-8 4h8"/>
+                            </svg>
                         </div>
-
+                        <div class="interns-stat-content">
+                            <div class="stat-label">Course</div>
+                            <div class="stat-value">BSIT</div>
+                            <div class="stat-sub">Bachelor of Science in Information Technology</div>
+                        </div>
                     </div>
 
- 
-
-                    <div class="stat-card">
-
-                        <div class="stat-icon amber">U</div>
-
-                        <div>
-
-                            <div class="stat-label">Schools</div>
-
-                            <div class="stat-value"><?= $studentSchoolCount ?></div>
-
-                            <div class="stat-sub">Unique schools represented</div>
-
+                    <div class="stat-card interns-school-card">
+                        <div class="stat-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m3 9 9-6 9 6M5 10v10h14V10M3 21h18"/>
+                                <path d="M9 20v-6h6v6M8 11h.01M12 11h.01M16 11h.01"/>
+                            </svg>
                         </div>
-
+                        <div class="interns-stat-content">
+                            <div class="stat-label">School</div>
+                            <div class="stat-value">Leyte Normal University</div>
+                            <div class="stat-sub">Registered students' school</div>
+                        </div>
                     </div>
-
                 </div>
 
  
@@ -182,13 +170,9 @@
                                             );
 
                                             $studentInitials = strtoupper(
-
                                                 substr($studentRecord["first_name"], 0, 1) .
-
                                                 substr($studentRecord["last_name"], 0, 1)
-
                                             );
-
                                             $registeredAt = strtotime($studentRecord["created_at"]);
 
                                         ?>

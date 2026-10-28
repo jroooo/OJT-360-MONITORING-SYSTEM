@@ -375,10 +375,13 @@ function renderCompaniesPage(){
 
  
 
-    if(!companies.length){
+    if(PLACEMENT_COMPANY_DATA_ERROR){
+        container.innerHTML = `<div class="interns-flash error" role="alert">${escapeHtml(PLACEMENT_COMPANY_DATA_ERROR)}</div>`;
+        return;
+    }
 
+    if(!placementCompanies.length){
         container.innerHTML = `<div class="empty">No companies registered yet.</div>`;
-
         return;
 
     }
@@ -389,13 +392,17 @@ function renderCompaniesPage(){
 
  
 
-    companies.forEach(company => {
+    placementCompanies.forEach(company => {
 
         const companyStudents = students.filter(s => s.company === company.name);
-
         
-
-        const matchesCompany = company.name.toLowerCase().includes(search) || company.code.toLowerCase().includes(search);
+        const matchesCompany = [
+            company.name,
+            company.representative,
+            company.position,
+            company.phone,
+            company.email
+        ].some(value => String(value || "").toLowerCase().includes(search));
 
         const matchesStudent = companyStudents.some(s => s.name.toLowerCase().includes(search) || s.studentId.toLowerCase().includes(search));
 
@@ -407,21 +414,24 @@ function renderCompaniesPage(){
 
         html += `
 
-            <div class="section-card" style="margin-bottom: 20px; border: 1px solid var(--border-color, #e0e8f0);">
+            <div class="section-card company-placement-card">
 
-                <div class="section-head" style="margin-bottom: 12px;">
+                <div class="section-head company-placement-head">
 
                     <div>
 
                         <div class="person">
 
-                            <div class="mini-avatar" style="width:36px;height:36px;font-size:14px;">${initials(company.name)}</div>
+                            <div class="mini-avatar company-placement-avatar">${initials(company.name)}</div>
 
                             <div>
 
-                                <h3 style="margin:0;font-size:16px;">${escapeHtml(company.name)}</h3>
+                                <h3 class="company-placement-name">${escapeHtml(company.name)}</h3>
 
-                                <p class="section-sub" style="margin:2px 0 0 0;">Code: ${escapeHtml(company.code || 'N/A')} | Contact: ${escapeHtml(company.contact)} (${escapeHtml(company.email)})</p>
+                                <p class="section-sub company-placement-meta">
+                                    Representative: ${escapeHtml(company.representative)} (${escapeHtml(company.position)})
+                                    | Contact: ${escapeHtml(company.phone)} | ${escapeHtml(company.email)}
+                                </p>
 
                             </div>
 
@@ -429,17 +439,11 @@ function renderCompaniesPage(){
 
                     </div>
 
-                    <div>
-
-                        <span class="badge ${company.status === 'active' ? 'green' : 'yellow'}">${escapeHtml(company.status.toUpperCase())}</span>
-
-                    </div>
-
                 </div>
 
  
 
-                <div style="margin-bottom: 10px; padding-left: 8px; font-weight:600; font-size:13px; color:#526475;">
+                <div class="company-placement-count">
 
                     Assigned Student Interns (${companyStudents.length})
 
@@ -479,7 +483,7 @@ function renderCompaniesPage(){
 
                                 <tr>
 
-                                    <td colspan="7"><div class="empty" style="padding:12px;">No students assigned to this company yet.</div></td>
+                                    <td colspan="7"><div class="empty company-placement-empty">No students assigned to this company yet.</div></td>
 
                                 </tr>
 
@@ -561,13 +565,13 @@ function renderCompaniesPage(){
 
         html += `
 
-            <div class="section-card" style="margin-top: 30px; border: 1px dashed #c0d0e0;">
+            <div class="section-card company-unassigned-card">
 
                 <div class="section-head">
 
                     <div>
 
-                        <h3 style="margin:0;font-size:16px;color:#d9534f;">Unassigned Student Interns (${unassignedStudents.length})</h3>
+                        <h3 class="company-unassigned-title">Unassigned Student Interns (${unassignedStudents.length})</h3>
 
                         <p class="section-sub">Students currently waiting for company assignment.</p>
 
@@ -652,12 +656,6 @@ function renderCompaniesPage(){
  
 
 document.getElementById("companyPageSearch")?.addEventListener("input", renderCompaniesPage);
-
-document.getElementById("addCompanyPageBtn")?.addEventListener("click", () => {
-
-    document.getElementById("companyModal").classList.add("show");
-
-});
 
  
 
@@ -763,7 +761,7 @@ function assignCompany(id){
 
  
 
-    const activeCompanies = companies.filter(c => c.status === "active");
+    const registeredCompanies = placementCompanies;
 
     const companySelect = document.getElementById("assignmentCompany");
 
@@ -781,9 +779,9 @@ function assignCompany(id){
 
     
 
-    companySelect.innerHTML = `<option value="">Select Active Company</option>` +
+    companySelect.innerHTML = `<option value="">Select Company</option>` +
 
-        activeCompanies.map(company =>
+        registeredCompanies.map(company =>
 
             `<option value="${escapeHtml(company.name)}" ${student.company === company.name ? 'selected' : ''}>${escapeHtml(company.name)}</option>`
 
@@ -791,7 +789,7 @@ function assignCompany(id){
 
  
 
-    document.getElementById("saveAssignmentBtn").disabled = activeCompanies.length === 0;
+    document.getElementById("saveAssignmentBtn").disabled = registeredCompanies.length === 0;
 
     document.getElementById("assignmentModal").classList.add("show");
 
@@ -1038,10 +1036,16 @@ document.getElementById("startEvaluationBtn")?.addEventListener("click", () => o
 const conversationList = document.getElementById("companyConversationList");
 
 const conversationSearch = document.getElementById("conversationSearch");
+const messageLayout = document.querySelector("#page-messages .message-layout");
+const conversationBackButton = document.getElementById("conversationBackBtn");
 
 const chatInput = document.getElementById("messageInput");
 
 const sendMessageButton = document.getElementById("sendMessageBtn");
+
+let activeMessageIds = new Set();
+let conversationLoadSequence = 0;
+let conversationRefreshInProgress = false;
 async function messageApi(action, companyId = null, options = {}){
 
     const params = new URLSearchParams();
@@ -1108,6 +1112,11 @@ function renderCompanyConversations(){
 
     if(!conversationList) return;
 
+    if(PLACEMENT_COMPANY_DATA_ERROR){
+        conversationList.innerHTML = `<div class="interns-flash error" role="alert">${escapeHtml(PLACEMENT_COMPANY_DATA_ERROR)}</div>`;
+        return;
+    }
+
  
 
     if(!companies.length){
@@ -1123,11 +1132,13 @@ function renderCompanyConversations(){
     const searchTerm = (conversationSearch?.value || "").trim().toLowerCase();
 
     const filteredCompanies = companies.filter(company =>
-
-        company.name.toLowerCase().includes(searchTerm) ||
-
-        company.code.toLowerCase().includes(searchTerm)
-
+        [
+            company.name,
+            company.representative,
+            company.position,
+            company.phone,
+            company.email
+        ].some(value => String(value || "").toLowerCase().includes(searchTerm))
     );
 
  
@@ -1146,7 +1157,7 @@ function renderCompanyConversations(){
 
             </span>
 
-            <span class="conversation-msg">${escapeHtml(company.lastMessage || company.contact)}</span>
+            <span class="conversation-msg">${escapeHtml(company.lastMessage || company.representative || company.email)}</span>
 
         </button>
 
@@ -1158,29 +1169,30 @@ function renderCompanyConversations(){
 
 async function selectConversation(companyId){
 
-    const selectedCompany = companies.find(c => Number(c.id) === companyId);
+    const selectedCompany = companies.find(c => Number(c.id) === Number(companyId));
 
     if(!selectedCompany) return;
 
- 
-
+    messageLayout?.classList.add("mobile-chat-open");
+    const loadSequence = ++conversationLoadSequence;
     currentConversation = { companyId: selectedCompany.id, name: selectedCompany.name };
-
+    activeMessageIds = new Set();
     document.getElementById("chatName").textContent = selectedCompany.name;
 
     chatInput.disabled = false;
-
     sendMessageButton.disabled = false;
-
+    document.getElementById("chatStatus").textContent = selectedCompany.representative || selectedCompany.email;
     
-
     try {
 
         const data = await messageApi("thread", companyId);
+        if(loadSequence !== conversationLoadSequence) return;
 
         const body = document.getElementById("chatBody");
 
-        body.innerHTML = (data.messages || []).map(m => `
+        const messages = data.messages || [];
+        activeMessageIds = new Set(messages.map(message => String(message.id)));
+        body.innerHTML = messages.length ? messages.map(m => `
 
             <div class="bubble ${m.sender_type === 'employee' ? 'me' : ''}">
 
@@ -1188,17 +1200,130 @@ async function selectConversation(companyId){
 
             </div>
 
-        `).join("");
+        `).join("") : `<div class="empty chat-empty">No messages yet. Start the conversation below.</div>`;
+        body.scrollTop = body.scrollHeight;
 
     } catch(err){
 
+        if(loadSequence !== conversationLoadSequence) return;
         console.error(err);
+        document.getElementById("chatBody").innerHTML = `<div class="interns-flash error" role="alert">${escapeHtml(err.message || "Unable to load this conversation.")}</div>`;
 
     }
 
 }
 
- 
+conversationBackButton?.addEventListener("click", () => {
+    messageLayout?.classList.remove("mobile-chat-open");
+});
+
+async function refreshActiveConversation(){
+    const messagesPage = document.getElementById("page-messages");
+    if(
+        !currentConversation ||
+        !messagesPage?.classList.contains("active") ||
+        document.hidden ||
+        conversationRefreshInProgress
+    ){
+        return;
+    }
+
+    conversationRefreshInProgress = true;
+    const companyId = currentConversation.companyId;
+
+    try {
+        const data = await messageApi("thread", companyId);
+        if(!currentConversation || Number(currentConversation.companyId) !== Number(companyId)) return;
+
+        const messages = data.messages || [];
+        const newCompanyMessages = messages.filter(message =>
+            message.sender_type === "company" && !activeMessageIds.has(String(message.id))
+        );
+        const hasNewMessages = messages.some(message => !activeMessageIds.has(String(message.id)));
+        if(!hasNewMessages) return;
+
+        const body = document.getElementById("chatBody");
+        const shouldScrollToBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 80;
+        body.innerHTML = messages.map(message => `
+            <div class="bubble ${message.sender_type === "employee" ? "me" : ""}">
+                ${escapeHtml(message.message)}
+            </div>
+        `).join("");
+        if(shouldScrollToBottom) body.scrollTop = body.scrollHeight;
+        activeMessageIds = new Set(messages.map(message => String(message.id)));
+
+        const company = companies.find(item => Number(item.id) === Number(companyId));
+        newCompanyMessages.forEach(message => {
+            if(company){
+                company.lastMessage = message.message;
+                renderCompanyConversations();
+            }
+            window.dispatchEvent(new CustomEvent("ojt360:company-reply", {
+                detail: {
+                    id: "mysql-" + message.id,
+                    companyId,
+                    companyName: currentConversation?.name || "Company",
+                    message: message.message
+                }
+            }));
+        });
+    } catch(error) {
+        console.error("Unable to refresh the active company conversation:", error);
+    } finally {
+        conversationRefreshInProgress = false;
+    }
+}
+
+window.setInterval(refreshActiveConversation, 4000);
+
+async function sendCurrentMessage(){
+    if(!currentConversation || !chatInput || !sendMessageButton) return;
+
+    const message = chatInput.value.trim();
+    if(!message) return;
+
+    const formData = new FormData();
+    formData.set("message", message);
+    sendMessageButton.disabled = true;
+
+    try {
+        const data = await messageApi("send", currentConversation.companyId, {
+            method: "POST",
+            body: formData
+        });
+
+        const body = document.getElementById("chatBody");
+        body.querySelector("[data-empty-chat]")?.remove();
+        body.querySelector(".chat-empty")?.remove();
+
+        const messageBubble = document.createElement("div");
+        messageBubble.className = "bubble me";
+        messageBubble.textContent = data.message.message;
+        body.append(messageBubble);
+        activeMessageIds.add(String(data.message.id));
+        body.scrollTop = body.scrollHeight;
+
+        chatInput.value = "";
+        const sentCompany = companies.find(company => Number(company.id) === Number(currentConversation.companyId));
+        if(sentCompany){
+            sentCompany.lastMessage = message;
+            renderCompanyConversations();
+        }
+    } catch(error) {
+        console.error(error);
+        showToast(error.message || "Unable to send the message. Please try again.");
+    } finally {
+        sendMessageButton.disabled = !currentConversation;
+    }
+}
+
+sendMessageButton?.addEventListener("click", sendCurrentMessage);
+chatInput?.addEventListener("keydown", event => {
+    if(event.key === "Enter" && !event.shiftKey){
+        event.preventDefault();
+        sendCurrentMessage();
+    }
+});
 
 /* ================================================================
 
@@ -1255,10 +1380,13 @@ document.querySelectorAll("[data-close]").forEach(button => {
  
 
 renderCompaniesPage();
-
 renderEvaluations();
-
 renderCompanyConversations();
+
+const requestedCompanyId = Number(new URLSearchParams(window.location.search).get("company_id"));
+if(requestedSection === "messages" && requestedCompanyId > 0){
+    selectConversation(requestedCompanyId);
+}
 
  
 

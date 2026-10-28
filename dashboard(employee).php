@@ -76,7 +76,11 @@ if (!isset($_SESSION["employee_chatbot_csrf"])) {
 
 }
 
- 
+if (!isset($_SESSION["employee_profile_photo_csrf"])) {
+
+    $_SESSION["employee_profile_photo_csrf"] = bin2hex(random_bytes(32));
+
+}
 
 require __DIR__ . "/actions/employee_company_actions.php";
 
@@ -250,6 +254,24 @@ $displayEmployeeId = htmlspecialchars($employeeId, ENT_QUOTES, "UTF-8");
 
 $displayInitials = htmlspecialchars($initials, ENT_QUOTES, "UTF-8");
 
+$employeeProfilePhotoKey = hash("sha256", (string) $employeeId);
+$employeeProfilePhotoDir = __DIR__ . "/uploads/employee-profile/" . $employeeProfilePhotoKey;
+$employeeProfilePhotos = glob($employeeProfilePhotoDir . "/photo_*.{jpg,png,webp}", GLOB_BRACE);
+if ($employeeProfilePhotos === false) {
+    error_log("Unable to read employee profile photos.");
+    $employeeProfilePhotos = [];
+}
+usort($employeeProfilePhotos, static fn(string $a, string $b): int => filemtime($b) <=> filemtime($a));
+$employeeProfilePhotoUrl = "";
+if ($employeeProfilePhotos !== []) {
+    $currentPhoto = $employeeProfilePhotos[0];
+    $employeeProfilePhotoUrl = "uploads/employee-profile/" . $employeeProfilePhotoKey . "/" .
+        rawurlencode(basename($currentPhoto)) . "?v=" . filemtime($currentPhoto);
+}
+$employeeAvatarHtml = $employeeProfilePhotoUrl !== ""
+    ? '<img src="' . htmlspecialchars($employeeProfilePhotoUrl, ENT_QUOTES, "UTF-8") . '" alt="">'
+    : $displayInitials;
+
  
 
 require __DIR__ . "/actions/employee_messages_api.php";
@@ -398,7 +420,11 @@ require __DIR__ . "/includes/employee_company_data.php";
 
             <a class="nav-link settings-bottom-link" data-page="settings" href="employee_settings.php" aria-label="Settings" title="Settings">
 
-                <span class="nav-icon">⚙</span>
+                <span class="nav-icon settings-nav-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19.14 12.94c.04-.31.06-.62.06-.94s-.02-.63-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.28 7.28 0 0 0-1.63-.94l-.36-2.54A.49.49 0 0 0 13.87 2h-3.84a.49.49 0 0 0-.49.42l-.36 2.54c-.59.23-1.13.55-1.63.94l-2.39-.96a.49.49 0 0 0-.61.22L2.63 8.48a.49.49 0 0 0 .12.64l2.03 1.58c-.05.31-.08.63-.08.95s.02.63.07.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.12.21.37.3.61.22l2.39-.96c.5.39 1.04.71 1.63.94l.36 2.54c.04.24.24.42.49.42h3.84c.25 0 .45-.18.49-.42l.36-2.54c.59-.23 1.13-.55 1.63-.94l2.39.96c.23.09.49-.01.61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.02-1.58ZM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/>
+                    </svg>
+                </span>
 
                 <span>Settings</span>
 
@@ -418,7 +444,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
             <div class="profile" id="sidebarProfile" role="button" tabindex="0" title="Open profile">
 
-                <div class="avatar"><?= $displayInitials ?></div>
+                <div class="avatar"><?= $employeeAvatarHtml ?></div>
 
                 <div>
 
@@ -457,19 +483,9 @@ require __DIR__ . "/includes/employee_company_data.php";
                 <span class="hamburger"><span></span><span></span><span></span></span>
 
             </button>
-
  
-
             <div class="topbar-brand" aria-label="OJT360">
-
-                <div class="brand-mark">
-
-                    <span></span><span></span><span></span><span></span>
-
-                </div>
-
                 <div class="brand-text" id="topbarPageName" data-current-page="Employee">OJT360</div>
-
             </div>
 
  
@@ -540,7 +556,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
             <button class="top-profile profile-trigger" id="topProfileBtn" title="Open profile" aria-label="Open profile for <?= $displayName ?>">
 
-                <div class="avatar"><?= $displayInitials ?></div>
+                <div class="avatar"><?= $employeeAvatarHtml ?></div>
 
             </button>
 
@@ -569,6 +585,10 @@ require __DIR__ . "/includes/employee_company_data.php";
     <?php require __DIR__ . "/pages/employee/profile.php"; ?>
 <?php } ?>
 
+</div>
+</main>
+</div>
+
 <!-- =============================================================
 
      OJT360 AI ASSISTANT
@@ -577,7 +597,12 @@ require __DIR__ . "/includes/employee_company_data.php";
 
 <button class="ai-launcher" id="aiLauncher" aria-label="Open OJT360 Assistant" aria-expanded="false" title="OJT360 Assistant">
 
-    <span class="ai-launcher-icon">✦</span>
+    <span class="ai-launcher-logo" aria-hidden="true">
+        <span class="ai-logo-orbit ai-logo-orbit-blue"></span>
+        <span class="ai-logo-orbit ai-logo-orbit-green"></span>
+        <span class="ai-logo-orbit ai-logo-orbit-navy"></span>
+        <span class="ai-logo-text">AI</span>
+    </span>
 
 </button>
 
@@ -1530,6 +1555,14 @@ const CHATBOT_CSRF_TOKEN = <?= json_encode(
 
 ) ?>;
 
+const EMPLOYEE_PROFILE_PHOTO_CSRF = <?= json_encode(
+
+    $_SESSION["employee_profile_photo_csrf"],
+
+    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+
+) ?>;
+
 const EVALUATION_SUCCESS_MESSAGE = <?= json_encode(
 
     ($evaluationFlash["type"] ?? "") === "success" ? ($evaluationFlash["message"] ?? "") : "",
@@ -1552,15 +1585,21 @@ let currentConversation = null;
 
  
 
-const COMPANY_DATA_ERROR = <?= json_encode($companyPageError !== "") ?>;
-
-const COMPANIES_CSRF = <?= json_encode($_SESSION["employee_companies_csrf"], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
-
- 
+const PLACEMENT_COMPANY_DATA_ERROR = <?= json_encode($placementCompanyPageError, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
 
 let companies = <?= json_encode(
 
     array_map(static function (array $companyRecord): array {
+
+        $representativeName = trim(implode(" ", array_filter([
+
+            $companyRecord["rep_first_name"],
+
+            $companyRecord["rep_middle_name"],
+
+            $companyRecord["rep_last_name"]
+
+        ], static fn ($part): bool => trim((string)$part) !== "")));
 
         return [
 
@@ -1568,37 +1607,25 @@ let companies = <?= json_encode(
 
             "name" => $companyRecord["company_name"],
 
-            "code" => $companyRecord["company_code"] ?? "",
+            "representative" => $representativeName,
 
-            "contact" => $companyRecord["contact_person"],
+            "position" => $companyRecord["rep_position"],
 
             "phone" => $companyRecord["contact_number"],
 
-            "email" => $companyRecord["email"],
+            "email" => $companyRecord["representative_email"],
 
-            "location" => $companyRecord["address"],
-
-            "building" => $companyRecord["building"] ?? "",
-
-            "department" => $companyRecord["department"] ?? "",
-
-            "position" => $companyRecord["position"] ?? "",
-
-            "createdAt" => $companyRecord["created_at"],
-
-            "status" => $companyRecord["status"],
-
-            "registeredCompanyId" => $companyRecord["registered_company_id"] !== null ? (int)$companyRecord["registered_company_id"] : null
+            "createdAt" => $companyRecord["created_at"]
 
         ];
 
-    }, $companyRecords),
+    }, $placementCompanyRecords),
 
     JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
 
 ) ?>;
 
- 
+const placementCompanies = companies;
 
 let students = <?= json_encode(
 
@@ -1724,13 +1751,13 @@ const MESSAGE_API_URL = <?= json_encode($_SERVER["PHP_SELF"], JSON_HEX_TAG | JSO
 
 </script>
 <script>window.OJT360_INITIAL_SECTION = <?= json_encode($section, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;</script>
-<script src="assets/js/employee-dashboard.js"></script>
+<script src="assets/js/employee-dashboard.js?v=<?= filemtime(__DIR__ . "/assets/js/employee-dashboard.js") ?>"></script>
+<script src="assets/js/employee-profile-photo.js"></script>
 
-<script src="notification.js"></script>
+<script src="notification.js?v=<?= filemtime(__DIR__ . "/notification.js") ?>"></script>
 
 <script src="chatbot.js"></script>
 
 </body>
 
 </html>
-

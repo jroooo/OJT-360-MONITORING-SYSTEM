@@ -32,6 +32,16 @@
 
     let notifications = [];
 
+    let companyNotifications = [];
+
+    const seenCompanyMessageIds = new Set();
+
+    const toastedCompanyMessageIds = new Set();
+
+    let initialCompanyNotificationsLoaded = false;
+
+    let companyNotificationPoll = null;
+
     let notificationRealtimeChannel = null;
 
 
@@ -219,7 +229,7 @@
 
 
         const unreadCount =
-            notifications.filter(
+            [...notifications, ...companyNotifications].filter(
                 notification =>
                     !notification.is_read
             ).length;
@@ -259,7 +269,7 @@
 
         updateNotificationBadge();
         if (markAllReadBtn) {
-            markAllReadBtn.disabled = !notifications.some(notification => !notification.is_read);
+            markAllReadBtn.disabled = ![...notifications, ...companyNotifications].some(notification => !notification.is_read);
         }
 
 
@@ -267,7 +277,11 @@
         // NO NOTIFICATIONS
         // ---------------------------------------------
 
-        if (notifications.length === 0) {
+        const allNotifications = [...notifications, ...companyNotifications]
+            .sort((left, right) => new Date(right.created_at) - new Date(left.created_at))
+            .slice(0, 30);
+
+        if (allNotifications.length === 0) {
 
             notificationList.innerHTML = `
                 <div class="notification-empty">
@@ -285,23 +299,14 @@
         // ---------------------------------------------
 
         notificationList.innerHTML =
-            notifications.map(notification => {
+            allNotifications.map(notification => {
 
                 const unreadClass =
                     notification.is_read
                         ? ""
                         : "unread";
 
-
-                const sender =
-                    getSenderName(
-                        notification.sender_type
-                    );
-
-
-                const message =
-                    notification.messages || "";
-
+                const companyName = notification.company_name || getSenderName(notification.sender_type);
 
                 return `
                     <div
@@ -316,12 +321,7 @@
                         <div class="notification-content">
 
                             <div class="notification-title">
-                                New message from
-                                ${escapeHtml(sender)}
-                            </div>
-
-                            <div class="notification-message">
-                                ${escapeHtml(message)}
+                                You have a message from ${escapeHtml(companyName)}
                             </div>
 
                             <div class="notification-time">
@@ -355,6 +355,15 @@
                         const id =
                             this.dataset.notificationId;
 
+                        const companyNotification = companyNotifications.find(
+                            notification => String(notification.id) === String(id)
+                        );
+
+                        if (companyNotification) {
+                            window.location.href = "employee_messages.php?company_id=" +
+                                encodeURIComponent(companyNotification.company_id);
+                            return;
+                        }
 
                         markNotificationAsRead(id);
 
@@ -364,6 +373,88 @@
             });
 
     }
+
+    async function loadCompanyNotifications() {
+        try {
+            const response = await fetch(
+                window.location.pathname + "?message_api=notifications",
+                { credentials: "same-origin", cache: "no-store" }
+            );
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || "Unable to load company message notifications.");
+            }
+
+            const freshNotifications = data.notifications || [];
+
+            if (initialCompanyNotificationsLoaded) {
+                freshNotifications.forEach(notification => {
+                    if (seenCompanyMessageIds.has(String(notification.id))) {
+                        return;
+                    }
+
+                    window.dispatchEvent(new CustomEvent("ojt360:company-reply", {
+                        detail: {
+                            id: notification.id,
+                            companyId: notification.company_id,
+                            companyName: notification.company_name,
+                            message: notification.messages
+                        }
+                    }));
+
+                    if ("Notification" in window && Notification.permission === "granted") {
+                        try {
+                            new Notification("New message from " + notification.company_name, {
+                                body: "You have a new message."
+                            });
+                        } catch (error) {
+                            console.warn("Browser notification failed:", error);
+                        }
+                    }
+                });
+            }
+
+            freshNotifications.forEach(notification => {
+                seenCompanyMessageIds.add(String(notification.id));
+            });
+            companyNotifications = freshNotifications;
+            initialCompanyNotificationsLoaded = true;
+            renderNotifications();
+        } catch (error) {
+            console.error("Company message notification polling failed:", error);
+        }
+    }
+
+    function startCompanyMessageNotifications() {
+        if (companyNotificationPoll) {
+            return;
+        }
+
+        loadCompanyNotifications();
+        companyNotificationPoll = window.setInterval(loadCompanyNotifications, 5000);
+    }
+
+    window.addEventListener("ojt360:company-reply", event => {
+        const messageId = String(event.detail?.id || "");
+        if (messageId && toastedCompanyMessageIds.has(messageId)) {
+            return;
+        }
+        if (messageId) {
+            toastedCompanyMessageIds.add(messageId);
+            if (toastedCompanyMessageIds.size > 1000) {
+                toastedCompanyMessageIds.delete(toastedCompanyMessageIds.values().next().value);
+            }
+        }
+
+        const companyName = event.detail?.companyName || "a company";
+        const toast = document.getElementById("toast");
+        if (toast) {
+            toast.textContent = "You have a message from " + companyName + ".";
+            toast.classList.add("show");
+            window.setTimeout(() => toast.classList.remove("show"), 3000);
+        }
+    });
 
 
     // =================================================
@@ -562,6 +653,23 @@
     // =================================================
 
     async function markAllNotificationsAsRead() {
+
+        fetch(window.location.pathname + "?message_api=mark_all_read", {
+            method: "POST",
+            credentials: "same-origin"
+        }).then(async response => {
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || "Unable to mark company messages as read.");
+            }
+            companyNotifications = companyNotifications.map(notification => ({
+                ...notification,
+                is_read: true
+            }));
+            renderNotifications();
+        }).catch(error => {
+            console.error("Mark company messages as read failed:", error);
+        });
 
         if (!supabaseIsReady()) {
             return;
@@ -1047,6 +1155,7 @@
 
     // Start the notification system
 
+    startCompanyMessageNotifications();
     startNotificationSystem();
 
 

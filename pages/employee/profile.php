@@ -1,13 +1,15 @@
 
 <?php /* Adviser profile page fragment. */ ?>
 
+<section class="page" id="page-profile">
+
 <!-- Profile cover: same structure as student profile -->
 <div class="employee-profile-cover"></div>
 
 <!-- Profile header -->
 <section class="employee-profile-hero">
     <div class="employee-profile-avatar">
-        <?= htmlspecialchars($displayInitials, ENT_QUOTES, 'UTF-8') ?>
+        <?= $employeeAvatarHtml ?>
     </div>
 
     <div class="employee-profile-identity">
@@ -30,7 +32,17 @@
                 <?= htmlspecialchars((string)$displayEmployeeId, ENT_QUOTES, 'UTF-8') ?>
             </span>
         </div>
+
     </div>
+
+    <button class="employee-profile-photo-action" type="button" id="employeeChangePhoto">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.2-2h6.6l1.2 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-9Z" />
+            <circle cx="12" cy="12.5" r="3.25" />
+        </svg>
+        Change photo
+    </button>
+    <input type="file" id="employeeProfilePhotoInput" accept="image/jpeg,image/png,image/webp" hidden>
 </section>
 
 <!-- Account statistics -->
@@ -140,3 +152,5 @@
     </section>
 
 </div>
+
+</section>

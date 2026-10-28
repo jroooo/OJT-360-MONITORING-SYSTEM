@@ -9,11 +9,11 @@
 
  
 
-                <div class="page-heading">
+                <div class="hero">
 
                     <div>
 
-                        <div class="eyebrow" style="color:#1688ba">Communication</div>
+                        <div class="eyebrow">Communication</div>
 
                         <h1>Company coordination</h1>
 
@@ -22,8 +22,6 @@
                     </div>
 
  
-
-                    <button class="btn btn-primary" id="newMessageBtn">+ New message</button>
 
                 </div>
 
@@ -50,11 +48,11 @@
                     <div class="chat">
 
                         <div class="chat-head">
-
+                            <button class="small-btn conversation-back" id="conversationBackBtn" type="button" aria-label="Back to companies">
+                                <span aria-hidden="true">←</span> Companies
+                            </button>
                             <div>
-
                                 <div class="chat-name" id="chatName">Select a company</div>
-
                                 <div class="chat-status" id="chatStatus">Company coordination</div>
 
                             </div>

@@ -378,6 +378,133 @@ body[data-theme="dark"] .employee-profile-tags span,body[data-theme="dark"] .emp
     background: #b91c1c;
 }
 
+/* Match the student profile page's top spacing and cover dimensions. */
+#page-profile.page {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.content:has(#page-profile.active) {
+    padding: 30px !important;
+}
+
+#page-profile > .employee-profile-cover {
+    height: 170px !important;
+    min-height: 170px !important;
+}
+
+#page-profile > .employee-profile-hero {
+    align-items: flex-end !important;
+    min-height: 0 !important;
+    margin-bottom: 20px !important;
+    padding: 0 28px 24px !important;
+}
+
+#page-profile .employee-profile-avatar {
+    width: 132px !important;
+    height: 132px !important;
+    flex-basis: 132px !important;
+    margin-top: -66px !important;
+}
+
+#page-profile .employee-profile-identity {
+    padding-top: 12px !important;
+}
+
+.employee-profile-photo-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex: none;
+    margin: 0 0 0 auto;
+    padding: 10px 14px;
+    border: 1px solid #dce7f2;
+    border-radius: 12px;
+    background: #eef5fb;
+    color: #314b66;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    opacity: 1;
+    cursor: pointer;
+}
+
+.employee-profile-photo-action:hover {
+    border-color: #b7d7eb;
+    background: #e2f1fb;
+}
+
+.employee-profile-photo-action:disabled {
+    opacity: .65;
+    cursor: wait;
+}
+
+.employee-profile-avatar img,
+.avatar img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    object-fit: cover;
+}
+
+.employee-profile-photo-action svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+@media (max-width: 600px) {
+    #page-profile > .employee-profile-cover {
+        height: 130px !important;
+        min-height: 130px !important;
+    }
+
+    #page-profile > .employee-profile-hero {
+        min-height: 0 !important;
+        padding: 0 18px 22px !important;
+    }
+
+    #page-profile .employee-profile-avatar {
+        width: 108px !important;
+        height: 108px !important;
+        flex-basis: 108px !important;
+        margin-top: -42px !important;
+    }
+
+    #page-profile .employee-profile-identity {
+        padding-top: 0 !important;
+    }
+
+    .content:has(#page-profile.active) {
+        padding: 22px !important;
+    }
+
+    .employee-profile-photo-action {
+        margin-left: auto;
+    }
+}
+
+body[data-theme="dark"] #page-profile .employee-profile-identity h1,
+body[data-theme="dark"] #page-profile .employee-profile-stats strong,
+body[data-theme="dark"] #page-profile .employee-profile-card h2,
+body[data-theme="dark"] #page-profile .employee-profile-fields p,
+body[data-theme="dark"] #page-profile .employee-profile-detail strong {
+    color: var(--ink);
+}
+
+body[data-theme="dark"] #page-profile .employee-profile-identity p,
+body[data-theme="dark"] #page-profile .employee-profile-stats small,
+body[data-theme="dark"] #page-profile .employee-profile-fields label,
+body[data-theme="dark"] #page-profile .employee-profile-detail span,
+body[data-theme="dark"] #page-profile .employee-profile-note {
+    color: var(--muted);
+}
+
 @keyframes signoutFadeIn {
     from { opacity: 0; }
     to { opacity: 1; }

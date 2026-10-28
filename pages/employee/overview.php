@@ -19,49 +19,44 @@
 
                 </div>
 
- 
+                <?php if ($placementCompanyPageError !== ""): ?>
 
-                <div class="stat-grid">
+                    <div class="interns-flash error" role="alert">
 
-                    <div class="stat-card">
-
-                        <div class="stat-icon">A</div>
-
-                        <div>
-
-                            <div class="stat-label">Active Companies</div>
-
-                            <div class="stat-value" id="activeCompanyCount"><?= count(array_filter($companyRecords, static fn(array $companyRecord): bool => $companyRecord["status"] === "active")) ?></div>
-
-                            <div class="stat-sub">Available for assignment</div>
-
-                        </div>
+                        <?= htmlspecialchars($placementCompanyPageError, ENT_QUOTES, "UTF-8") ?>
 
                     </div>
 
+                <?php endif; ?>
+
  
+
+                <div class="stat-grid overview-company-stats">
 
                     <div class="stat-card">
 
-                        <div class="stat-icon amber">A</div>
+                        <div class="stat-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M15 10h3a2 2 0 0 1 2 2v9"/>
+                                <path d="M8 7h1m2 0h1m-4 4h1m2 0h1m-4 4h1m2 0h1m4-1h1m-1 4h1"/>
+                            </svg>
+                        </div>
 
                         <div>
 
-                            <div class="stat-label">Inactive Companies</div>
+                            <div class="stat-label">Registered Companies</div>
 
-                            <div class="stat-value" id="inactiveCompanyCount"><?= count(array_filter($companyRecords, static fn(array $companyRecord): bool => $companyRecord["status"] === "inactive")) ?></div>
-
-                            <div class="stat-sub">Not accepting placements</div>
+                            <div class="stat-value"><?= $placementCompanyPageError !== "" ? "—" : count($placementCompanyRecords) ?></div>
 
                         </div>
-
                     </div>
-
- 
-
                     <div class="stat-card">
-
-                        <div class="stat-icon green">A</div>
+                        <div class="stat-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="9" cy="8" r="4"/>
+                                <path d="M2 21v-2a7 7 0 0 1 14 0v2m3-13a4 4 0 0 1 0 8m1 2a5 5 0 0 1 2 4"/>
+                            </svg>
+                        </div>
 
                         <div>
 
@@ -69,7 +64,7 @@
 
                             <div class="stat-value"><?= count($studentRecords) ?></div>
 
-                            <div class="stat-sub">From students database</div>
+                            <div class="stat-sub">Student Data</div>
 
                         </div>
 
@@ -77,17 +72,22 @@
 
  
 
-                    <div class="stat-card">
+                    <div class="stat-card overview-school-card">
 
-                        <div class="stat-icon purple">U</div>
+                        <div class="stat-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m3 9 9-6 9 6M5 10v10h14V10M3 21h18"/>
+                                <path d="M9 20v-6h6v6M8 11h.01M12 11h.01M16 11h.01"/>
+                            </svg>
+                        </div>
 
                         <div>
 
                             <div class="stat-label">Schools</div>
 
-                            <div class="stat-value"><?= $studentSchoolCount ?></div>
+                            <div class="stat-value">Leyte Normal University</div>
 
-                            <div class="stat-sub">Unique schools represented</div>
+                            <div class="stat-sub">Registered students' school</div>
 
                         </div>
 
@@ -101,7 +101,12 @@
 
                     <div class="stat-card">
 
-                        <div class="stat-icon">H</div>
+                        <div class="stat-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="9"/>
+                                <path d="M12 7v5l3 2"/>
+                            </svg>
+                        </div>
 
                         <div>
 
@@ -119,7 +124,12 @@
 
                     <div class="stat-card">
 
-                        <div class="stat-icon">J</div>
+                        <div class="stat-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M6 3h9l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/>
+                                <path d="M14 3v5h5M8 12h8m-8 4h8"/>
+                            </svg>
+                        </div>
 
                         <div>
 
@@ -137,7 +147,13 @@
 
                     <div class="stat-card">
 
-                        <div class="stat-icon purple">E</div>
+                        <div class="stat-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M8 4H5a2 2 0 0 0-2 2v15h18V6a2 2 0 0 0-2-2h-3"/>
+                                <path d="M8 2h8v4H8z"/>
+                                <path d="m8 14 2.5 2.5L16 11"/>
+                            </svg>
+                        </div>
 
                         <div>
 
@@ -155,7 +171,12 @@
 
                     <div class="stat-card">
 
-                        <div class="stat-icon green">C</div>
+                        <div class="stat-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 3v18h18M7 14l4-4 3 3 6-7"/>
+                                <path d="M15 6h5v5"/>
+                            </svg>
+                        </div>
 
                         <div>
 
@@ -238,144 +259,6 @@
                 </div>
 
  
-
-                <div class="section-card" style="margin-top:24px;">
-
-                    <div class="section-head">
-
-                        <div>
-
-                            <div class="section-kicker">Student Overview</div>
-
-                            <h2 class="section-title">Registered Students</h2>
-
-                            <p class="section-sub">Student profiles and current OJT progress summary.</p>
-
-                        </div>
-
-                    </div>
-
- 
-
-                    <div class="table-wrap">
-
-                        <table>
-
-                            <thead>
-
-                                <tr>
-
-                                    <th>Student</th>
-
-                                    <th>Student ID</th>
-
-                                    <th>Course</th>
-
-                                    <th>Institutional Email</th>
-
-                                    <th>Mobile Number</th>
-
-                                    <th>School</th>
-
-                                    <th>Working Hours</th>
-
-                                </tr>
-
-                            </thead>
-
-                            <tbody id="assignmentTable">
-
-                                <?php if ($internPageError !== ""): ?>
-
-                                    <tr><td colspan="7"><div class="empty">Student records could not be loaded.</div></td></tr>
-
-                                <?php elseif (!$studentRecords): ?>
-
-                                    <tr><td colspan="7"><div class="empty">No registered students found.</div></td></tr>
-
-                                <?php else: ?>
-
-                                    <?php foreach ($studentRecords as $studentRecord): ?>
-
-                                        <?php
-
-                                            $studentName = trim(
-
-                                                $studentRecord["first_name"] . " " .
-
-                                                ($studentRecord["middle_name"] !== "" ? $studentRecord["middle_name"] . " " : "") .
-
-                                                $studentRecord["last_name"]
-
-                                            );
-
-                                            $studentInitials = strtoupper(
-
-                                                substr($studentRecord["first_name"], 0, 1) .
-
-                                                substr($studentRecord["last_name"], 0, 1)
-
-                                            );
-
-                                            $studentProgress = $studentProgressByStudentId[$studentRecord["student_id"]] ?? null;
-
-                                        ?>
-
-                                        <tr>
-
-                                            <td>
-
-                                                <div class="person">
-
-                                                    <div class="mini-avatar"><?= htmlspecialchars($studentInitials, ENT_QUOTES, "UTF-8") ?></div>
-
-                                                    <div class="person-name"><?= htmlspecialchars($studentName, ENT_QUOTES, "UTF-8") ?></div>
-
-                                                </div>
-
-                                            </td>
-
-                                            <td><?= htmlspecialchars($studentRecord["student_id"], ENT_QUOTES, "UTF-8") ?></td>
-
-                                            <td><?= htmlspecialchars($studentRecord["course"], ENT_QUOTES, "UTF-8") ?></td>
-
-                                            <td><?= htmlspecialchars($studentRecord["institutional_email"], ENT_QUOTES, "UTF-8") ?></td>
-
-                                            <td><?= htmlspecialchars($studentRecord["mobile_number"], ENT_QUOTES, "UTF-8") ?></td>
-
-                                            <td><?= htmlspecialchars($studentRecord["school_name"], ENT_QUOTES, "UTF-8") ?></td>
-
-                                            <td>
-
-                                                <?php if ($studentProgressPageError !== ""): ?>
-
-                                                    Unavailable
-
-                                                <?php elseif ($studentProgress === null): ?>
-
-                                                    Unavailable
-
-                                                <?php else: ?>
-
-                                                    <?= number_format($studentProgress["completedHours"], 1) ?> hrs
-
-                                                <?php endif; ?>
-
-                                            </td>
-
-                                        </tr>
-
-                                    <?php endforeach; ?>
-
-                                <?php endif; ?>
-
-                            </tbody>
-
-                        </table>
-
-                    </div>
-
-                </div>
 
             </section>
 

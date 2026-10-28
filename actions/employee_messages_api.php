@@ -32,27 +32,139 @@ if (isset($_GET["message_api"])) {
 
     try {
 
+        if ($messageApi === "notifications") {
+
+            $stmt = $conn->prepare("
+
+                SELECT
+
+                    message.id,
+
+                    message.company_id,
+
+                    company.company_name,
+
+                    message.message AS messages,
+
+                    message.sender_type,
+
+                    message.is_read,
+
+                    message.created_at
+
+                FROM messages AS message
+
+                INNER JOIN companies AS company
+
+                    ON company.id = message.company_id
+
+                WHERE message.employee_id = ?
+
+                    AND message.sender_type = 'company'
+
+                ORDER BY message.created_at DESC, message.id DESC
+
+                LIMIT 30
+
+            ");
+
+            if (!$stmt) {
+
+                $jsonResponse(["success" => false, "message" => "Unable to load message notifications."], 500);
+
+            }
+
+            $stmt->bind_param("i", $currentEmployeeDbId);
+
+            $stmt->execute();
+
+            $result = $stmt->get_result();
+
+            $rows = [];
+
+            while ($row = $result->fetch_assoc()) {
+
+                $rows[] = [
+
+                    "id" => "mysql-" . (int)$row["id"],
+
+                    "company_id" => (int)$row["company_id"],
+
+                    "company_name" => $row["company_name"],
+
+                    "messages" => $row["messages"],
+
+                    "sender_type" => $row["sender_type"],
+
+                    "is_read" => (bool)$row["is_read"],
+
+                    "created_at" => $row["created_at"],
+
+                    "source" => "mysql"
+
+                ];
+
+            }
+
+            $stmt->close();
+
+            $jsonResponse(["success" => true, "notifications" => $rows]);
+
+        }
+
+        if ($messageApi === "mark_all_read") {
+
+            $stmt = $conn->prepare("
+
+                UPDATE messages
+
+                SET is_read = 1
+
+                WHERE employee_id = ?
+
+                    AND sender_type = 'company'
+
+                    AND is_read = 0
+
+            ");
+
+            if (!$stmt) {
+
+                $jsonResponse(["success" => false, "message" => "Unable to mark company messages as read."], 500);
+
+            }
+
+            $stmt->bind_param("i", $currentEmployeeDbId);
+
+            $stmt->execute();
+
+            $stmt->close();
+
+            $jsonResponse(["success" => true]);
+
+        }
+
         if ($messageApi === "companies") {
 
             $stmt = $conn->prepare("
 
                 SELECT
 
-                    c.id,
+                    registered.id,
 
-                    c.company_name,
+                    registered.company_name,
 
-                    c.company_code,
+                    registered.rep_first_name,
 
-                    c.contact_person,
+                    registered.rep_middle_name,
 
-                    c.contact_number,
+                    registered.rep_last_name,
 
-                    c.email,
+                    registered.rep_position,
 
-                    c.status,
+                    registered.contact_number,
 
-                    registered.id AS registered_company_id,
+                    registered.representative_email,
 
                     (
 
@@ -102,17 +214,10 @@ if (isset($_GET["message_api"])) {
 
                     ) AS unread_count
 
-                FROM company c
-
-                LEFT JOIN companies registered
-
-                    ON registered.company_name = c.company_name
-
+                FROM companies AS registered
                 ORDER BY last_message_time IS NULL ASC,
-
                          last_message_time DESC,
-
-                         c.company_name ASC
+                         registered.company_name ASC
 
             ");
 
@@ -137,6 +242,11 @@ if (isset($_GET["message_api"])) {
  
 
             while ($row = $result->fetch_assoc()) {
+                $representativeName = trim(implode(" ", array_filter([
+                    $row["rep_first_name"],
+                    $row["rep_middle_name"],
+                    $row["rep_last_name"]
+                ], static fn ($part): bool => trim((string)$part) !== "")));
 
                 $rows[] = [
 
@@ -144,17 +254,13 @@ if (isset($_GET["message_api"])) {
 
                     "name" => $row["company_name"],
 
-                    "code" => $row["company_code"] ?? "",
+                    "representative" => $representativeName,
 
-                    "contact" => $row["contact_person"] ?? "",
+                    "position" => $row["rep_position"],
 
                     "phone" => $row["contact_number"] ?? "",
 
-                    "email" => $row["email"] ?? "",
-
-                    "status" => $row["status"] ?? "inactive",
-
-                    "registeredCompanyId" => $row["registered_company_id"] !== null ? (int)$row["registered_company_id"] : null,
+                    "email" => $row["representative_email"] ?? "",
 
                     "lastMessage" => $row["last_message"] ?? "",
 
@@ -188,15 +294,9 @@ if (isset($_GET["message_api"])) {
 
         $resolve = $conn->prepare("
 
-            SELECT registered.id AS registered_company_id
-
-            FROM company c
-
-            INNER JOIN companies registered
-
-                ON registered.company_name = c.company_name
-
-            WHERE c.id = ?
+            SELECT id AS registered_company_id
+            FROM companies
+            WHERE id = ?
 
             LIMIT 1
 
@@ -479,4 +579,3 @@ if (isset($_GET["message_api"])) {
 }
 
  
-

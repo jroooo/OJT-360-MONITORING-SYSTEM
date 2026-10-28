@@ -9,21 +9,16 @@
 
  
 
-                <div class="page-heading">
+                <div class="hero">
 
                     <div>
 
-                        <div class="eyebrow" style="color:#1688ba">Performance</div>
-
+                        <div class="eyebrow">Performance</div>
                         <h1>Evaluations</h1>
-
                         <p>Review and record performance evaluations for registered students.</p>
-
                     </div>
 
- 
-
-                    <button class="btn btn-primary" id="startEvaluationBtn">Start evaluation</button>
+                    <button class="btn btn-primary" id="startEvaluationBtn" type="button">Start evaluation</button>
 
                 </div>
 
@@ -97,18 +92,11 @@
 
                     <div class="evaluation-roster" id="evaluationRoster"></div>
 
- 
-
                     <div class="feedback">
-
                         <div>
-
                             <h3>Structured feedback that supports growth</h3>
-
                             <p>Rate each performance criterion from 1 to 5, record feedback, then choose whether to save the evaluation as a draft or complete the review.</p>
-
                         </div>
-
                     </div>
 
                 </div>
