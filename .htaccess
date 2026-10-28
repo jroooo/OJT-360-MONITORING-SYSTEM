@@ -1,12 +1,12 @@
-<IfModule mod_rewrite.c>
+﻿<IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /OJT-360-MONITORING-SYSTEM/
 
     # Employee Dashboard
-    RewriteRule ^Employee-Dashboard/?$ dashboard(employee).php [L]
+    RewriteRule ^Adviser-Dashboard/?$ dashboard(employee).php [L]
 
     # Employee Settings
-    RewriteRule ^Employee-Settings/?$ settings.php [L]
+    RewriteRule ^Adviser-Settings/?$ settings.php [L]
 </IfModule>
 
 <Files "gemini.local.php">

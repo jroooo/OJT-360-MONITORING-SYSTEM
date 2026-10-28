@@ -1,0 +1,66 @@
+﻿OJT360 Student Dashboard v18 ΓÇö student-only database
+====================================================
+
+DATABASE (new in v18)
+- One table for student accounts: `students` (id, first_name, middle_name, last_name, course, mobile_number, school_name,
+  complete_address, profile_image, student_id, institutional_email, password_hash, created_at). The old `users`
+  table is gone from the dashboard schema; the application-level login and registration pages are the source of truth,
+  and the dashboard resolves their student session to the matching `students.id`.
+- Every other table points to students.id through the column `student_pk`. (It is not called student_id on
+  purpose: students.student_id is the 7-digit school ID, and mixing the two up would silently join wrong rows.)
+- Removed from this package: employees, companies, company_qr_codes, company_notifications, the Employee and
+  Company tabs on login/register, and the `role` / `section` columns.
+- New `qr_codes` table (qr_value, company_name, company_address, is_active) is what students scan. Insert more
+  rows there for other OJT sites. Internship and attendance rows keep the company NAME as plain text.
+- Tables used: students, qr_codes, internships, attendance, attendance_events, daily_logs, journals,
+  journal_compilations, journal_submissions, notifications, announcements, activity_logs,
+  support_requests, assistant_messages, student_settings.
+- Upgrading an existing database: run database/reset-student-tables.sql once (keeps `students`), then reload.
+  Fresh install: import database/schema.sql, or just open the site; missing tables are created automatically.
+
+v17 ΓÇö what changed
+===========================================
+
+DESIGN
+- New light "Over-Time" style layout (sidebar + top bar) in the OJT360 blue theme. Same orbit logo.
+- Dark mode is token based (assets/css/app.css, html[data-theme="dark"]). Settings > Theme: Light / Dark / System.
+- The AI assistant button now uses the OJT360 logo with "AI" in the centre.
+
+DASHBOARD (index.php, assets/js/dashboard.js)
+- Time In (QR scanner), Take a Break / Resume Work, Time Out.
+- Live timer + flowing wave while working (slow amber wave on break, flat line when idle).
+- Progress ring updates live; on-time %, late %, break hours insight graphs; recent logs; activity.
+
+ATTENDANCE (attendance.php, assets/js/attendance.js, api/attendance.php)
+- Calendar (colour-coded days, click a date for attendance + daily log + photo), History table, Timeline.
+- The old standalone calendar page was merged into this page.
+
+DAILY LOGS (daily_logs.php, api/daily_logs.php)
+- A log is created automatically at Time In and completed at Time Out; after Time Out you land on the form.
+- Search / date / sort / per-page filters, "Needs details" filter, photo evidence, manual entries.
+
+JOURNAL (journal.php, journal_compilation.php, assets/js/editor.js)
+- Word-style editor: ribbon (Home / Insert / Layout / Picture Format), fonts, lists, tables, links.
+- Pictures: paste/drop/insert, resize with handles, drag anywhere, wrap (inline, square left/right,
+  top & bottom, behind, in front), crop / rotate / flip, page orientation, size and margins.
+- Weekly entries are drafts (autosave). Final Compilation merges all drafts: edit, print, save as PDF,
+  or Submit to Adviser (stored in journal_submissions for the future adviser dashboard).
+- All saved HTML is sanitised server-side (includes/helpers.php: sanitize_rich_html).
+
+REPORTS: weekly / monthly, stats, accomplishment table, export Word (.doc), PDF/Print, CSV.
+HELP: searchable FAQ + support form.
+SETTINGS: theme, sidebar, reduce motion, shift start / grace, required hours, change password.
+PROFILE: cover + avatar menu (view / upload / delete, crop), stats, edit information.
+
+UPGRADING
+1. Replace your project folder with this one (keep config.local.php if you have one).
+2. Existing database: run database/reset-student-tables.sql once. New database: import database/schema.sql.
+3. Open the site; any missing table is created automatically.
+4. Run setup-check.php if anything looks wrong. Hard refresh with Ctrl+F5 to load the new CSS/JS.
+
+NOTES
+- The demo student is Student ID 2026001 (james@example.com). Registered students keep their own passwords.
+- Only QR attendance counts toward required OJT hours. Manual daily logs are documentation only.
+- The QR camera library loads from a CDN; without internet use "Enter the code manually"
+  (demo code: OJT360-COMPANY-001, see qr-test.php).
+- Set APP_TIMEZONE / APP_TZ_OFFSET in config.php if you are not in the Philippines (UTC+8).

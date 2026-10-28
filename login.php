@@ -1,133 +1,679 @@
-<?php
-$pageTitle = "OJT360 - Sign In";
-$errorMessage = "";
-$loginRole = null;
+﻿<?php
 
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    if (isset($_POST["company_username"], $_POST["company_password"])) {
-        $loginRole = "company";
-    } elseif (isset($_POST["employee_username"], $_POST["employee_password"])) {
-        $loginRole = "employee";
-    }
-}
+/*
+|--------------------------------------------------------------------------
+| OJT360 Login
+|--------------------------------------------------------------------------
+| Student  -> normal PHP session
+| Employee -> normal PHP session
+| Company  -> OJT360_COMPANY session from bootstrap.php
+|--------------------------------------------------------------------------
+*/
 
-$activeRole = $loginRole ?? "student";
+/*
+ * IMPORTANT:
+ * Do NOT call session_start() here when this is a Company login.
+ *
+ * Company authentication uses the custom session:
+ * OJT360_COMPANY
+ */
 
-if ($loginRole === "company") {
-    require_once __DIR__ . "/includes/bootstrap.php";
-    session_name("OJT360_COMPANY");
-    ojt_start_session();
-} else {
+$isCompanyLogin =
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    isset(
+        $_POST["company_username"],
+        $_POST["company_password"]
+    );
+
+if (!$isCompanyLogin) {
     session_start();
 }
 
+$pageTitle = "OJT360 - Sign In";
+
+
+/* =========================================================
+   STUDENT LOGIN VALIDATION
+========================================================= */
+
 if (
-    $loginRole === "employee"
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    isset(
+        $_POST["student_username"],
+        $_POST["student_password"]
+    )
 ) {
-    $employeeEmail = trim($_POST["employee_username"]);
-    $employeePassword = $_POST["employee_password"];
 
-    require_once __DIR__ . "/config/database.php";
+    require_once __DIR__ . '/ojt360-student-dashboard/config.php';
+    require_once __DIR__ . '/ojt360-student-dashboard/includes/helpers.php';
 
-    $stmt = $conn->prepare(
-        "SELECT employee_id, password_hash
-        FROM employees
-        WHERE email = ? OR username = ?"
-    );
+    $studentId =
+        trim($_POST["student_username"]);
 
-    if ($stmt === false) {
-        $errorMessage = "Unable to process your login right now. Please try again.";
-    } else {
-        $stmt->bind_param("ss", $employeeEmail, $employeeEmail);
+    $studentPassword =
+        $_POST["student_password"];
 
-        if (!$stmt->execute()) {
-            $errorMessage = "Unable to process your login right now. Please try again.";
-        } else {
-            $employee = null;
-            $employees = $stmt->get_result();
 
-            while ($candidate = $employees->fetch_assoc()) {
-                if (password_verify($employeePassword, $candidate["password_hash"])) {
-                    $employee = $candidate;
-                    break;
-                }
-            }
+    /* =====================================================
+       VALIDATE STUDENT ID
+    ===================================================== */
 
-            if ($employee) {
-                session_regenerate_id(true);
-                $_SESSION["employee_logged_in"] = true;
-                $_SESSION["employee_id"] = $employee["employee_id"];
+    if (!preg_match('/^[0-9]{7}$/', $studentId)) {
 
-                $stmt->close();
-                $conn->close();
-
-                header("Location: dashboard(employee).php", true, 303);
-                exit;
-            }
-
-            $errorMessage = "Invalid institutional email or password.";
-        }
-
-        $stmt->close();
-    }
-
-    $conn->close();
-}
-
-if ($loginRole === "company") {
-    $companyUsername = $_POST["company_username"];
-    $companyPassword = $_POST["company_password"];
-
-    try {
-        $companyQuery = db()->prepare(
-            "SELECT id, password_hash
-            FROM companies
-            WHERE company_username = ?
-            LIMIT 1"
+        header(
+            "Location: login.php?student_error=1"
         );
-        $companyQuery->execute([$companyUsername]);
-        $company = $companyQuery->fetch();
-    } catch (PDOException $exception) {
-        error_log("Unable to process company login: " . $exception->getMessage());
-        $company = false;
-        $errorMessage = "Unable to process your login right now. Please try again.";
-    }
 
-    if ($company && password_verify($companyPassword, $company["password_hash"])) {
-        session_regenerate_id(true);
-        $_SESSION["company_id"] = (int) $company["id"];
-        $_SESSION["last_activity"] = time();
-
-        header("Location: company_dashboard.php", true, 303);
         exit;
     }
 
-    if ($errorMessage === "") {
-        $errorMessage = "Invalid company email or password.";
+
+    /* =====================================================
+       FIND STUDENT
+    ===================================================== */
+
+    $stmt = db()->prepare(
+        'SELECT
+            id,
+            student_id,
+            password_hash
+         FROM students
+         WHERE student_id = ?
+         LIMIT 1'
+    );
+
+    $stmt->execute([
+        $studentId
+    ]);
+
+    $student =
+        $stmt->fetch();
+
+
+    /* =====================================================
+       VERIFY STUDENT
+    ===================================================== */
+
+    if (
+        !$student ||
+        !password_verify(
+            $studentPassword,
+            $student['password_hash']
+        )
+    ) {
+
+        header(
+            "Location: login.php?student_error=1"
+        );
+
+        exit;
+    }
+
+
+    /* =====================================================
+       STUDENT LOGIN SUCCESS
+    ===================================================== */
+
+    session_regenerate_id(true);
+
+    $_SESSION['student_pk'] =
+        (int) $student['id'];
+
+    $_SESSION['role'] =
+        'student';
+
+    $_SESSION['student_id'] =
+        $student['student_id'];
+
+    $_SESSION['csrf'] =
+        bin2hex(random_bytes(32));
+
+
+    /* =====================================================
+       GO TO STUDENT DASHBOARD
+    ===================================================== */
+
+    header(
+        "Location: ojt360-student-dashboard/index.php"
+    );
+
+    exit;
+}
+
+
+/* =========================================================
+   EMPLOYEE LOGIN VALIDATION
+========================================================= */
+
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    isset($_POST["employee_username"])
+) {
+
+    /* =====================================================
+       DATABASE CONNECTION
+    ===================================================== */
+
+    $host =
+        "localhost";
+
+    $username =
+        "root";
+
+    $password =
+        "";
+
+    $database =
+        "ojt360";
+
+
+    $conn = new mysqli(
+        $host,
+        $username,
+        $password,
+        $database
+    );
+
+
+    /* =====================================================
+       CHECK CONNECTION
+    ===================================================== */
+
+    if ($conn->connect_error) {
+
+        die(
+            "Database connection failed: " .
+            $conn->connect_error
+        );
+    }
+
+
+    $conn->set_charset("utf8mb4");
+
+
+    /* =====================================================
+       GET EMPLOYEE LOGIN DATA
+    ===================================================== */
+
+    $employeeUsername =
+        trim($_POST["employee_username"]);
+
+    $employeePassword =
+        $_POST["employee_password"];
+
+
+    /* =====================================================
+       FIND EMPLOYEE
+    ===================================================== */
+
+    $stmt = $conn->prepare(
+        "SELECT
+            id,
+            employee_id,
+            first_name,
+            middle_name,
+            last_name,
+            email,
+            contact_number,
+            username,
+            password_hash,
+            department,
+            position
+         FROM employees
+         WHERE username = ?
+         LIMIT 1"
+    );
+
+
+    if (!$stmt) {
+
+        $conn->close();
+
+        header(
+            "Location: login.php?employee_error=1"
+        );
+
+        exit;
+    }
+
+
+    $stmt->bind_param(
+        "s",
+        $employeeUsername
+    );
+
+
+    $stmt->execute();
+
+
+    $result =
+        $stmt->get_result();
+
+
+    /* =====================================================
+       CHECK IF EMPLOYEE EXISTS
+    ===================================================== */
+
+    if ($result->num_rows === 1) {
+
+        $employee =
+            $result->fetch_assoc();
+
+
+        /* =================================================
+           VERIFY PASSWORD
+        ================================================= */
+
+        if (
+            password_verify(
+                $employeePassword,
+                $employee["password_hash"]
+            )
+        ) {
+
+            /* =============================================
+               EMPLOYEE LOGIN SUCCESS
+            ============================================= */
+
+            session_regenerate_id(true);
+
+
+            $_SESSION["employee_logged_in"] =
+                true;
+
+            $_SESSION["employee_id"] =
+                $employee["employee_id"];
+
+            $_SESSION["employee_db_id"] =
+                $employee["id"];
+
+            $_SESSION["employee_username"] =
+                $employee["username"];
+
+            $_SESSION["employee_email"] =
+                $employee["email"];
+
+            $_SESSION["employee_contact_number"] =
+                $employee["contact_number"];
+
+            $_SESSION["employee_first_name"] =
+                $employee["first_name"];
+
+            $_SESSION["employee_middle_name"] =
+                $employee["middle_name"];
+
+            $_SESSION["employee_last_name"] =
+                $employee["last_name"];
+
+            $_SESSION["employee_department"] =
+                $employee["department"];
+
+            $_SESSION["employee_position"] =
+                $employee["position"];
+
+
+            /* =============================================
+               GO TO EMPLOYEE DASHBOARD
+            ============================================= */
+
+            header(
+                "Location: dashboard(employee).php"
+            );
+
+            exit;
+
+        } else {
+
+            /* =============================================
+               WRONG PASSWORD
+            ============================================= */
+
+            $stmt->close();
+            $conn->close();
+
+            header(
+                "Location: login.php?employee_error=1"
+            );
+
+            exit;
+        }
+
+    } else {
+
+        /* =============================================
+           USERNAME DOES NOT EXIST
+        ============================================= */
+
+        $stmt->close();
+        $conn->close();
+
+        header(
+            "Location: login.php?employee_error=1"
+        );
+
+        exit;
     }
 }
+
+
+/* =========================================================
+   COMPANY LOGIN VALIDATION
+========================================================= */
+
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    isset(
+        $_POST["company_username"],
+        $_POST["company_password"]
+    )
+) {
+
+    /* =====================================================
+       LOAD COMPANY BOOTSTRAP
+       
+       This starts the custom:
+       
+       OJT360_COMPANY
+       
+       session.
+    ===================================================== */
+
+    require_once __DIR__ . '/includes/bootstrap.php';
+
+    ojt_start_session();
+
+
+    /* =====================================================
+       DATABASE CONNECTION
+    ===================================================== */
+
+    $host =
+        "localhost";
+
+    $username =
+        "root";
+
+    $password =
+        "";
+
+    $database =
+        "ojt360";
+
+
+    $conn = new mysqli(
+        $host,
+        $username,
+        $password,
+        $database
+    );
+
+
+    /* =====================================================
+       CHECK CONNECTION
+    ===================================================== */
+
+    if ($conn->connect_error) {
+
+        header(
+            "Location: login.php?company_error=1"
+        );
+
+        exit;
+    }
+
+
+    $conn->set_charset("utf8mb4");
+
+
+    /* =====================================================
+       GET COMPANY LOGIN DATA
+    ===================================================== */
+
+    $companyUsername =
+        trim($_POST["company_username"]);
+
+    $companyPassword =
+        $_POST["company_password"];
+
+
+    /* =====================================================
+       FIND COMPANY
+    ===================================================== */
+
+    $stmt = $conn->prepare(
+        "SELECT
+            id,
+            company_name,
+            rep_first_name,
+            rep_middle_name,
+            rep_last_name,
+            rep_position,
+            contact_number,
+            representative_email,
+            company_username,
+            password_hash,
+            created_at
+         FROM companies
+         WHERE company_username = ?
+         LIMIT 1"
+    );
+
+
+    /* =====================================================
+       CHECK PREPARE
+    ===================================================== */
+
+    if (!$stmt) {
+
+        $conn->close();
+
+        header(
+            "Location: login.php?company_error=1"
+        );
+
+        exit;
+    }
+
+
+    $stmt->bind_param(
+        "s",
+        $companyUsername
+    );
+
+
+    $stmt->execute();
+
+
+    $result =
+        $stmt->get_result();
+
+
+    /* =====================================================
+       CHECK IF COMPANY EXISTS
+    ===================================================== */
+
+    if ($result->num_rows === 1) {
+
+        $company =
+            $result->fetch_assoc();
+
+
+        /* =================================================
+           VERIFY COMPANY PASSWORD
+        ================================================= */
+
+        if (
+            password_verify(
+                $companyPassword,
+                $company["password_hash"]
+            )
+        ) {
+
+            /* =============================================
+               COMPANY LOGIN SUCCESS
+            ============================================= */
+
+            /*
+             * At this point:
+             *
+             * session_name() = OJT360_COMPANY
+             *
+             * because bootstrap.php was loaded above.
+             */
+
+            session_regenerate_id(true);
+
+
+            /* =============================================
+               COMPANY SESSION DATA
+            ============================================= */
+
+            $_SESSION["company_logged_in"] =
+                true;
+
+            $_SESSION["company_id"] =
+                (int) $company["id"];
+
+            $_SESSION["company_name"] =
+                $company["company_name"];
+
+            $_SESSION["company_first_name"] =
+                $company["rep_first_name"];
+
+            $_SESSION["company_middle_name"] =
+                $company["rep_middle_name"];
+
+            $_SESSION["company_last_name"] =
+                $company["rep_last_name"];
+
+            $_SESSION["company_position"] =
+                $company["rep_position"];
+
+            $_SESSION["company_contact"] =
+                $company["contact_number"];
+
+            $_SESSION["company_email"] =
+                $company["representative_email"];
+
+            $_SESSION["company_username"] =
+                $company["company_username"];
+
+            $_SESSION["role"] =
+                "company";
+
+
+            /* =============================================
+               COMPANY SESSION ACTIVITY
+            ============================================= */
+
+            $_SESSION["last_activity"] =
+                time();
+
+
+            /* =============================================
+               COMPANY CSRF TOKEN
+            ============================================= */
+
+            $_SESSION["csrf"] =
+                bin2hex(random_bytes(32));
+
+
+            /* =============================================
+               CLOSE DATABASE
+            ============================================= */
+
+            $stmt->close();
+            $conn->close();
+
+
+            /* =============================================
+               GO TO COMPANY DASHBOARD
+            ============================================= */
+
+            header(
+                "Location: company_dashboard.php"
+            );
+
+            exit;
+
+        } else {
+
+            /* =============================================
+               WRONG COMPANY PASSWORD
+            ============================================= */
+
+            $stmt->close();
+            $conn->close();
+
+            header(
+                "Location: login.php?company_error=1"
+            );
+
+            exit;
+        }
+
+    } else {
+
+        /* =============================================
+           COMPANY USERNAME DOES NOT EXIST
+        ============================================= */
+
+        $stmt->close();
+        $conn->close();
+
+        header(
+            "Location: login.php?company_error=1"
+        );
+
+        exit;
+    }
+}
+
 ?>
+
 <!DOCTYPE html>
+
 <html lang="en">
 
 <head>
 
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
 
 <title><?= $pageTitle ?></title>
 
-<!-- Tailwind CSS -->
+
+<!-- =====================================================
+     TAILWIND CSS
+===================================================== -->
+
 <script src="https://cdn.tailwindcss.com"></script>
 
-<!-- Google Font -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+<!-- =====================================================
+     GOOGLE FONT
+===================================================== -->
+
+<link
+    rel="preconnect"
+    href="https://fonts.googleapis.com"
+>
+
+<link
+    rel="preconnect"
+    href="https://fonts.googleapis.com"
+    crossorigin
+>
 
 <link
     href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
     rel="stylesheet"
 >
+
 
 <style>
 
@@ -140,14 +686,18 @@ if ($loginRole === "company") {
 }
 
 body {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family:
+        'Plus Jakarta Sans',
+        sans-serif;
 }
+
 
 /* =========================================================
    BACKGROUND
 ========================================================= */
 
 .hero-bg {
+
     background:
         radial-gradient(
             circle at 75% 35%,
@@ -155,13 +705,16 @@ body {
             #081c33 48%,
             #071426 100%
         );
+
 }
+
 
 /* =========================================================
    ORBIT VISUAL
 ========================================================= */
 
 .orbit-visual {
+
     position: absolute;
 
     width: 560px;
@@ -170,14 +723,17 @@ body {
     left: 50%;
     top: 50%;
 
-    transform: translate(-50%, -50%);
+    transform:
+        translate(-50%, -50%);
 
     pointer-events: none;
 
     z-index: 0;
 
     opacity: .75;
+
 }
+
 
 /* =========================================================
    ORBIT GLOW
@@ -203,7 +759,9 @@ body {
 
     animation:
         pulse 3.4s ease-in-out infinite;
+
 }
+
 
 /* =========================================================
    ORBIT RINGS
@@ -216,17 +774,21 @@ body {
     top: 50%;
     left: 50%;
 
-    transform: translate(-50%, -50%);
+    transform:
+        translate(-50%, -50%);
 
     border-radius: 50%;
 
     border:
         1px solid rgba(34,211,238,.16);
+
 }
 
 .ring-outer {
+
     width: 540px;
     height: 540px;
+
 }
 
 .ring-inner {
@@ -236,6 +798,7 @@ body {
 
     border-color:
         rgba(96,165,250,.18);
+
 }
 
 .ring-small {
@@ -245,7 +808,9 @@ body {
 
     border-color:
         rgba(34,211,238,.10);
+
 }
+
 
 /* =========================================================
    ORBIT TRACK
@@ -266,12 +831,15 @@ body {
     height:
         calc(var(--radius) * 2);
 
-    transform-origin: center;
+    transform-origin:
+        center;
 
     animation:
         spin var(--duration, 15s)
         linear infinite;
+
 }
+
 
 /* =========================================================
    ORBIT DOT
@@ -291,13 +859,16 @@ body {
 
     transform:
         translate(-50%, -50%);
+
 }
 
 .orbit-dot.small {
 
     width: 8px;
     height: 8px;
+
 }
+
 
 /* =========================================================
    DOT COLORS
@@ -305,30 +876,37 @@ body {
 
 .dot-cyan {
 
-    background: #22d3ee;
+    background:
+        #22d3ee;
 
     box-shadow:
         0 0 8px #22d3ee,
         0 0 20px rgba(34,211,238,.5);
+
 }
 
 .dot-blue {
 
-    background: #60a5fa;
+    background:
+        #60a5fa;
 
     box-shadow:
         0 0 8px #60a5fa,
         0 0 18px rgba(96,165,250,.5);
+
 }
 
 .dot-white {
 
-    background: #e0f2fe;
+    background:
+        #e0f2fe;
 
     box-shadow:
         0 0 8px #e0f2fe,
         0 0 16px rgba(224,242,254,.5);
+
 }
+
 
 /* =========================================================
    ORBIT CENTER
@@ -358,12 +936,15 @@ body {
     border:
         1px solid rgba(34,211,238,.35);
 
-    border-radius: 22px;
+    border-radius:
+        22px;
 
     box-shadow:
         0 0 30px
         rgba(34,211,238,.18);
+
 }
+
 
 .orbit-center-mark {
 
@@ -380,7 +961,9 @@ body {
 
     transform:
         rotate(-45deg);
+
 }
+
 
 .orbit-center-mark span {
 
@@ -395,13 +978,17 @@ body {
     box-shadow:
         0 0 8px
         rgba(34,211,238,.5);
+
 }
+
 
 .orbit-center-mark span:nth-child(2) {
 
     border-color:
         #60a5fa;
+
 }
+
 
 .orbit-center-mark span:nth-child(3) {
 
@@ -411,7 +998,9 @@ body {
     margin-left: -22px;
 
     margin-top: 18px;
+
 }
+
 
 /* =========================================================
    PARTICLES
@@ -426,43 +1015,58 @@ body {
 
     border-radius: 50%;
 
-    background: #22d3ee;
+    background:
+        #22d3ee;
 
     box-shadow:
         0 0 10px #22d3ee;
 
     animation:
         float 4s ease-in-out infinite;
+
 }
 
+
 .p1 {
+
     top: 20%;
     left: 20%;
+
 }
+
 
 .p2 {
 
     top: 68%;
     left: 76%;
 
-    animation-delay: 1s;
+    animation-delay:
+        1s;
+
 }
+
 
 .p3 {
 
     top: 78%;
     left: 30%;
 
-    animation-delay: 2s;
+    animation-delay:
+        2s;
+
 }
+
 
 .p4 {
 
     top: 18%;
     left: 70%;
 
-    animation-delay: .5s;
+    animation-delay:
+        .5s;
+
 }
+
 
 /* =========================================================
    ANIMATIONS
@@ -475,6 +1079,7 @@ body {
         transform:
             translate(-50%, -50%)
             rotate(0deg);
+
     }
 
     to {
@@ -482,8 +1087,11 @@ body {
         transform:
             translate(-50%, -50%)
             rotate(360deg);
+
     }
+
 }
+
 
 @keyframes pulse {
 
@@ -493,6 +1101,7 @@ body {
 
         transform:
             scale(1);
+
     }
 
     50% {
@@ -501,8 +1110,11 @@ body {
 
         transform:
             scale(1.08);
+
     }
+
 }
+
 
 @keyframes float {
 
@@ -513,6 +1125,7 @@ body {
         transform:
             translateY(0)
             scale(.8);
+
     }
 
     50% {
@@ -522,8 +1135,11 @@ body {
         transform:
             translateY(-12px)
             scale(1.2);
+
     }
+
 }
+
 
 /* =========================================================
    LOGIN TAB
@@ -531,7 +1147,8 @@ body {
 
 .tab-active {
 
-    background: white;
+    background:
+        white;
 
     color:
         #0284c7 !important;
@@ -539,7 +1156,9 @@ body {
     box-shadow:
         0 1px 4px
         rgba(0,0,0,.1);
+
 }
+
 
 /* =========================================================
    FORM LABEL
@@ -557,7 +1176,9 @@ body {
         #334155;
 
     margin-bottom: 6px;
+
 }
+
 
 /* =========================================================
    FORM INPUT
@@ -573,14 +1194,17 @@ body {
     border:
         1px solid #e2e8f0;
 
-    border-radius: 12px;
+    border-radius:
+        12px;
 
     color:
         #1e293b;
 
-    font-size: 14px;
+    font-size:
+        14px;
 
-    outline: none;
+    outline:
+        none;
 
     box-shadow:
         0 1px 3px
@@ -588,7 +1212,9 @@ body {
 
     transition:
         .2s;
+
 }
+
 
 .input:focus {
 
@@ -598,7 +1224,9 @@ body {
     box-shadow:
         0 0 0 2px
         rgba(14,165,233,.15);
+
 }
+
 
 /* =========================================================
    SHOW PASSWORD BUTTON
@@ -618,10 +1246,14 @@ body {
     color:
         #0284c7;
 
-    font-size: 12px;
+    font-size:
+        12px;
 
-    font-weight: 600;
+    font-weight:
+        600;
+
 }
+
 
 /* =========================================================
    OPTIONS
@@ -635,11 +1267,14 @@ body {
 
     justify-content: space-between;
 
-    font-size: 12px;
+    font-size:
+        12px;
 
     color:
         #64748b;
+
 }
+
 
 .options label {
 
@@ -647,16 +1282,22 @@ body {
 
     align-items: center;
 
-    gap: 7px;
+    gap:
+        7px;
+
 }
+
 
 .options a {
 
     color:
         #0ea5e9;
 
-    font-weight: 600;
+    font-weight:
+        600;
+
 }
+
 
 /* =========================================================
    LOGIN BUTTON
@@ -666,18 +1307,23 @@ body {
 
     width: 100%;
 
-    padding: 14px;
+    padding:
+        14px;
 
     background:
         #0ea5e9;
 
-    color: white;
+    color:
+        white;
 
-    font-size: 14px;
+    font-size:
+        14px;
 
-    font-weight: 700;
+    font-weight:
+        700;
 
-    border-radius: 12px;
+    border-radius:
+        12px;
 
     box-shadow:
         0 6px 15px
@@ -685,7 +1331,9 @@ body {
 
     transition:
         .2s;
+
 }
+
 
 .login-btn:hover {
 
@@ -694,7 +1342,9 @@ body {
 
     transform:
         translateY(-1px);
+
 }
+
 
 /* =========================================================
    MOBILE
@@ -709,6 +1359,7 @@ body {
         height: 500px;
 
         opacity: .25;
+
     }
 
     .ring-outer {
@@ -716,6 +1367,7 @@ body {
         width: 470px;
 
         height: 470px;
+
     }
 
     .ring-inner {
@@ -723,23 +1375,28 @@ body {
         width: 320px;
 
         height: 320px;
+
     }
 
-    .ring-small {g
+    .ring-small {
 
         width: 210px;
 
         height: 210px;
+
     }
+
 }
 
 </style>
 
 </head>
 
+
 <body
     class="hero-bg min-h-screen w-full flex items-center justify-center p-4 sm:p-6 lg:p-8 overflow-x-hidden antialiased relative"
 >
+
 
 <!-- =========================================================
      MAIN CONTAINER
@@ -749,6 +1406,7 @@ body {
     class="w-full max-w-7xl flex flex-col md:flex-row items-center justify-between gap-8 lg:gap-16 relative z-10 my-auto"
 >
 
+
     <!-- =====================================================
          LEFT SIDE
     ====================================================== -->
@@ -756,6 +1414,7 @@ body {
     <section
         class="w-full md:w-1/2 text-white relative p-2 sm:p-4"
     >
+
 
         <!-- =================================================
              ORBIT BACKGROUND
@@ -765,6 +1424,7 @@ body {
 
             <div class="orbit-glow"></div>
 
+
             <!-- RINGS -->
 
             <div class="orbit-ring ring-outer"></div>
@@ -773,6 +1433,7 @@ body {
 
             <div class="orbit-ring ring-small"></div>
 
+
             <!-- ORBIT DOT 1 -->
 
             <div
@@ -780,9 +1441,12 @@ body {
                 style="--radius:270px;--duration:18s"
             >
 
-                <div class="orbit-dot dot-cyan"></div>
+                <div
+                    class="orbit-dot dot-cyan"
+                ></div>
 
             </div>
+
 
             <!-- ORBIT DOT 2 -->
 
@@ -797,6 +1461,7 @@ body {
 
             </div>
 
+
             <!-- ORBIT DOT 3 -->
 
             <div
@@ -810,6 +1475,7 @@ body {
 
             </div>
 
+
             <!-- ORBIT DOT 4 -->
 
             <div
@@ -822,6 +1488,7 @@ body {
                 ></div>
 
             </div>
+
 
             <!-- CENTER -->
 
@@ -839,6 +1506,7 @@ body {
 
             </div>
 
+
             <!-- PARTICLES -->
 
             <div class="orbit-particle p1"></div>
@@ -851,6 +1519,7 @@ body {
 
         </div>
 
+
         <!-- =================================================
              LEFT CONTENT
         ================================================== -->
@@ -858,6 +1527,7 @@ body {
         <div
             class="relative z-10 flex flex-col justify-between items-start space-y-8 lg:space-y-12"
         >
+
 
             <!-- =================================================
                  LOGO
@@ -885,6 +1555,7 @@ body {
 
                 </svg>
 
+
                 <!-- OJT360 -->
 
                 <span
@@ -896,6 +1567,7 @@ body {
                 </span>
 
             </div>
+
 
             <!-- =================================================
                  SMALL HEADING
@@ -911,9 +1583,8 @@ body {
 
                 </span>
 
-                <!-- =================================================
-                     MAIN HEADING
-                ================================================== -->
+
+                <!-- MAIN HEADING -->
 
                 <h1
                     class="text-3xl sm:text-5xl lg:text-6xl font-extrabold leading-tight text-white tracking-tight drop-shadow-lg"
@@ -923,9 +1594,8 @@ body {
 
                 </h1>
 
-                <!-- =================================================
-                     DESCRIPTION
-                ================================================== -->
+
+                <!-- DESCRIPTION -->
 
                 <p
                     class="text-blue-100 text-sm sm:text-base lg:text-lg leading-relaxed opacity-95 font-normal drop-shadow-sm"
@@ -938,6 +1608,7 @@ body {
 
             </div>
 
+
             <!-- =================================================
                  STATISTICS
             ================================================== -->
@@ -945,6 +1616,7 @@ body {
             <div
                 class="flex items-center space-x-12 pt-6 border-t border-blue-400/20 max-w-xl w-full"
             >
+
 
                 <!-- STAT 1 -->
 
@@ -968,11 +1640,13 @@ body {
 
                 </div>
 
+
                 <!-- DIVIDER -->
 
                 <div
                     class="h-12 w-px bg-blue-400/20"
                 ></div>
+
 
                 <!-- STAT 2 -->
 
@@ -1002,6 +1676,7 @@ body {
 
     </section>
 
+
     <!-- =====================================================
          LOGIN CARD
     ====================================================== -->
@@ -1009,6 +1684,7 @@ body {
     <section
         class="w-full md:w-[540px] lg:w-[560px] bg-white rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] p-6 sm:p-8 text-slate-800 border border-slate-100 relative z-20 my-auto"
     >
+
 
         <!-- =================================================
              HEADER
@@ -1024,6 +1700,7 @@ body {
 
             </span>
 
+
             <h2
                 class="text-2xl font-extrabold text-slate-800 tracking-tight"
             >
@@ -1031,6 +1708,7 @@ body {
                 Sign in to your account
 
             </h2>
+
 
             <p
                 class="text-xs text-slate-500"
@@ -1040,7 +1718,50 @@ body {
 
             </p>
 
+
+            <!-- =================================================
+                 LOGIN ERROR
+            ================================================== -->
+
+            <?php if (
+                isset($_GET["employee_error"]) ||
+                isset($_GET["student_error"]) ||
+                isset($_GET["company_error"])
+            ): ?>
+
+                <div
+                    class="mt-4 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                >
+
+                    <!-- ERROR ICON -->
+
+                    <svg
+                        class="w-5 h-5 flex-shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M12 9v3m0 4h.01M10.29 3.86l-7.5 13A2 2 0 004.52 20h14.96a2 2 0 001.73-3.14l-7.5-13a2 2 0 00-1.73-3.14l-7.5-13a2 2 0 00-3.42 0z"
+                        ></path>
+
+                    </svg>
+
+
+                    <span>
+                        Invalid username or password. Please try again.
+                    </span>
+
+                </div>
+
+            <?php endif; ?>
+
         </div>
+
 
         <!-- =================================================
              ROLE TABS
@@ -1050,9 +1771,11 @@ body {
             class="bg-slate-100/80 p-1 rounded-2xl flex items-center justify-between text-xs font-semibold text-slate-500 mb-5"
         >
 
+
             <!-- STUDENT -->
 
             <button
+                type="button"
                 onclick="selectRole('student')"
                 id="tab-student"
                 class="tab-active w-1/3 py-2.5 rounded-xl"
@@ -1062,21 +1785,25 @@ body {
 
             </button>
 
+
             <!-- EMPLOYEE -->
 
             <button
+                type="button"
                 onclick="selectRole('employee')"
                 id="tab-employee"
                 class="w-1/3 py-2.5 rounded-xl hover:text-slate-800"
             >
 
-                Employee
+                Adviser
 
             </button>
+
 
             <!-- COMPANY -->
 
             <button
+                type="button"
                 onclick="selectRole('company')"
                 id="tab-company"
                 class="w-1/3 py-2.5 rounded-xl hover:text-slate-800"
@@ -1088,11 +1815,17 @@ body {
 
         </div>
 
-            <input
+
+        <!-- =================================================
+             SELECTED ROLE
+        ================================================== -->
+
+        <input
             type="hidden"
             id="selected-role"
-            value="<?= htmlspecialchars($activeRole, ENT_QUOTES, "UTF-8") ?>"
+            value="student"
         >
+
 
         <!-- =================================================
              FORMS
@@ -1100,14 +1833,6 @@ body {
 
         <div id="login-forms">
 
-            <?php if ($errorMessage !== ""): ?>
-                <p
-                    class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-                    role="alert"
-                >
-                    <?= htmlspecialchars($errorMessage, ENT_QUOTES, "UTF-8") ?>
-                </p>
-            <?php endif; ?>
 
             <!-- =================================================
                  STUDENT FORM
@@ -1117,8 +1842,9 @@ body {
                 id="student-form"
                 class="space-y-4"
                 method="POST"
-                action="dashboard.php"
+                action="login.php"
             >
+
 
                 <!-- STUDENT ID -->
 
@@ -1141,6 +1867,7 @@ body {
                     >
 
                 </div>
+
 
                 <!-- PASSWORD -->
 
@@ -1175,6 +1902,7 @@ body {
 
                 </div>
 
+
                 <!-- OPTIONS -->
 
                 <div class="options">
@@ -1193,6 +1921,7 @@ body {
 
                 </div>
 
+
                 <!-- BUTTON -->
 
                 <button
@@ -1200,11 +1929,12 @@ body {
                     class="login-btn"
                 >
 
-                    Sign in securely →
+                    Sign in securely ΓåÆ
 
                 </button>
 
             </form>
+
 
             <!-- =================================================
                  EMPLOYEE FORM
@@ -1217,16 +1947,17 @@ body {
                 action="login.php"
             >
 
+
                 <!-- EMAIL -->
 
                 <div>
 
                     <label class="label">
-                        Institutional email or username
+                        Institutional email
                     </label>
 
                     <input
-                        type="text"
+                        type="email"
                         name="employee_username"
                         placeholder="juan.delacruz@lnu.edu.ph"
                         required
@@ -1234,6 +1965,7 @@ body {
                     >
 
                 </div>
+
 
                 <!-- PASSWORD -->
 
@@ -1268,6 +2000,7 @@ body {
 
                 </div>
 
+
                 <!-- OPTIONS -->
 
                 <div class="options">
@@ -1286,6 +2019,7 @@ body {
 
                 </div>
 
+
                 <!-- BUTTON -->
 
                 <button
@@ -1293,11 +2027,12 @@ body {
                     class="login-btn"
                 >
 
-                    Sign in securely →
+                    Sign in securely ΓåÆ
 
                 </button>
 
             </form>
+
 
             <!-- =================================================
                  COMPANY FORM
@@ -1307,7 +2042,9 @@ body {
                 id="company-form"
                 class="hidden space-y-4"
                 method="POST"
+                action="login.php"
             >
+
 
                 <!-- COMPANY EMAIL -->
 
@@ -1326,6 +2063,7 @@ body {
                     >
 
                 </div>
+
 
                 <!-- PASSWORD -->
 
@@ -1360,6 +2098,7 @@ body {
 
                 </div>
 
+
                 <!-- OPTIONS -->
 
                 <div class="options">
@@ -1378,6 +2117,7 @@ body {
 
                 </div>
 
+
                 <!-- BUTTON -->
 
                 <button
@@ -1385,13 +2125,14 @@ body {
                     class="login-btn"
                 >
 
-                    Sign in securely →
+                    Sign in securely ΓåÆ
 
                 </button>
 
             </form>
 
         </div>
+
 
         <!-- =================================================
              FOOTER
@@ -1416,20 +2157,17 @@ body {
 
         </div>
 
-        <!-- =================================================
-             ADMIN
-        ================================================== -->
-
-
     </section>
 
 </div>
+
 
 <!-- =========================================================
      JAVASCRIPT
 ========================================================= -->
 
 <script>
+
 
 /* =========================================================
    TOGGLE PASSWORD
@@ -1447,21 +2185,25 @@ function togglePassword(role) {
             `#${role}-form .show-btn`
         );
 
+
     if (input.type === 'password') {
 
         input.type = 'text';
 
-        button.textContent = 'Hide';
+        button.textContent =
+            'Hide';
 
     } else {
 
         input.type = 'password';
 
-        button.textContent = 'Show';
+        button.textContent =
+            'Show';
 
     }
 
 }
+
 
 /* =========================================================
    SELECT ROLE
@@ -1469,19 +2211,17 @@ function togglePassword(role) {
 
 function selectRole(role) {
 
-    /* Change hidden role value */
-
     document.getElementById(
         'selected-role'
     ).value = role;
 
-    /* All available roles */
 
     const roles = [
         'student',
         'employee',
         'company'
     ];
+
 
     roles.forEach(function(r) {
 
@@ -1495,7 +2235,6 @@ function selectRole(role) {
                 r + '-form'
             );
 
-        /* Selected role */
 
         if (r === role) {
 
@@ -1507,11 +2246,7 @@ function selectRole(role) {
                 'hidden'
             );
 
-        }
-
-        /* Other roles */
-
-        else {
+        } else {
 
             tab.classList.remove(
                 'tab-active'
@@ -1527,11 +2262,63 @@ function selectRole(role) {
 
 }
 
-<?php if ($errorMessage !== ""): ?>
-selectRole(<?= json_encode($activeRole) ?>);
+
+/* =========================================================
+   SHOW EMPLOYEE TAB AFTER LOGIN ERROR
+========================================================= */
+
+<?php if (isset($_GET["employee_error"])): ?>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        selectRole("employee");
+
+    }
+);
+
 <?php endif; ?>
+
+
+/* =========================================================
+   SHOW STUDENT TAB AFTER LOGIN ERROR
+========================================================= */
+
+<?php if (isset($_GET["student_error"])): ?>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        selectRole("student");
+
+    }
+);
+
+<?php endif; ?>
+
+
+/* =========================================================
+   SHOW COMPANY TAB AFTER LOGIN ERROR
+========================================================= */
+
+<?php if (isset($_GET["company_error"])): ?>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        selectRole("company");
+
+    }
+);
+
+<?php endif; ?>
+
 
 </script>
 
 </body>
+
 </html>
