@@ -1,4 +1,4 @@
--- OJT360 Student Dashboard v18 — student-only database
+-- OJT360 Student Dashboard v21 — student-only database
 -- Import into the database named in config.php (default: ojt360).
 -- The app also creates any missing table automatically on first load.
 -- Table `students` is your registration/login table; every other table points to students.id
@@ -82,6 +82,25 @@ CREATE TABLE IF NOT EXISTS attendance_events (
   CONSTRAINT fk_events_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS absences (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  student_pk INT(11) NOT NULL,
+  absence_date DATE NOT NULL,
+  reason VARCHAR(255) NOT NULL DEFAULT '',
+  status VARCHAR(32) NOT NULL DEFAULT 'Unexcused',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY student_absence (student_pk,absence_date),
+  CONSTRAINT fk_absences_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS student_holiday_calendar (
+  holiday_year SMALLINT(5) UNSIGNED NOT NULL,
+  holidays_json LONGTEXT NOT NULL,
+  synced_at DATETIME NOT NULL,
+  PRIMARY KEY (holiday_year)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS daily_logs (
   id INT(11) NOT NULL AUTO_INCREMENT,
   student_pk INT(11) NOT NULL,
@@ -138,6 +157,8 @@ CREATE TABLE IF NOT EXISTS journal_submissions (
   id INT(11) NOT NULL AUTO_INCREMENT,
   student_pk INT(11) NOT NULL,
   adviser_id INT(11) DEFAULT NULL,
+  submission_type ENUM('weekly','final') NOT NULL DEFAULT 'weekly',
+  pdf_file VARCHAR(64) DEFAULT NULL,
   title VARCHAR(180) NOT NULL,
   content LONGTEXT NOT NULL,
   orientation ENUM('portrait','landscape') NOT NULL DEFAULT 'portrait',

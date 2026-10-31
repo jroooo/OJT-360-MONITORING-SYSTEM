@@ -10,10 +10,9 @@ $completed = (float)($internship['completed_hours'] ?? 0);
   <div>
     <span class="eyebrow">TIME TRACKING</span>
     <h1>Attendance<span class="title-dot">.</span></h1>
-    <p>Time in with your company QR, take breaks, and review your calendar, history, and timeline.</p>
+    <p>Track your actual attendance and credited hours. Completed weekdays with no attendance are marked absent; days below 8 rendered hours are incomplete. Weekends and Philippine public holidays are excluded.</p>
   </div>
   <div class="page-actions">
-    <a class="btn secondary" href="daily_logs.php"><?= icon('logs') ?> Daily Logs</a>
     <a class="btn secondary" href="api/attendance.php?action=export"><?= icon('download') ?> Export CSV</a>
   </div>
 </div>
@@ -26,13 +25,12 @@ $completed = (float)($internship['completed_hours'] ?? 0);
   </div>
   <div class="tracker-btns compact">
     <button class="btn success" data-track="timein" type="button"><span class="btn-ic"><?= icon('login') ?></span> Time In</button>
-    <button class="btn warn" data-track="break" type="button" disabled><span class="btn-ic"><?= icon('coffee') ?></span> <span class="lbl">Take a Break</span></button>
     <button class="btn danger" data-track="timeout" type="button" disabled><span class="btn-ic"><?= icon('logout') ?></span> Time Out</button>
   </div>
 </section>
 
 <div class="grid-3 att-metrics">
-  <article class="stat"><div class="stat-ic"><?= icon('clock') ?></div><span>Today</span><strong id="mToday">0h 00m</strong><small>Rendered today</small></article>
+  <article class="stat"><div class="stat-ic"><?= icon('clock') ?></div><span>Today</span><strong id="mToday">0h 00m / 8h</strong><small>4h morning + 4h afternoon</small></article>
   <article class="stat"><div class="stat-ic"><?= icon('target') ?></div><span>Total achieved</span><strong id="mTotal"><?= number_format($completed, 2) ?> h</strong><small>OJT hours recorded</small></article>
   <article class="stat"><div class="stat-ic"><?= icon('trend') ?></div><span>Remaining</span><strong id="mRemain"><?= number_format(max(0, $required - $completed), 2) ?> h</strong><small>Until <?= number_format($required, 0) ?> required hours</small></article>
 </div>
@@ -52,7 +50,8 @@ $completed = (float)($internship['completed_hours'] ?? 0);
   </div>
 
   <div id="viewCalendar" class="att-view">
-    <div class="cal-legend"><span><i class="lgd both"></i>Log + Attendance</span><span><i class="lgd att"></i>Attendance</span><span><i class="lgd log"></i>Log</span><span><i class="lgd incomplete"></i>Incomplete</span><span><i class="lgd progress"></i>In progress</span></div>
+    <div class="cal-legend"><span><i class="lgd att"></i>Attendance recorded</span><span><i class="lgd progress"></i>In progress</span><span><i class="lgd incomplete"></i>Incomplete (&lt; 8h)</span><span><i class="lgd absent"></i>Absent</span></div>
+    <p class="notice" id="attendanceWarning" hidden></p>
     <div class="cal-week"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
     <div class="cal-grid" id="calGrid"></div>
   </div>
@@ -65,7 +64,7 @@ $completed = (float)($internship['completed_hours'] ?? 0);
   <button class="modal-close" data-close-modal aria-label="Close"><?= icon('x') ?></button>
   <span class="eyebrow">DATE DETAILS</span><h2 id="dayTitle">Selected date</h2>
   <div id="dayBody" class="day-body"></div>
-  <div class="modal-actions"><a class="btn secondary" id="dayAddLog" href="daily_logs.php"><?= icon('plus') ?> Add daily log</a><button class="btn primary" data-close-modal>Close</button></div>
+  <div class="modal-actions"><button class="btn primary" data-close-modal>Close</button></div>
 </div></div>
 <div class="modal-backdrop lightbox" id="lightbox" aria-hidden="true"><img id="lightboxImg" alt="Evidence photo"></div>
 <?php require_once 'includes/footer.php'; ?>

@@ -13,13 +13,28 @@ $required = (float)($internship['required_hours'] ?? 480);
 $completed = (float)($internship['completed_hours'] ?? 0);
 $pct = $required > 0 ? min(100, round($completed / $required * 100, 1)) : 0;
 
-// last 6 months of rendered hours
-$months = [];
-for ($i = 5; $i >= 0; $i--) $months[date('Y-m', strtotime("first day of -$i month"))] = 0.0;
-$q = db()->prepare("SELECT DATE_FORMAT(time_in,'%Y-%m') m, SUM(duration_minutes) mins FROM attendance WHERE student_pk=? AND time_out IS NOT NULL AND time_in >= DATE_SUB(DATE_FORMAT(CURDATE(),'%Y-%m-01'), INTERVAL 5 MONTH) GROUP BY m");
-$q->execute([$uid]);
-foreach ($q->fetchAll() as $r) if (isset($months[$r['m']])) $months[$r['m']] = round(((int)$r['mins']) / 60, 2);
-$maxM = max(1, max($months));
+$periodBars = [];
+if ($type === 'weekly') {
+    for ($day = strtotime($per['start']); $day <= strtotime($per['end']); $day = strtotime('+1 day', $day)) {
+        $key = date('Y-m-d', $day);
+        $periodBars[$key] = ['label' => date('D', $day), 'hours' => 0.0];
+    }
+    foreach ($data['sessions'] as $session) {
+        if (isset($periodBars[$session['log_date']])) $periodBars[$session['log_date']]['hours'] += (float)$session['hours'];
+    }
+    $periodChartTitle = 'Daily attendance hours this week';
+} else {
+    $weekCount = (int)ceil((int)date('j', strtotime($per['end'])) / 7);
+    for ($week = 1; $week <= $weekCount; $week++) {
+        $periodBars[$week] = ['label' => 'Week ' . $week, 'hours' => 0.0];
+    }
+    foreach ($data['sessions'] as $session) {
+        $week = (int)ceil((int)date('j', strtotime($session['log_date'])) / 7);
+        if (isset($periodBars[$week])) $periodBars[$week]['hours'] += (float)$session['hours'];
+    }
+    $periodChartTitle = 'Weekly attendance hours this month';
+}
+$maxPeriodHours = max(1, max(array_column($periodBars, 'hours')));
 $prevDate = date('Y-m-d', strtotime($per['start'] . ($type === 'monthly' ? ' -1 month' : ' -7 days')));
 $nextDate = date('Y-m-d', strtotime($per['start'] . ($type === 'monthly' ? ' +1 month' : ' +7 days')));
 $qs = fn($t, $d) => 'reports.php?type=' . $t . '&date=' . $d;
@@ -29,7 +44,7 @@ $unit = $type === 'monthly' ? 'month' : 'week';
   <div>
     <span class="eyebrow">OJT DOCUMENTATION</span>
     <h1>Reports<span class="title-dot">.</span></h1>
-    <p>Review your rendered hours, accomplishments, attendance, and documented OJT activity.</p>
+    <p>Review your rendered attendance hours, recorded sessions, and OJT progress.</p>
   </div>
 </div>
 
@@ -49,32 +64,43 @@ $unit = $type === 'monthly' ? 'month' : 'week';
   </div>
 </section>
 <div class="period-banner"><span>REPORT PERIOD</span><strong><?= e($per['range']) ?></strong></div>
+<?php foreach ($data['status_warnings'] as $statusWarning): ?>
+  <div class="notice"><div><strong>Attendance status notice</strong><span><?= e($statusWarning) ?></span></div></div>
+<?php endforeach; ?>
 
 <div class="grid-4 rep-stats">
   <article class="stat"><div class="stat-ic"><?= icon('clock') ?></div><span>Rendered Hours</span><strong><b><?= number_format($data['hours'], 2) ?></b></strong><small>hours this <?= $unit ?></small></article>
-  <article class="stat"><div class="stat-ic"><?= icon('journal') ?></div><span>Logged Days</span><strong><b><?= (int)$data['logged_days'] ?></b></strong><small>days documented</small></article>
-  <article class="stat"><div class="stat-ic"><?= icon('activity') ?></div><span>Daily Average</span><strong><b><?= number_format($data['daily_avg'], 2) ?></b></strong><small>hours per logged day</small></article>
-  <article class="stat"><div class="stat-ic"><?= icon('check') ?></div><span>Attendance</span><strong><b><?= (int)$data['attendance_days'] ?></b></strong><small>completed days</small></article>
+  <article class="stat"><div class="stat-ic"><?= icon('calendar') ?></div><span>Attendance Days</span><strong><b><?= (int)$data['attendance_days'] ?></b></strong><small>days with recorded sessions</small></article>
+  <article class="stat"><div class="stat-ic"><?= icon('activity') ?></div><span>Daily Average</span><strong><b><?= number_format($data['daily_avg'], 2) ?></b></strong><small>hours per attendance day</small></article>
+  <article class="stat"><div class="stat-ic"><?= icon('check') ?></div><span>Sessions</span><strong><b><?= (int)$data['session_count'] ?></b></strong><small>attendance records</small></article>
+  <article class="stat stat-warn"><div class="stat-ic"><?= icon('logout') ?></div><span>Absent Workdays</span><strong><b><?= (int)$data['absent_days'] ?></b></strong><small>weekdays with no attendance</small></article>
+  <article class="stat stat-warn"><div class="stat-ic"><?= icon('clock') ?></div><span>Incomplete Days</span><strong><b><?= (int)$data['incomplete_days'] ?></b></strong><small>under 8 rendered hours</small></article>
 </div>
 
 <section class="panel report-doc" id="reportDoc">
   <div class="report-head">
-    <div class="doc-brand"><?= logo_mark() ?><div><span class="eyebrow">OJT360</span><h3><?= ucfirst($type) ?> OJT Accomplishment Report</h3></div></div>
+    <div class="doc-brand"><?= logo_mark() ?><div><span class="eyebrow">OJT360</span><h3><?= ucfirst($type) ?> OJT Attendance Report</h3></div></div>
     <div class="report-student"><span>STUDENT</span><strong><?= e($user['full_name']) ?></strong><small><?= e($user['student_no']) ?> · <?= e($internship['company_name'] ?? '') ?></small></div>
   </div>
   <p class="report-period-line"><?= e($per['range']) ?></p>
-  <?php if (!$data['logs']): ?>
-    <div class="empty-state"><div class="empty-icon"><?= icon('file') ?></div><h3>No records for this <?= $unit ?></h3><p>Add daily logs to generate your <?= $type ?> report.</p></div>
+  <?php if (!$data['rows']): ?>
+    <div class="empty-state"><div class="empty-icon"><?= icon('file') ?></div><h3>No attendance or scheduled workdays for this <?= $unit ?></h3><p>Time in with your company QR to add attendance records to this report.</p></div>
   <?php else: ?>
     <div class="table-wrap"><table class="report-table">
-      <thead><tr><th>Date</th><th>Time</th><th>Task</th><th>Accomplishments</th><th>Hours</th></tr></thead>
+      <thead><tr><th>Date</th><th>Time In</th><th>Time Out</th><th>Status</th><th>Rendered Hours</th></tr></thead>
       <tbody>
-      <?php foreach ($data['logs'] as $l): ?>
+      <?php foreach ($data['rows'] as $l): ?>
+        <?php
+          $statusLabels = ['absent' => 'Absent', 'incomplete' => 'Incomplete', 'progress' => 'In progress', 'complete' => 'Complete', 'attendance' => 'Attendance'];
+          $statusClasses = ['absent' => 'red-pill', 'incomplete' => 'amber-pill', 'progress' => 'blue-pill', 'complete' => 'green-pill', 'attendance' => 'blue-pill'];
+          $status = (string)($l['status'] ?? 'attendance');
+          if ($status === 'absent' && !empty($l['absence_status'])) $statusLabels['absent'] .= ' (' . (string)$l['absence_status'] . ')';
+        ?>
         <tr>
           <td><b><?= e(date('D, M j', strtotime($l['log_date']))) ?></b></td>
-          <td><?= $l['time_in'] ? e(date('g:i A', strtotime($l['time_in']))) . ($l['time_out'] ? ' – ' . e(date('g:i A', strtotime($l['time_out']))) : '') : '—' ?><?= (int)$l['break_minutes'] ? '<br><small class="muted">' . (int)$l['break_minutes'] . ' min break</small>' : '' ?></td>
-          <td><b><?= e($l['title'] ?: '—') ?></b></td>
-          <td><?= nl2br(e($l['description'] ?: '—')) ?><?php if (!empty($l['evidence_image'])): ?><br><img class="rep-img" src="<?= e(evidence_url($l['evidence_image'])) ?>" alt="Evidence"><?php endif; ?></td>
+          <td><?= !empty($l['time_in']) ? e(date('g:i A', strtotime($l['time_in']))) : '—' ?></td>
+          <td><?= !empty($l['time_out']) ? e(date('g:i A', strtotime($l['time_out']))) : '—' ?></td>
+          <td><span class="pill <?= e($statusClasses[$status] ?? 'blue-pill') ?>"><?= e($statusLabels[$status] ?? 'Attendance') ?></span></td>
           <td class="num"><b><?= number_format((float)$l['hours'], 2) ?></b></td>
         </tr>
       <?php endforeach; ?>
@@ -96,10 +122,10 @@ $unit = $type === 'monthly' ? 'month' : 'week';
 
 <div class="grid-main">
   <section class="panel">
-    <div class="panel-head"><div><span class="eyebrow">ATTENDANCE</span><h3>Monthly work hours</h3></div><span class="muted small">Last 6 months</span></div>
+    <div class="panel-head"><div><span class="eyebrow">ATTENDANCE HOURS</span><h3><?= e($periodChartTitle) ?></h3></div><span class="muted small"><?= e($per['range']) ?></span></div>
     <div class="bars">
-      <?php foreach ($months as $m => $h): ?>
-        <div class="bar-col"><span class="bar-val"><?= number_format($h, 1) ?>h</span><div class="bar-track"><i style="height:<?= max(3, round($h / $maxM * 100)) ?>%"></i></div><span class="bar-lbl"><?= e(date('M', strtotime($m . '-01'))) ?></span></div>
+      <?php foreach ($periodBars as $bar): ?>
+        <div class="bar-col"><span class="bar-val"><?= number_format($bar['hours'], 1) ?>h</span><div class="bar-track"><i style="height:<?= max(3, round($bar['hours'] / $maxPeriodHours * 100)) ?>%"></i></div><span class="bar-lbl"><?= e($bar['label']) ?></span></div>
       <?php endforeach; ?>
     </div>
   </section>
