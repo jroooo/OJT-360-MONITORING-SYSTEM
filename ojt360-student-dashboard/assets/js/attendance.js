@@ -1,11 +1,11 @@
 /* Attendance: calendar + history + timeline */
 (function(){
 'use strict';
-const { $, $$, hm, hms, esc, icon, getJSON, openModal, closeModal, tracker: T, on } = window.OJT;
+const { $, $$, hm, hms, esc, icon, getJSON, openModal, closeModal, toast, tracker: T, on } = window.OJT;
 let month = new Date().toISOString().slice(0, 7);
 const now = new Date(); const curMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
 month = curMonth;
-let data = null, view = 'calendar';
+let data = null, view = 'calendar', loadSequence = 0, daySequence = 0;
 const mins = m => { m = Math.max(0, Math.round(m)); return Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm'; };
 const hrs = m => (m / 60).toFixed(1) + 'h';
 const shift = (m, delta) => { const [y, mo] = m.split('-').map(Number); const d = new Date(y, mo - 1 + delta, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
@@ -13,10 +13,16 @@ const shift = (m, delta) => { const [y, mo] = m.split('-').map(Number); const d 
 /* ----- live strip ----- */
 function live(d) {
   const st = d.status, bar = $('#trackerCard'); bar.dataset.state = st;
-  $('#attStatusText').textContent = st === 'working' ? 'Timed in · working' : st === 'break' ? 'On a break' : 'Not timed in';
-  $('#attStatusSub').textContent = st === 'idle' ? 'Scan your company QR to begin.' : 'Since ' + d.session.time_in_label;
-  $('#attClock').textContent = st === 'idle' ? hms(d.todayNet) : hms(d.sessionNet);
-  $('#mToday').textContent = hm(d.todayNet);
+  const shift = d.session ? (d.session.slot === 'afternoon' ? 'Afternoon' : 'Morning') : '';
+  $('#attStatusText').textContent = st === 'working' ? shift + ' shift · active' : st === 'scheduled' ? shift + ' shift · scheduled' : 'Not timed in';
+  $('#attClock').textContent = st === 'idle' ? hms(d.todayNet) : hms(d.sessionElapsed);
+  $('#attClock').style.color = d.timerState === 'warning' ? 'var(--amber)' : d.timerState === 'overdue' ? 'var(--red)' : '';
+  $('#mToday').textContent = hm(d.todayNet) + ' / 8h';
+  $('#attStatusSub').textContent = st === 'idle'
+    ? 'Scan your company QR to begin.'
+    : st === 'scheduled'
+      ? 'Your actual Time In was ' + d.session.time_in_label + '. Daily requirement: 8 hours.'
+      : shift + ' shift: ' + hm(d.sessionNet) + ' credited (4h maximum). Daily credit: ' + hm(d.todayNet) + ' of 8h. Your actual checkout time is recorded when you Time Out.';
   $('#mTotal').textContent = d.completed.toFixed(2) + ' h';
   $('#mRemain').textContent = Math.max(0, d.required - d.completed).toFixed(2) + ' h';
 }
@@ -25,8 +31,13 @@ live(T.derive());
 
 /* ----- data ----- */
 async function load() {
-  const j = await getJSON('api/attendance.php?action=month&month=' + month);
-  if (!j.ok) return;
+  const requestedMonth = month, sequence = ++loadSequence;
+  const j = await getJSON('api/attendance.php?action=month&month=' + requestedMonth);
+  if (sequence !== loadSequence || requestedMonth !== month) return;
+  if (!j.ok) { toast(j.message || j.error || 'Could not load attendance for this month.', 'error'); return; }
+  const warning = $('#attendanceWarning');
+  warning.hidden = !j.status_warnings?.length;
+  warning.textContent = (j.status_warnings || []).join(' ');
   data = j; paint();
 }
 function paint() {
@@ -53,7 +64,8 @@ function paintCalendar() {
       const parts = [];
       if (info.minutes > 0 || info.open) parts.push(`<b>${hrs(info.minutes)}</b>`);
       if (info.sessions > 0) parts.push(`<small>${info.sessions} session${info.sessions > 1 ? 's' : ''}</small>`);
-      else if (info.logs > 0) parts.push(`<small>${info.logs} log${info.logs > 1 ? 's' : ''}</small>`);
+      if (info.status === 'absent') parts.push('<small>Absent</small>');
+      else if (info.status === 'incomplete') parts.push('<small>Incomplete</small>');
       meta = `<div class="cal-meta">${parts.join('')}</div>`;
     }
     html += `<button class="cal-cell ${st ? 'st-' + st : ''} ${isToday ? 'today' : ''}" data-date="${ds}" aria-label="${ds}"><span class="num">${d}</span>${st ? `<i class="cal-dot"></i>` : ''}${meta}</button>`;
@@ -64,9 +76,25 @@ function paintCalendar() {
 }
 
 function paintHistory() {
-  const rows = data ? data.sessions : [];
+  const rows = data ? data.sessions.map(session => ({
+    ...session,
+    status: data.days[session.date]?.status || 'attendance'
+  })).concat(Object.entries(data.days || {}).filter(([, day]) => day.status === 'absent').map(([date, day]) => ({
+    date, company: '', time_in: '—', time_out: null, net_min: 0, open: false, status: day.status, reason: day.reason
+  }))).sort((a, b) => a.date.localeCompare(b.date)) : [];
   if (!rows.length) { $('#viewHistory').innerHTML = `<div class="empty-state"><div class="empty-icon">${icon('clock')}</div><h3>No attendance records this month</h3><p>Time In and Time Out records will appear here.</p></div>`; return; }
-  $('#viewHistory').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Company</th><th>Time in</th><th>Time out</th><th>Break</th><th>Rendered</th><th>Status</th></tr></thead><tbody>${rows.slice().reverse().map(r => `<tr><td><b>${new Date(r.date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</b></td><td>${esc(r.company)}</td><td>${r.time_in}</td><td>${r.time_out || '—'}</td><td>${r.break_min ? mins(r.break_min) : '—'}</td><td><b>${mins(r.net_min)}</b></td><td><span class="pill ${r.open ? (r.on_break ? 'amber-pill' : 'blue-pill') : 'green-pill'}">${r.open ? (r.on_break ? 'On break' : 'Active') : 'Completed'}</span></td></tr>`).join('')}</tbody></table></div>`;
+  $('#viewHistory').innerHTML = `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Company</th><th>Time in</th><th>Time out</th><th>Rendered</th><th>Status</th></tr></thead><tbody>${rows.slice().reverse().map(r => {
+    const statusLabels = { absent: 'Absent', incomplete: 'Incomplete', progress: 'In progress', complete: 'Complete', attendance: 'Attendance' };
+    const statusClasses = { absent: 'red-pill', incomplete: 'amber-pill', progress: 'blue-pill', complete: 'green-pill', attendance: 'blue-pill' };
+    const checkoutDate = r.time_out_date && r.time_out_date !== r.date
+      ? `<small class="muted">${new Date(r.time_out_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</small>`
+      : '';
+    const label = r.status === 'absent' && r.absence_status === 'Excused'
+      ? 'Absent · Excused'
+      : statusLabels[r.status] || 'Attendance';
+    const rendered = r.status === 'absent' ? '—' : mins(r.net_min);
+    return `<tr><td><b>${new Date(r.date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</b></td><td>${esc(r.company || '—')}</td><td>${esc(r.time_in)}</td><td>${r.time_out ? `${esc(r.time_out)}${checkoutDate}` : '—'}</td><td><b>${rendered}</b></td><td><span class="pill ${statusClasses[r.status] || 'blue-pill'}">${label}</span>${r.reason ? `<br><small>${esc(r.reason)}</small>` : ''}</td></tr>`;
+  }).join('')}</tbody></table></div>`;
 }
 
 function paintTimeline() {
@@ -79,16 +107,33 @@ function paintTimeline() {
 
 /* ----- day modal ----- */
 async function openDay(date) {
+  const sequence = ++daySequence;
   $('#dayTitle').textContent = new Date(date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
   $('#dayBody').innerHTML = '<div class="empty">Loading…</div>';
-  $('#dayAddLog').href = 'daily_logs.php?new=1&date=' + date; openModal('#dayModal');
+  openModal('#dayModal');
   const j = await getJSON('api/attendance.php?action=day&date=' + date);
+  if (sequence !== daySequence) return;
   if (!j.ok) { $('#dayBody').innerHTML = '<div class="empty">Could not load this date.</div>'; return; }
   const evNames = { time_in: 'Time in', break_start: 'Break', break_end: 'Resumed', time_out: 'Time out' };
-  let h = '<section class="day-sec"><h4>Attendance</h4>';
-  h += j.sessions.length ? j.sessions.map(s => `<div class="day-card"><div class="day-line"><b>${s.time_in} → ${s.time_out || '<em class="live-text">in progress</em>'}</b><span class="pill ${s.open ? 'blue-pill' : 'green-pill'}">${mins(s.net_min)} rendered</span></div><small class="muted">${esc(s.company)}${s.break_min ? ' · ' + mins(s.break_min) + ' break' : ''}</small>${s.events.length > 2 ? `<div class="day-events">${s.events.map(e => `<span>${evNames[e.type]} ${e.time}</span>`).join('')}</div>` : ''}</div>`).join('') : '<p class="muted">No attendance recorded.</p>';
-  h += '</section><section class="day-sec"><h4>Daily Log</h4>';
-  h += j.logs.length ? j.logs.map(l => `<div class="day-card"><div class="day-line"><b>${l.title ? esc(l.title) : '<span class="warn-text">Needs details</span>'}</b><a class="text-link" href="daily_logs.php?edit=${l.id}">${l.title ? 'Edit' : 'Add details'}</a></div>${l.description ? `<p class="day-desc">${esc(l.description).replace(/\n/g, '<br>')}</p>` : ''}<small class="muted">${l.hours.toFixed(2)} hours${l.time_in ? ' · ' + l.time_in + (l.time_out ? ' – ' + l.time_out : '') : ''}</small>${l.evidence ? `<img class="day-img" src="${l.evidence}" alt="Evidence" data-zoom>` : ''}</div>`).join('') : '<p class="muted">No daily log for this date.</p>';
+  const dateLabel = value => new Date(value + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const statusLabels = { absent: 'Absent', incomplete: 'Incomplete — under 8 hours', progress: 'In progress', complete: 'Complete — 8 hours reached', attendance: 'Attendance recorded' };
+  let h = '';
+  if (j.day_status) {
+    const statusClass = j.day_status.status === 'absent' ? 'red-pill' : j.day_status.status === 'incomplete' ? 'amber-pill' : j.day_status.status === 'complete' ? 'green-pill' : 'blue-pill';
+    const label = j.day_status.status === 'absent' && j.day_status.absence_status === 'Excused'
+      ? 'Absent · Excused'
+      : statusLabels[j.day_status.status] || 'Attendance recorded';
+    h += `<div class="day-status"><span class="pill ${statusClass}">${label}</span><b>${Number(j.day_status.hours).toFixed(2)} / 8.00 hours</b>${j.day_status.reason ? `<small>${esc(j.day_status.reason)}</small>` : ''}</div>`;
+  }
+  h += '<section class="day-sec"><h4>Attendance</h4>';
+  h += j.sessions.length ? j.sessions.map(s => {
+    const timeIn = `${s.time_in_date && s.time_in_date !== date ? `<small class="muted">${dateLabel(s.time_in_date)} · </small>` : ''}${esc(s.time_in)}`;
+    const timeOut = s.time_out
+      ? `${s.time_out_date && s.time_out_date !== date ? `<small class="muted">${dateLabel(s.time_out_date)} · </small>` : ''}${esc(s.time_out)}`
+      : '<em class="live-text">in progress</em>';
+    const events = s.events.filter(e => evNames[e.type]).map(e => `<span>${evNames[e.type]} ${esc(e.time)}</span>`).join('');
+    return `<div class="day-card"><div class="day-line"><b>${timeIn} → ${timeOut}</b><span class="pill ${s.open ? 'blue-pill' : 'green-pill'}">${mins(s.net_min)} rendered</span></div><small class="muted">${esc(s.company)}</small>${s.events.length > 2 ? `<div class="day-events">${events}</div>` : ''}</div>`;
+  }).join('') : `<p class="muted">${j.day_status?.status === 'absent' ? 'No attendance was recorded for this workday.' : 'No attendance recorded.'}</p>`;
   h += '</section>';
   $('#dayBody').innerHTML = h;
 }

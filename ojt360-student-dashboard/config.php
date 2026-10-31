@@ -14,7 +14,7 @@ const APP_TIMEZONE = 'Asia/Manila';
 const APP_TZ_OFFSET = '+08:00';
 date_default_timezone_set(APP_TIMEZONE);
 
-const SCHEMA_VERSION = 19;
+const SCHEMA_VERSION = 21;
 
 function assistant_config(): array {
     static $config = null;
@@ -136,6 +136,27 @@ CREATE TABLE IF NOT EXISTS attendance_events (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 SQL,
 <<<'SQL'
+CREATE TABLE IF NOT EXISTS absences (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  student_pk INT(11) NOT NULL,
+  absence_date DATE NOT NULL,
+  reason VARCHAR(255) NOT NULL DEFAULT '',
+  status VARCHAR(32) NOT NULL DEFAULT 'Unexcused',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY student_absence (student_pk,absence_date),
+  CONSTRAINT fk_absences_student FOREIGN KEY (student_pk) REFERENCES students(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+SQL,
+<<<'SQL'
+CREATE TABLE IF NOT EXISTS student_holiday_calendar (
+  holiday_year SMALLINT(5) UNSIGNED NOT NULL,
+  holidays_json LONGTEXT NOT NULL,
+  synced_at DATETIME NOT NULL,
+  PRIMARY KEY (holiday_year)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+SQL,
+<<<'SQL'
 CREATE TABLE IF NOT EXISTS daily_logs (
   id INT(11) NOT NULL AUTO_INCREMENT,
   student_pk INT(11) NOT NULL,
@@ -195,6 +216,8 @@ CREATE TABLE IF NOT EXISTS journal_submissions (
   id INT(11) NOT NULL AUTO_INCREMENT,
   student_pk INT(11) NOT NULL,
   adviser_id INT(11) DEFAULT NULL,
+  submission_type ENUM('weekly','final') NOT NULL DEFAULT 'weekly',
+  pdf_file VARCHAR(64) DEFAULT NULL,
   title VARCHAR(180) NOT NULL,
   content LONGTEXT NOT NULL,
   orientation ENUM('portrait','landscape') NOT NULL DEFAULT 'portrait',
@@ -306,6 +329,24 @@ function ensure_runtime_tables(PDO $pdo): void {
 
     foreach (schema_statements() as $sql) $pdo->exec($sql);
 
+    if (!column_exists($pdo, 'journal_submissions', 'submission_type')) {
+        $pdo->exec("ALTER TABLE journal_submissions ADD COLUMN submission_type ENUM('weekly','final') NOT NULL DEFAULT 'weekly' AFTER adviser_id");
+    }
+    if (!column_exists($pdo, 'journal_submissions', 'pdf_file')) {
+        $pdo->exec('ALTER TABLE journal_submissions ADD COLUMN pdf_file VARCHAR(64) DEFAULT NULL AFTER submission_type');
+    }
+
+    $absenceIndex = $pdo->prepare("SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='absences' AND index_name='student_absence'");
+    $absenceIndex->execute();
+    if ((int)$absenceIndex->fetchColumn() === 0) {
+        $duplicates = (int)$pdo->query('SELECT COUNT(*) FROM (SELECT student_pk,absence_date FROM absences GROUP BY student_pk,absence_date HAVING COUNT(*)>1) duplicate_absences')->fetchColumn();
+        if ($duplicates === 0) {
+            $pdo->exec('ALTER TABLE absences ADD UNIQUE KEY student_absence (student_pk,absence_date)');
+        } else {
+            error_log('Student absence records contain duplicate dates; automatic absence creation will avoid duplicates without a unique index.');
+        }
+    }
+
     // v19: the My Tasks page was removed, so its two tables are dropped (task_updates first: it points to tasks).
     $pdo->exec('DROP TABLE IF EXISTS task_updates');
     $pdo->exec('DROP TABLE IF EXISTS tasks');
@@ -315,7 +356,7 @@ SELECT 'OJT360-COMPANY-001','OJT360 Demo Company','Tacloban City, Leyte',1
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM qr_codes WHERE qr_value='OJT360-COMPANY-001')
 SQL);
 
-    foreach (['daily_logs', 'journal', 'profile'] as $folder) {
+    foreach (['daily_logs', 'journal', 'profile', 'journal_submissions'] as $folder) {
         $dir = __DIR__ . '/uploads/' . $folder;
         if (!is_dir($dir)) @mkdir($dir, 0755, true);
     }

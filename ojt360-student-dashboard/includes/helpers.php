@@ -76,12 +76,16 @@ function week_start_of(string $date): string {
 /* ---------- student data helpers ---------- */
 
 function student_settings(int $uid): array {
-    $defaults = ['shift_start' => '08:00:00', 'grace_minutes' => 15, 'daily_target' => 8.0];
+    $defaults = ['shift_start' => '08:00:00', 'grace_minutes' => 15];
     try {
-        $stmt = db()->prepare('SELECT shift_start, grace_minutes, daily_target FROM student_settings WHERE student_pk=? LIMIT 1');
+        $stmt = db()->prepare('SELECT shift_start, grace_minutes FROM student_settings WHERE student_pk=? LIMIT 1');
         $stmt->execute([$uid]);
         $row = $stmt->fetch();
-        if ($row) return ['shift_start' => (string)$row['shift_start'], 'grace_minutes' => (int)$row['grace_minutes'], 'daily_target' => (float)$row['daily_target']];
+        if ($row) {
+            $shiftStart = (string)$row['shift_start'];
+            if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/', $shiftStart)) return $defaults;
+            return ['shift_start' => $shiftStart, 'grace_minutes' => (int)$row['grace_minutes']];
+        }
     } catch (Throwable $e) { /* use defaults */ }
     return $defaults;
 }
@@ -108,8 +112,30 @@ function add_notification(int $uid, string $title, string $message, string $icon
 
 /* ---------- attendance / time tracking ---------- */
 
+const ATTENDANCE_SHIFT_SECONDS = 4 * 3600;
+const ATTENDANCE_DAILY_SECONDS = 2 * ATTENDANCE_SHIFT_SECONDS;
+
+function attendance_shift_start_times(string $date, array $settings): array {
+    $morning = strtotime($date . ' ' . substr($settings['shift_start'], 0, 5));
+    return ['morning' => $morning, 'afternoon' => $morning + 5 * 3600];
+}
+
 function active_session(int $uid): ?array {
-    $stmt = db()->prepare('SELECT * FROM attendance WHERE student_pk=? AND time_out IS NULL ORDER BY time_in DESC LIMIT 1');
+    $stmt = db()->prepare(
+        'SELECT a.*,
+                COALESCE(
+                    (SELECT MIN(ev.event_time)
+                     FROM attendance_events ev
+                     WHERE ev.attendance_id = a.id
+                       AND ev.student_pk = a.student_pk
+                       AND ev.event_type = \'time_in\'),
+                    a.time_in
+                ) AS actual_time_in
+         FROM attendance a
+         WHERE a.student_pk = ? AND a.time_out IS NULL
+         ORDER BY a.time_in DESC
+         LIMIT 1'
+    );
     $stmt->execute([$uid]);
     $row = $stmt->fetch();
     return $row ?: null;
@@ -118,14 +144,18 @@ function active_session(int $uid): ?array {
 /* total / break / net seconds of one attendance row, live when the session is still open */
 function session_seconds(array $s, ?int $now = null): array {
     $now = $now ?? time();
-    $in = strtotime((string)$s['time_in']);
+    $scheduledIn = strtotime((string)$s['time_in']);
+    $actualIn = strtotime((string)($s['actual_time_in'] ?? '')) ?: $scheduledIn;
     $end = !empty($s['time_out']) ? strtotime((string)$s['time_out']) : $now;
     $break = (int)($s['break_seconds'] ?? 0);
     if (!empty($s['break_started_at']) && empty($s['time_out'])) {
         $break += max(0, $now - strtotime((string)$s['break_started_at']));
     }
-    $total = max(0, $end - $in);
-    return ['total' => $total, 'break' => min($break, $total), 'net' => max(0, $total - $break)];
+    $total = max(0, $end - $actualIn);
+    $net = !empty($s['time_out']) && array_key_exists('duration_minutes', $s) && $s['duration_minutes'] !== null
+        ? min(ATTENDANCE_SHIFT_SECONDS, max(0, (int)$s['duration_minutes'] * 60))
+        : min(ATTENDANCE_SHIFT_SECONDS, max(0, $total - $break));
+    return ['start' => $actualIn, 'total' => $total, 'break' => $break, 'net' => $net];
 }
 
 function log_attendance_event(int $attendanceId, int $uid, string $type, string $time): void {
@@ -133,11 +163,25 @@ function log_attendance_event(int $attendanceId, int $uid, string $type, string 
 }
 
 function today_events(int $uid): array {
-    $stmt = db()->prepare('SELECT event_type, event_time FROM attendance_events WHERE student_pk=? AND DATE(event_time)=? ORDER BY event_time ASC, id ASC');
+    $stmt = db()->prepare(
+        'SELECT ev.event_type, ev.event_time, a.time_in AS scheduled_time_in
+         FROM attendance_events ev
+         LEFT JOIN attendance a ON a.id = ev.attendance_id AND a.student_pk = ev.student_pk
+         WHERE ev.student_pk = ? AND DATE(ev.event_time) = ?
+         ORDER BY ev.event_time ASC, ev.id ASC'
+    );
     $stmt->execute([$uid, date('Y-m-d')]);
     $out = [];
     foreach ($stmt->fetchAll() as $r) {
-        $out[] = ['type' => $r['event_type'], 'ts' => strtotime($r['event_time']), 'label' => date('h:i A', strtotime($r['event_time']))];
+        $scheduledIn = $r['event_type'] === 'time_in' && !empty($r['scheduled_time_in'])
+            ? strtotime($r['scheduled_time_in'])
+            : false;
+        $out[] = [
+            'type' => $r['event_type'],
+            'ts' => strtotime($r['event_time']),
+            'label' => date('h:i A', $scheduledIn ?: strtotime($r['event_time'])),
+            'actual_label' => date('h:i A', strtotime($r['event_time'])),
+        ];
     }
     return $out;
 }
@@ -147,20 +191,65 @@ function tracker_state(int $uid): array {
     $s = active_session($uid);
     $state = ['status' => 'idle', 'server_now' => $now, 'session' => null];
     if ($s) {
-        $onBreak = !empty($s['break_started_at']);
-        $state['status'] = $onBreak ? 'break' : 'working';
+        $scheduledStart = strtotime((string)$s['time_in']);
+        $actualStart = strtotime((string)($s['actual_time_in'] ?? '')) ?: $scheduledStart;
+        $shiftTargetSeconds = ATTENDANCE_SHIFT_SECONDS;
+        $shiftStarts = attendance_shift_start_times(date('Y-m-d', $scheduledStart), student_settings($uid));
+        $shift = $scheduledStart >= $shiftStarts['afternoon'] ? 'afternoon' : 'morning';
+        $sessionTime = session_seconds($s, $now);
+        $state['status'] = $now < $actualStart ? 'scheduled' : 'working';
         $state['session'] = [
             'id' => (int)$s['id'],
-            'time_in_ts' => strtotime((string)$s['time_in']),
-            'time_in_label' => date('h:i A', strtotime((string)$s['time_in'])),
+            'slot' => $shift,
+            'time_in_ts' => $scheduledStart,
+            'time_in_label' => date('h:i A', $actualStart),
+            'scheduled_time_in_label' => date('h:i A', $scheduledStart),
+            'actual_time_in_ts' => $actualStart,
             'break_seconds' => (int)$s['break_seconds'],
-            'break_started_ts' => $onBreak ? strtotime((string)$s['break_started_at']) : null,
+            'required_seconds' => $shiftTargetSeconds,
+            'remaining_seconds' => max(0, $shiftTargetSeconds - $sessionTime['net']),
         ];
     }
-    $stmt = db()->prepare('SELECT COALESCE(SUM(duration_minutes),0) m, COALESCE(SUM(break_seconds),0) b, COUNT(*) c FROM attendance WHERE student_pk=? AND DATE(time_in)=? AND time_out IS NOT NULL');
-    $stmt->execute([$uid, date('Y-m-d')]);
-    $t = $stmt->fetch();
-    $state['today'] = ['net_seconds' => (int)$t['m'] * 60, 'break_seconds' => (int)$t['b'], 'sessions' => (int)$t['c']];
+    $today = date('Y-m-d');
+    $stmt = db()->prepare(
+        "SELECT a.*,
+                COALESCE(
+                    (SELECT MIN(ev.event_time)
+                     FROM attendance_events ev
+                     WHERE ev.attendance_id = a.id
+                       AND ev.student_pk = a.student_pk
+                       AND ev.event_type = 'time_in'),
+                    a.time_in
+                ) AS actual_time_in
+         FROM attendance a
+         WHERE a.student_pk = ? AND DATE(a.time_out) = ?
+         ORDER BY a.time_out"
+    );
+    $stmt->execute([$uid, $today]);
+    $todaySeconds = 0;
+    $todaySessions = 0;
+    $lastCompletedToday = null;
+    foreach ($stmt->fetchAll() as $completedSession) {
+        $completedTime = session_seconds($completedSession, $now);
+        $creditedSeconds = (int)floor($completedTime['net'] / 3600) * 3600;
+        $todaySeconds = min(ATTENDANCE_DAILY_SECONDS, $todaySeconds + min(ATTENDANCE_SHIFT_SECONDS, $creditedSeconds));
+        $todaySessions++;
+        if ($lastCompletedToday === null || strtotime((string)$completedSession['time_out']) > $lastCompletedToday['time_out_ts']) {
+            $lastCompletedToday = [
+                'time_in' => date('h:i A', $completedTime['start']),
+                'time_out' => date('h:i A', strtotime((string)$completedSession['time_out'])),
+                'time_out_ts' => strtotime((string)$completedSession['time_out']),
+            ];
+        }
+    }
+    $state['today'] = [
+        'net_seconds' => $todaySeconds,
+        'break_seconds' => 0,
+        'sessions' => $todaySessions,
+        'required_seconds' => ATTENDANCE_DAILY_SECONDS,
+    ];
+    $state['today']['last_time_in_label'] = $lastCompletedToday['time_in'] ?? null;
+    $state['today']['last_time_out_label'] = $lastCompletedToday['time_out'] ?? null;
     $i = internship_for($uid);
     $state['completed_hours'] = (float)($i['completed_hours'] ?? 0);
     $state['required_hours'] = (float)($i['required_hours'] ?? 480);
@@ -213,6 +302,46 @@ function evidence_url(?string $name): string {
     return $name ? 'uploads/daily_logs/' . rawurlencode(basename($name)) : '';
 }
 
+function save_journal_submission_pdf(string $field): string {
+    $file = $_FILES[$field] ?? null;
+    if (!is_array($file) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        throw new RuntimeException('Create the PDF before submitting the journal.');
+    }
+    if (
+        !is_array($file) ||
+        !is_string($file['tmp_name'] ?? null) ||
+        ($file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK ||
+        !is_uploaded_file($file['tmp_name'])
+    ) {
+        throw new RuntimeException('The PDF could not be uploaded. Please try again.');
+    }
+    $size = (int)($file['size'] ?? 0);
+    if ($size < 8 || $size > 25 * 1024 * 1024) {
+        throw new RuntimeException('The PDF must be smaller than 25 MB.');
+    }
+    $handle = fopen($file['tmp_name'], 'rb');
+    $signature = $handle ? fread($handle, 5) : false;
+    $footer = false;
+    if ($handle) {
+        fseek($handle, max(0, $size - 2048));
+        $footer = fread($handle, 2048);
+    }
+    if ($handle) fclose($handle);
+    if ($signature !== '%PDF-' || !is_string($footer) || strpos($footer, '%%EOF') === false) {
+        throw new RuntimeException('The submitted attachment is not a valid PDF.');
+    }
+
+    $dir = __DIR__ . '/../uploads/journal_submissions';
+    if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+        throw new RuntimeException('The PDF storage folder could not be created.');
+    }
+    $name = bin2hex(random_bytes(24)) . '.pdf';
+    if (!move_uploaded_file($file['tmp_name'], $dir . '/' . $name)) {
+        throw new RuntimeException('The PDF could not be saved on the server.');
+    }
+    return $name;
+}
+
 /* ---------- report helpers ---------- */
 
 function report_period(string $type, string $date): array {
@@ -231,56 +360,324 @@ function report_period(string $type, string $date): array {
     return ['type' => $type === 'monthly' ? 'monthly' : 'weekly', 'start' => $start, 'end' => $end, 'label' => $label, 'range' => $range];
 }
 
+function philippine_holidays_for_year(int $year): array {
+    $cache = db()->prepare('SELECT holidays_json,synced_at FROM student_holiday_calendar WHERE holiday_year=? LIMIT 1');
+    $cache->execute([$year]);
+    $cached = $cache->fetch();
+    $holidayMap = $cached ? json_decode((string)$cached['holidays_json'], true) : null;
+    if (!is_array($holidayMap)) $holidayMap = [];
+    $stale = !$cached || strtotime((string)$cached['synced_at']) < strtotime('-1 day');
+    $warning = null;
+
+    if ($stale) {
+        try {
+            $context = stream_context_create([
+                'http' => [
+                    'method' => 'GET',
+                    'timeout' => 6,
+                    'ignore_errors' => true,
+                    'header' => "Accept: application/json\r\nUser-Agent: OJT360-Student-Dashboard/1.0\r\n",
+                ],
+                'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
+            ]);
+            $response = @file_get_contents('https://date.nager.at/api/v3/PublicHolidays/' . $year . '/PH', false, $context);
+            if ($response === false || !isset($http_response_header[0]) || !preg_match('/\s200\s/', $http_response_header[0])) {
+                throw new RuntimeException('The public holiday calendar did not return a successful response.');
+            }
+            $records = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+            if (!is_array($records)) throw new RuntimeException('The public holiday calendar response was invalid.');
+            $freshMap = [];
+            foreach ($records as $record) {
+                if (
+                    !is_array($record) ||
+                    ($record['countryCode'] ?? '') !== 'PH' ||
+                    !empty($record['counties']) ||
+                    !preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($record['date'] ?? '')) ||
+                    (int)substr((string)$record['date'], 0, 4) !== $year ||
+                    !in_array('Public', $record['types'] ?? [], true)
+                ) continue;
+                $freshMap[$record['date']] = (string)($record['localName'] ?? $record['name'] ?? 'Public holiday');
+            }
+            if (!$freshMap) throw new RuntimeException('The public holiday calendar returned no valid Philippine holidays.');
+            ksort($freshMap);
+            $save = db()->prepare(
+                'INSERT INTO student_holiday_calendar(holiday_year,holidays_json,synced_at) VALUES(?,?,NOW())
+                 ON DUPLICATE KEY UPDATE holidays_json=VALUES(holidays_json),synced_at=VALUES(synced_at)'
+            );
+            $save->execute([$year, json_encode($freshMap, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)]);
+            $holidayMap = $freshMap;
+        } catch (Throwable $exception) {
+            error_log('Unable to refresh Philippine public holidays for ' . $year . ': ' . $exception->getMessage());
+            $warning = $holidayMap
+                ? 'The Philippine holiday calendar for ' . $year . ' could not be refreshed. The saved list is shown, but automatic absence marking is paused for that year.'
+                : 'The Philippine holiday calendar for ' . $year . ' is unavailable; automatic absence marking is paused for that year.';
+        }
+    }
+
+    return ['dates' => $holidayMap, 'warning' => $warning];
+}
+
+function student_attendance_statuses(int $uid, string $start, string $end): array {
+    $internship = internship_for($uid);
+    if (!$internship) return ['days' => [], 'warnings' => []];
+
+    $internshipStart = (string)($internship['start_date'] ?? '');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $internshipStart)) {
+        $earliest = db()->prepare('SELECT DATE(MIN(time_in)) FROM attendance WHERE student_pk=?');
+        $earliest->execute([$uid]);
+        $internshipStart = (string)($earliest->fetchColumn() ?: '');
+        if ($internshipStart === '') {
+            return ['days' => [], 'warnings' => ['Set an internship start date to enable automatic absence tracking.']];
+        }
+    }
+
+    $today = date('Y-m-d');
+    $yesterday = date('Y-m-d', strtotime('-1 day'));
+    $throughDate = min($today, preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($internship['end_date'] ?? '')) ? (string)$internship['end_date'] : $today);
+    if ($internshipStart > $throughDate) return ['days' => [], 'warnings' => []];
+
+    $holidays = [];
+    $warnings = [];
+    for ($year = (int)substr($internshipStart, 0, 4), $lastYear = (int)substr($throughDate, 0, 4); $year <= $lastYear; $year++) {
+        $calendar = philippine_holidays_for_year($year);
+        $holidays[$year] = $calendar['dates'];
+        if ($calendar['warning']) $warnings[] = $calendar['warning'];
+    }
+
+    $attendanceQuery = db()->prepare(
+        "SELECT a.*,
+                COALESCE(
+                    (SELECT MIN(ev.event_time)
+                     FROM attendance_events ev
+                     WHERE ev.attendance_id=a.id AND ev.student_pk=a.student_pk AND ev.event_type='time_in'),
+                    a.time_in
+                ) AS actual_time_in
+         FROM attendance a
+         WHERE a.student_pk=? AND a.time_in>=? AND a.time_in<?
+         ORDER BY a.time_in,a.id"
+    );
+    $attendanceQuery->execute([$uid, $internshipStart . ' 00:00:00', date('Y-m-d', strtotime($throughDate . ' +1 day')) . ' 00:00:00']);
+    $workByDate = [];
+    foreach ($attendanceQuery->fetchAll() as $row) {
+        $date = date('Y-m-d', strtotime((string)$row['time_in']));
+        if (!isset($workByDate[$date])) $workByDate[$date] = ['seconds' => 0, 'sessions' => 0];
+        $workByDate[$date]['seconds'] = min(ATTENDANCE_DAILY_SECONDS, $workByDate[$date]['seconds'] + session_seconds($row)['net']);
+        $workByDate[$date]['sessions']++;
+    }
+
+    $existingQuery = db()->prepare('SELECT absence_date,status,reason FROM absences WHERE student_pk=? AND absence_date BETWEEN ? AND ?');
+    $existingQuery->execute([$uid, $internshipStart, $throughDate]);
+    $absenceByDate = [];
+    foreach ($existingQuery->fetchAll() as $absence) $absenceByDate[(string)$absence['absence_date']] = $absence;
+
+    $days = [];
+    $date = new DateTimeImmutable($internshipStart);
+    $lastDate = new DateTimeImmutable($throughDate);
+    while ($date <= $lastDate) {
+        $day = $date->format('Y-m-d');
+        $year = (int)$date->format('Y');
+        $weekday = (int)$date->format('N') <= 5;
+        $hasAttendance = isset($workByDate[$day]);
+        $autoAbsence = isset($absenceByDate[$day]) && str_starts_with((string)$absenceByDate[$day]['reason'], 'Automatically recorded by OJT360:');
+        $calendarUnavailable = !isset($holidays[$year]) || (bool)array_filter($warnings, static fn(string $warning): bool => str_contains($warning, (string)$year));
+        $isHoliday = !$calendarUnavailable && isset($holidays[$year][$day]);
+
+        if ($autoAbsence && (!$weekday || $hasAttendance || (!$calendarUnavailable && $isHoliday))) {
+            db()->prepare("DELETE FROM absences WHERE student_pk=? AND absence_date=? AND reason LIKE 'Automatically recorded by OJT360:%'")->execute([$uid, $day]);
+            unset($absenceByDate[$day]);
+            $autoAbsence = false;
+        }
+
+        if ($hasAttendance) {
+            $seconds = (int)$workByDate[$day]['seconds'];
+            $status = !$weekday || $isHoliday || $calendarUnavailable
+                ? 'attendance'
+                : ($day === $today && $seconds < ATTENDANCE_DAILY_SECONDS
+                    ? 'progress'
+                    : ($seconds < ATTENDANCE_DAILY_SECONDS ? 'incomplete' : 'complete'));
+            $days[$day] = [
+                'status' => $status,
+                'hours' => round($seconds / 3600, 2),
+                'sessions' => (int)$workByDate[$day]['sessions'],
+                'absence_status' => null,
+                'reason' => null,
+            ];
+            if ($autoAbsence) {
+                db()->prepare("DELETE FROM absences WHERE student_pk=? AND absence_date=? AND reason LIKE 'Automatically recorded by OJT360:%'")->execute([$uid, $day]);
+                unset($absenceByDate[$day]);
+            }
+        } elseif ($day < $today && $weekday && !$calendarUnavailable && !$isHoliday) {
+            if (!isset($absenceByDate[$day])) {
+                $reason = 'Automatically recorded by OJT360: no attendance on a scheduled workday.';
+                db()->prepare(
+                    'INSERT IGNORE INTO absences(student_pk,absence_date,reason,status)
+                     SELECT ?,?,?,\'Unexcused\' WHERE NOT EXISTS
+                       (SELECT 1 FROM absences WHERE student_pk=? AND absence_date=?)'
+                )->execute([$uid, $day, $reason, $uid, $day]);
+                $absenceByDate[$day] = ['absence_date' => $day, 'status' => 'Unexcused', 'reason' => $reason];
+            }
+            $days[$day] = [
+                'status' => 'absent',
+                'hours' => 0.0,
+                'sessions' => 0,
+                'absence_status' => (string)$absenceByDate[$day]['status'],
+                'reason' => (string)$absenceByDate[$day]['reason'],
+            ];
+        }
+        $date = $date->modify('+1 day');
+    }
+
+    $rangeStart = max($start, $internshipStart);
+    $rangeEnd = min($end, $throughDate);
+    if ($rangeStart > $rangeEnd) return ['days' => [], 'warnings' => array_values(array_unique($warnings))];
+    $rangeDays = array_intersect_key($days, array_flip(array_filter(array_keys($days), static fn(string $day): bool => $day >= $rangeStart && $day <= $rangeEnd)));
+    return ['days' => $rangeDays, 'warnings' => array_values(array_unique($warnings))];
+}
+
 function report_data(int $uid, string $start, string $end): array {
-    $q = db()->prepare('SELECT * FROM daily_logs WHERE student_pk=? AND log_date BETWEEN ? AND ? ORDER BY log_date ASC, time_in ASC, id ASC');
+    $q = db()->prepare(
+        "SELECT a.*,
+                COALESCE(
+                    (SELECT MIN(ev.event_time)
+                     FROM attendance_events ev
+                     WHERE ev.attendance_id = a.id
+                       AND ev.student_pk = a.student_pk
+                       AND ev.event_type = 'time_in'),
+                    a.time_in
+                ) AS actual_time_in
+         FROM attendance a
+         WHERE a.student_pk=? AND DATE(a.time_in) BETWEEN ? AND ?
+         ORDER BY a.time_in ASC, a.id ASC"
+    );
     $q->execute([$uid, $start, $end]);
-    $logs = $q->fetchAll();
-    $a = db()->prepare('SELECT COUNT(DISTINCT DATE(time_in)) days FROM attendance WHERE student_pk=? AND time_out IS NOT NULL AND DATE(time_in) BETWEEN ? AND ?');
-    $a->execute([$uid, $start, $end]);
-    $attDays = (int)$a->fetchColumn();
-    $hours = 0.0; $days = [];
-    foreach ($logs as $l) { $hours += (float)$l['hours']; $days[$l['log_date']] = true; }
-    $loggedDays = count($days);
+    $sessions = [];
+    $daySeconds = [];
+    foreach ($q->fetchAll() as $row) {
+        $day = date('Y-m-d', strtotime((string)$row['time_in']));
+        $seconds = session_seconds($row);
+        $remaining = max(0, ATTENDANCE_DAILY_SECONDS - ($daySeconds[$day] ?? 0));
+        $creditedSeconds = min($seconds['net'], $remaining);
+        $daySeconds[$day] = ($daySeconds[$day] ?? 0) + $creditedSeconds;
+        $sessions[] = [
+            'log_date' => $day,
+            'company_name' => (string)($row['company_name'] ?? ''),
+            'time_in' => $row['actual_time_in'],
+            'time_out' => $row['time_out'],
+            'break_minutes' => (int)round($seconds['break'] / 60),
+            'hours' => round($creditedSeconds / 3600, 2),
+        ];
+    }
+    $hours = round(array_sum(array_column($sessions, 'hours')), 2);
+    $attendanceDays = count($daySeconds);
+    $statusData = student_attendance_statuses($uid, $start, $end);
+    foreach ($sessions as &$session) {
+        $session['status'] = $statusData['days'][$session['log_date']]['status'] ?? 'attendance';
+    }
+    unset($session);
+    $rows = $sessions;
+    foreach ($statusData['days'] as $date => $day) {
+        if ($day['status'] === 'absent') {
+            $rows[] = [
+                'log_date' => $date,
+                'company_name' => '',
+                'time_in' => null,
+                'time_out' => null,
+                'break_minutes' => 0,
+                'hours' => 0.0,
+                'status' => $day['status'],
+                'absence_status' => $day['absence_status'],
+                'reason' => $day['reason'],
+            ];
+        }
+    }
+    usort($rows, static fn(array $a, array $b): int => strcmp($a['log_date'], $b['log_date']) ?: strcmp((string)($a['time_in'] ?? ''), (string)($b['time_in'] ?? '')));
     return [
-        'logs' => $logs,
-        'hours' => round($hours, 2),
-        'logged_days' => $loggedDays,
-        'daily_avg' => $loggedDays ? round($hours / $loggedDays, 2) : 0.0,
-        'attendance_days' => $attDays,
+        'sessions' => $sessions,
+        'rows' => $rows,
+        'day_statuses' => $statusData['days'],
+        'absent_days' => count(array_filter($statusData['days'], static fn(array $day): bool => $day['status'] === 'absent')),
+        'incomplete_days' => count(array_filter($statusData['days'], static fn(array $day): bool => $day['status'] === 'incomplete')),
+        'status_warnings' => $statusData['warnings'],
+        'hours' => $hours,
+        'attendance_days' => $attendanceDays,
+        'daily_avg' => $attendanceDays ? round($hours / $attendanceDays, 2) : 0.0,
+        'session_count' => count($sessions),
     ];
 }
 
 /* ---------- dashboard insights ---------- */
 function attendance_insights(int $uid): array {
     $set = student_settings($uid);
-    $limit = strtotime('1970-01-01 ' . $set['shift_start']) + $set['grace_minutes'] * 60;
-    $calc = function (string $month) use ($uid, $limit): array {
-        $stmt = db()->prepare("SELECT time_in, break_seconds FROM attendance WHERE student_pk=? AND DATE_FORMAT(time_in,'%Y-%m')=? ORDER BY time_in");
+    $calc = function (string $month) use ($uid, $set): array {
+        $stmt = db()->prepare(
+            "SELECT a.*,
+                    COALESCE(
+                        (SELECT MIN(ev.event_time)
+                         FROM attendance_events ev
+                         WHERE ev.attendance_id = a.id
+                           AND ev.student_pk = a.student_pk
+                           AND ev.event_type = 'time_in'),
+                        a.time_in
+                    ) AS actual_time_in
+             FROM attendance a
+             WHERE a.student_pk = ? AND DATE_FORMAT(a.time_in,'%Y-%m') = ?
+             ORDER BY a.time_in"
+        );
         $stmt->execute([$uid, $month]);
-        $total = 0; $ontime = 0; $break = 0; $byDay = [];
+        $total = 0; $ontime = 0; $break = 0; $byDay = []; $dailySeconds = [];
         foreach ($stmt->fetchAll() as $r) {
             $d = date('Y-m-d', strtotime($r['time_in']));
             $break += (int)$r['break_seconds'];
-            if (isset($byDay[$d])) continue; // first time-in of the day decides punctuality
-            $tod = strtotime('1970-01-01 ' . date('H:i:s', strtotime($r['time_in'])));
-            $byDay[$d] = $tod <= $limit;
-            $total++; if ($tod <= $limit) $ontime++;
+            $scheduledStart = strtotime((string)$r['time_in']);
+            $actualStart = strtotime((string)$r['actual_time_in']) ?: $scheduledStart;
+            $isOnTime = $actualStart <= $scheduledStart + (int)$set['grace_minutes'] * 60;
+            $total++;
+            if ($isOnTime) $ontime++;
+            $byDay[$d] = ($byDay[$d] ?? true) && $isOnTime;
+            $duration = session_seconds($r);
+            $dailySeconds[$d] = min(ATTENDANCE_DAILY_SECONDS, ($dailySeconds[$d] ?? 0) + $duration['net']);
         }
         $pct = $total ? (int)round($ontime / $total * 100) : 0;
-        return ['days' => $total, 'ontime' => $ontime, 'pct' => $pct, 'late_pct' => $total ? 100 - $pct : 0, 'break' => $break, 'byDay' => $byDay];
+        return [
+            'days' => $total,
+            'ontime' => $ontime,
+            'pct' => $pct,
+            'late_pct' => $total ? 100 - $pct : 0,
+            'break' => $break,
+            'hours' => array_sum($dailySeconds),
+            'byDay' => $byDay,
+        ];
     };
     $cur = $calc(date('Y-m'));
     $prev = $calc(date('Y-m', strtotime('first day of last month')));
     $series = [];
-    $q = db()->prepare("SELECT DATE(time_in) d, SUM(duration_minutes) m, SUM(break_seconds) b FROM attendance WHERE student_pk=? AND time_in >= DATE_SUB(CURDATE(), INTERVAL 13 DAY) GROUP BY DATE(time_in)");
+    $q = db()->prepare(
+        "SELECT a.*,
+                COALESCE(
+                    (SELECT MIN(ev.event_time)
+                     FROM attendance_events ev
+                     WHERE ev.attendance_id = a.id
+                       AND ev.student_pk = a.student_pk
+                       AND ev.event_type = 'time_in'),
+                    a.time_in
+                ) AS actual_time_in
+         FROM attendance a
+         WHERE a.student_pk = ? AND a.time_in >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
+         ORDER BY a.time_in"
+    );
     $q->execute([$uid]);
-    $map = [];
-    foreach ($q->fetchAll() as $r) $map[$r['d']] = ['m' => (int)$r['m'], 'b' => (int)$r['b']];
+    $workMap = $breakMap = [];
+    foreach ($q->fetchAll() as $r) {
+        $d = date('Y-m-d', strtotime($r['time_in']));
+        $session = session_seconds($r);
+        $workMap[$d] = min(ATTENDANCE_DAILY_SECONDS, ($workMap[$d] ?? 0) + $session['net']);
+        $breakMap[$d] = ($breakMap[$d] ?? 0) + $session['break'];
+    }
     $work = $brk = $ot = $lt = [];
     for ($i = 13; $i >= 0; $i--) {
         $d = date('Y-m-d', strtotime("-$i days"));
-        $work[] = round(($map[$d]['m'] ?? 0) / 60, 2);
-        $brk[] = round(($map[$d]['b'] ?? 0) / 60, 2);
+        $work[] = round(($workMap[$d] ?? 0) / 3600, 2);
+        $brk[] = round(($breakMap[$d] ?? 0) / 3600, 2);
         $ot[] = isset($cur['byDay'][$d]) ? ($cur['byDay'][$d] ? 100 : 0) : null;
         $lt[] = isset($cur['byDay'][$d]) ? ($cur['byDay'][$d] ? 0 : 100) : null;
     }

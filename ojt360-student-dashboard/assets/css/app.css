@@ -373,8 +373,16 @@ a.mini-row:hover{background:var(--surface-2);border-color:var(--line)}
 .mini-main{flex:1;min-width:0}.mini-main strong{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mini-main small{color:var(--muted);font-size:12.5px;display:block}
 .mini-check{width:34px;height:34px;border-radius:10px;background:var(--primary-soft);color:var(--primary-600);display:grid;place-items:center;flex:none}.mini-check .ic{width:17px;height:17px}.mini-check.dot:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--primary)}
 .ann-title{font-size:17px;margin:12px 0 6px}.journal-nudge{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.page-index .grid-2>*,.page-index .grid-3>*,.page-index .grid-main>*{min-width:0}
+.page-index .insights{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
+.page-index .progress-meta{grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))}
+.page-index .progress-meta strong{white-space:normal;overflow-wrap:anywhere}
+.page-index .goal-bottom{gap:6px;flex-wrap:wrap}
+.page-index .mini-main strong{white-space:normal;overflow-wrap:anywhere}
+.page-index .lower .panel{min-width:0}
 @media(max-width:1000px){.tracker-card{grid-template-columns:1fr}.tracker-viz{border-left:0;border-top:1px solid var(--line)}}
 @media(max-width:560px){.spark{display:none}.tracker-main{padding:20px}.progress-ring{width:180px;height:180px}.progress-ring>div{width:140px;height:140px}.progress-meta{grid-template-columns:1fr}}
+@media(max-width:560px){.page-index .main{padding:20px 12px 108px}.page-index .panel{padding:18px}.page-index .progress-meta{grid-template-columns:1fr}}
 
 /* =====================================================================
    ATTENDANCE
@@ -389,7 +397,7 @@ a.mini-row:hover{background:var(--surface-2);border-color:var(--line)}
 .link-btn{border:0;background:none;color:var(--primary-600);font-weight:800;font-size:12px;padding:2px 6px}.link-btn:hover{text-decoration:underline}
 .cal-legend{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:14px}
 .cal-legend span{display:inline-flex;align-items:center;gap:7px}.lgd{width:9px;height:9px;border-radius:50%;display:inline-block}
-.lgd.both,.cal-cell.st-both .cal-dot{background:var(--green)}.lgd.att,.cal-cell.st-att .cal-dot{background:#3b82f6}.lgd.log,.cal-cell.st-log .cal-dot{background:var(--amber)}.lgd.incomplete,.cal-cell.st-incomplete .cal-dot{background:var(--red)}.lgd.progress,.cal-cell.st-progress .cal-dot{background:var(--primary)}
+.lgd.att,.cal-cell.st-att .cal-dot,.cal-cell.st-attendance .cal-dot{background:#3b82f6}.lgd.progress,.cal-cell.st-progress .cal-dot{background:var(--primary)}.lgd.absent,.cal-cell.st-absent .cal-dot{background:var(--red)}.lgd.incomplete,.cal-cell.st-incomplete .cal-dot{background:var(--amber)}.lgd.complete,.cal-cell.st-complete .cal-dot{background:var(--green)}
 .cal-week,.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
 .cal-week span{text-align:center;font-size:11.5px;font-weight:800;color:var(--muted);letter-spacing:.04em;padding:6px 0}
 .cal-cell{position:relative;min-height:92px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:9px 10px;text-align:left;display:flex;flex-direction:column;gap:4px;transition:border-color .15s,background-color .15s,transform .15s}
@@ -399,10 +407,11 @@ button.cal-cell:hover{border-color:var(--primary);transform:translateY(-1px);bac
 .cal-cell.today{border:2px solid var(--primary)}.cal-cell.today .num{background:var(--primary);color:#fff}
 .cal-dot{position:absolute;right:10px;top:12px;width:9px;height:9px;border-radius:50%}
 .cal-cell.st-progress .cal-dot{animation:pulseRing 1.8s ease-out infinite}
-.cal-cell.st-both{background:var(--green-soft)}.cal-cell.st-incomplete{background:var(--red-soft)}.cal-cell.st-att{background:rgba(59,130,246,.08)}.cal-cell.st-log{background:var(--amber-soft)}.cal-cell.st-progress{background:var(--primary-soft)}
+.cal-cell.st-att,.cal-cell.st-attendance{background:rgba(59,130,246,.08)}.cal-cell.st-progress{background:var(--primary-soft)}.cal-cell.st-absent{background:var(--red-soft)}.cal-cell.st-incomplete{background:var(--amber-soft)}.cal-cell.st-complete{background:var(--green-soft)}
 .cal-meta{margin-top:auto;display:grid;gap:1px}.cal-meta b{font-size:13px}.cal-meta small{font-size:11px;color:var(--muted)}
 .day-body{display:grid;gap:18px;margin-top:10px}.day-sec h4{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
 .day-card{background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:grid;gap:6px}
+.day-status{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:8px 12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}.day-status small{grid-column:1/-1;color:var(--muted)}
 .day-line{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.day-desc{color:var(--ink-2);line-height:1.6}
 .day-events{display:flex;flex-wrap:wrap;gap:6px}.day-events span{font-size:11.5px;background:var(--surface-3);padding:3px 9px;border-radius:99px;color:var(--muted)}
 .day-img{width:100%;max-height:340px;object-fit:contain;border-radius:12px;background:#06101c;cursor:zoom-in;margin-top:6px}
@@ -413,6 +422,11 @@ button.cal-cell:hover{border-color:var(--primary);transform:translateY(-1px);bac
 .tl-row b{display:block;font-size:14px}.tl-row small{color:var(--muted)}
 .lightbox{background:rgba(3,10,20,.88);z-index:300}.lightbox img{max-width:min(94vw,1100px);max-height:90vh;border-radius:14px;box-shadow:var(--shadow-lg)}
 @media(max-width:760px){.cal-cell{min-height:64px;padding:6px}.cal-meta small{display:none}.cal-week span{font-size:10px}.cal-dot{right:6px;top:8px}}
+.page-attendance .att-metrics{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+.page-attendance .att-metrics>*{min-width:0}
+.page-attendance .day-line> b{overflow-wrap:anywhere}
+.page-attendance .day-line small{font-weight:500}
+.page-attendance .modal-lg{width:min(760px,100%)}
 
 /* =====================================================================
    DAILY LOGS
@@ -458,6 +472,7 @@ button.cal-cell:hover{border-color:var(--primary);transform:translateY(-1px);bac
 .check-list{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:8px;font-size:13px;color:var(--ink-2)}.check-list li:before{content:"✓";color:var(--green);font-weight:800;margin-right:9px}
 .compile-card .btn{margin-top:14px}
 .notice{display:flex;gap:14px;align-items:flex-start;background:var(--amber-soft);color:var(--amber-ink);border:1px solid rgba(245,158,11,.3);border-radius:14px;padding:14px 18px;margin-bottom:18px}.notice strong,.notice span{display:block}.notice span{font-size:13px;opacity:.9}
+.notice[hidden]{display:none}
 .compilation-panel{margin-bottom:20px;padding:20px}
 .comp-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
 .doc-brand{display:flex;align-items:center;gap:12px}.doc-brand strong{display:block}.doc-brand span{font-size:12.5px;color:var(--muted)}

@@ -21,7 +21,6 @@ $page_title = $page_title ?? 'Dashboard';
 $mainNav = [
     ['index.php', 'dashboard', 'Dashboard', ['index.php']],
     ['attendance.php', 'clock', 'Attendance', ['attendance.php']],
-    ['daily_logs.php', 'logs', 'Daily Logs', ['daily_logs.php']],
     ['journal.php', 'journal', 'Journal', ['journal.php', 'journal_compilation.php']],
     ['reports.php', 'reports', 'Reports', ['reports.php']],
 ];
@@ -41,7 +40,7 @@ $bodyClass = 'page-' . preg_replace('/[^a-z0-9]+/', '-', strtolower(basename($pa
 <script>(function(){try{var t=localStorage.getItem('ojt360-theme');if(!t){t=localStorage.getItem('ojt360-dark')==='1'?'dark':'light';}var d=t==='dark'||(t==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);var h=document.documentElement;h.setAttribute('data-theme',d?'dark':'light');h.setAttribute('data-theme-pref',t);if(localStorage.getItem('ojt360-sidebar')==='collapsed')h.classList.add('sb-collapsed');if(localStorage.getItem('ojt360-motion')==='reduce')h.classList.add('reduce-motion');}catch(e){}})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/app.css?v=20">
+<link rel="stylesheet" href="assets/css/app.css?v=24">
 <script>window.OJT360=<?= json_encode([
     'csrf' => csrf_token(),
     'userId' => $uid,
