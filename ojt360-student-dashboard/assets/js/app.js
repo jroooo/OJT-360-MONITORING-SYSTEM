@@ -200,7 +200,9 @@ setAvatar(C.profileImage || '');
     if (busy) return; busy = true; add(text, 'user'); const t = add('Thinking…', 'assistant'); status.textContent = 'AI Assistant · thinking';
     const j = await api('api/assistant.php', { message: text });
     t.textContent = j.ok ? (j.reply || 'No response returned.') : (j.error || j.message || 'I could not process that request.');
-    status.textContent = j.ok ? (j.mode === 'gemini' ? 'AI Assistant · online' : 'AI Assistant · setup mode') : 'AI Assistant · error';
+    status.textContent = j.ok
+      ? (j.mode === 'gemini' ? 'AI Assistant · online' : j.mode === 'quota_fallback' ? 'AI Assistant · limited mode' : 'AI Assistant · setup mode')
+      : 'AI Assistant · error';
     busy = false; box.scrollTop = box.scrollHeight;
   }
   fab.addEventListener('click', async () => { panel.classList.toggle('show'); if (panel.classList.contains('show')) { await history(); input.focus(); } });
@@ -220,28 +222,28 @@ const T = {
   set(state) { this.state = state; this.offset = state.server_now - Date.now() / 1000; emit('state', this.derive()); this.paintButtons(); },
   derive() {
     const s = this.state, now = this.now();
-    const d = { status: s.status, session: s.session, sessionTotal: 0, sessionBreak: 0, sessionNet: 0, todayNet: s.today.net_seconds, todayBreak: s.today.break_seconds, required: s.required_hours, events: s.events || [] };
+    const actualStart = s.session?.actual_time_in_ts || s.session?.time_in_ts;
+    const status = s.status === 'scheduled' && s.session && now >= actualStart ? 'working' : s.status;
+    const d = { status, session: s.session, sessionTotal: 0, sessionElapsed: 0, sessionNet: 0, sessionRemaining: s.session?.remaining_seconds || 0, timerState: '', todayNet: s.today.net_seconds, todayRequired: s.today.required_seconds || 8 * 3600, required: s.required_hours, events: s.events || [], lastTimeIn: s.today.last_time_in_label || null, lastTimeOut: s.today.last_time_out_label || null };
     if (s.session) {
-      const total = Math.max(0, now - s.session.time_in_ts);
-      let brk = s.session.break_seconds + (s.session.break_started_ts ? Math.max(0, now - s.session.break_started_ts) : 0);
-      brk = Math.min(brk, total);
-      d.sessionTotal = total; d.sessionBreak = brk; d.sessionNet = Math.max(0, total - brk);
-      d.todayNet += d.sessionNet; d.todayBreak += brk;
+      d.sessionElapsed = Math.max(0, now - actualStart);
+      const shiftRequired = s.session.required_seconds || 4 * 3600;
+      d.timerState = d.sessionElapsed > shiftRequired ? 'overdue' : d.sessionElapsed >= shiftRequired - 30 * 60 ? 'warning' : 'normal';
+      d.sessionTotal = d.sessionElapsed;       d.sessionNet = Math.min(shiftRequired, Math.floor(d.sessionElapsed / 3600) * 3600);
+      d.sessionRemaining = Math.max(0, (s.session.required_seconds || 0) - d.sessionNet);
+      d.todayNet = Math.min(d.todayRequired, d.todayNet + d.sessionNet);
     }
     d.completed = Math.min(d.required, s.completed_hours + d.sessionNet / 3600);
     d.pct = d.required > 0 ? Math.min(100, d.completed / d.required * 100) : 0;
     return d;
   },
   paintButtons() {
-    const st = this.state.status;
+    const d = this.derive();
+    const st = d.status;
     $$('[data-track="timein"]').forEach(b => { b.disabled = st !== 'idle'; });
-    $$('[data-track="timeout"]').forEach(b => { b.disabled = st === 'idle'; });
-    $$('[data-track="break"]').forEach(b => {
-      b.disabled = st === 'idle';
-      const lbl = $('.lbl', b), ic = $('.btn-ic', b);
-      if (lbl) lbl.textContent = st === 'break' ? 'Resume Work' : 'Take a Break';
-      if (ic) ic.innerHTML = icon(st === 'break' ? 'play' : 'coffee');
-      b.classList.toggle('is-resume', st === 'break');
+    $$('[data-track="timeout"]').forEach(b => {
+      b.disabled = st === 'idle' || st === 'scheduled';
+      b.title = '';
     });
     document.body.dataset.track = st;
   },
@@ -251,11 +253,6 @@ const T = {
     if (j.state) this.set(j.state);
     return j;
   },
-  async breakToggle() {
-    const j = await this.act(this.state.status === 'break' ? 'break_end' : 'break_start');
-    toast(j.message || (j.ok ? 'Updated.' : 'Could not update.'), j.ok ? 'success' : 'error');
-    return j;
-  }
 };
 T.offset = T.state.server_now - Date.now() / 1000;
 OJT_expose();
@@ -264,11 +261,12 @@ OJT_expose();
 function tick() {
   const d = T.derive(); const chip = $('#trackChip');
   if (chip) {
-    chip.hidden = d.status === 'idle';
-    chip.classList.toggle('is-break', d.status === 'break');
-    $('[data-chip-label]', chip).textContent = d.status === 'break' ? 'On break' : 'Working';
-    $('[data-chip-time]', chip).textContent = hms(d.status === 'break' && T.state.session?.break_started_ts ? T.now() - T.state.session.break_started_ts : d.sessionNet);
+    chip.hidden = d.status === 'idle' || d.status === 'scheduled';
+    chip.classList.remove('is-break');
+    $('[data-chip-label]', chip).textContent = 'Working';
+    $('[data-chip-time]', chip).textContent = hms(d.sessionElapsed);
   }
+  T.paintButtons();
   emit('tick', d);
 }
 setInterval(tick, 1000);
@@ -287,14 +285,61 @@ function loadQrLib() {
 async function stopCamera() { if (scan.qr) { try { await scan.qr.stop(); } catch (e) {} try { scan.qr.clear(); } catch (e) {} scan.qr = null; } }
 async function startCamera() {
   if (scan.qr) return;
-  setScanStatus('Starting camera…');
+  if (navigator.permissions?.query) {
+    try {
+      const permission = await navigator.permissions.query({ name: 'camera' });
+      if (permission.state === 'denied') {
+        setScanStatus('Camera access is blocked for this site. Allow camera access in your browser site settings, then select Start camera again. You can also enter the QR code manually.', 'bad');
+        return;
+      }
+    } catch (e) {
+      // Continue with the camera request when camera permission status is unsupported.
+    }
+  }
+  setScanStatus('Starting camera… Allow camera access if your browser asks.');
   try { await loadQrLib(); } catch (e) { setScanStatus('The QR library could not load (offline?). Use the manual code box below.', 'bad'); return; }
   $('#reader').innerHTML = '';
-  scan.qr = new Html5Qrcode('reader');
+  const onScan = async text => { await stopCamera(); setScanStatus('QR detected. Validating…'); await submitQr(text); };
+  const config = { fps: 10, qrbox: { width: 230, height: 230 } };
+  const start = async camera => {
+    scan.qr = new Html5Qrcode('reader');
+    await scan.qr.start(camera, config, onScan);
+  };
   try {
-    await scan.qr.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 230, height: 230 } }, async text => { await stopCamera(); setScanStatus('QR detected. Validating…'); await submitQr(text); });
-    setScanStatus('Camera active. Point it at the company QR code.');
-  } catch (e) { scan.qr = null; setScanStatus('Camera could not start. Allow camera access, or enter the code manually below.', 'bad'); }
+    await start({ facingMode: 'environment' });
+  } catch (environmentError) {
+    setScanStatus('Trying the available camera devices…');
+    if (scan.qr) {
+      try { await scan.qr.clear(); } catch (clearError) {}
+      scan.qr = null;
+    }
+    try {
+      const cameras = await Html5Qrcode.getCameras();
+      const rearCamera = cameras.find(camera => /back|rear|environment/i.test(camera.label));
+      const candidates = rearCamera ? [rearCamera, ...cameras.filter(camera => camera.id !== rearCamera.id)] : cameras;
+      let cameraError = environmentError;
+      for (const camera of candidates) {
+        try {
+          await start(camera.id);
+          setScanStatus('Camera active. Point it at the company QR code.');
+          return;
+        } catch (error) {
+          cameraError = error;
+          if (scan.qr) {
+            try { await scan.qr.clear(); } catch (clearError) {}
+            scan.qr = null;
+          }
+        }
+      }
+      throw cameraError;
+    } catch (error) {
+      scan.qr = null;
+      const reason = error instanceof Error && error.message ? ' ' + error.message : '';
+      setScanStatus('Camera could not start. Allow camera access or connect a camera, then try again.' + reason + ' You can also enter the QR code manually.', 'bad');
+      return;
+    }
+  }
+  setScanStatus('Camera active. Point it at the company QR code.');
 }
 async function submitQr(value) {
   if (scan.busy) return; scan.busy = true; setScanStatus('Validating on the server…');
@@ -310,7 +355,9 @@ function openScan(mode) {
   const isIn = mode === 'timein';
   $('#scanEyebrow').textContent = isIn ? 'TIME IN' : 'TIME OUT';
   $('#scanTitle').textContent = isIn ? 'Scan your company QR to start' : 'Scan your company QR to finish';
-  $('#scanHint').textContent = isIn ? 'Your timer starts as soon as the code is validated.' : 'Your hours are saved and today\'s daily log opens for your details.';
+  $('#scanHint').textContent = isIn
+    ? 'Your actual scan time is recorded. Each shift can contribute up to four hours toward the eight-hour daily requirement.'
+    : 'Your actual Time Out is recorded. Credited time is based on the time between your scans and capped at four hours for this shift.';
   $('#manualQr').value = ''; $('#reader').innerHTML = '<div class="qr-placeholder">' + icon('qr') + '<span>Camera preview appears here</span></div>';
   setScanStatus('Ready to scan.'); openModal('#scanModal'); startCamera();
 }
@@ -322,17 +369,13 @@ $('#stopScan')?.addEventListener('click', async () => { await stopCamera(); setS
 $('#manualScan')?.addEventListener('click', () => { const v = $('#manualQr').value.trim(); if (v) { stopCamera(); submitQr(v); } else setScanStatus('Type or paste a code first.', 'bad'); });
 $('#manualQr')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#manualScan').click(); } });
 
-document.addEventListener('click', async e => {
+document.addEventListener('click', e => {
   const b = e.target.closest('[data-track]'); if (!b || b.disabled) return;
   const a = b.dataset.track;
   if (a === 'timein') openScan('timein');
-  else if (a === 'timeout') {
-    if (T.state.status === 'break') toast('Your break will be ended automatically when you time out.', 'info');
-    openScan('timeout');
-  } else if (a === 'break') { b.disabled = true; await T.breakToggle(); T.paintButtons(); }
+  else if (a === 'timeout') openScan('timeout');
 });
-// after Time Out, open the daily log form so the student can describe the work
-on('timeout', j => { if (j.log_id) { toast('Add what you worked on in today\'s daily log.', 'info', 2600); setTimeout(() => { location.href = 'daily_logs.php?edit=' + j.log_id; }, 900); } else location.reload(); });
+on('timeout', () => location.reload());
 on('timein', () => { if (!/(index|attendance)\.php$|\/$/.test(location.pathname)) location.href = 'index.php'; else location.reload(); });
 
 function OJT_expose() {

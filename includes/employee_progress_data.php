@@ -112,26 +112,40 @@ try {
 
  
 
+    $journalColumns = [];
+    $journalColumnsQuery = $conn->query("SHOW COLUMNS FROM journal_submissions");
+    if ($journalColumnsQuery) {
+        while ($column = $journalColumnsQuery->fetch_assoc()) $journalColumns[] = $column['Field'];
+        $journalColumnsQuery->free();
+    }
+    $submissionTypeColumn = in_array('submission_type', $journalColumns, true) ? 'j.submission_type' : "'weekly'";
+    $pdfFileColumn = in_array('pdf_file', $journalColumns, true) ? 'j.pdf_file' : 'NULL';
     $journalsQuery = $conn->query("
-
-        SELECT j.student_pk, j.week_number, j.start_date, j.end_date, j.journal_entry, j.status, j.feedback
-
-        FROM weekly_journals j
-
-        ORDER BY j.week_number DESC
-
+        SELECT j.id, j.student_pk, j.title, j.content, j.status, j.adviser_remarks, j.submitted_at,
+               {$submissionTypeColumn} AS submission_type, {$pdfFileColumn} AS pdf_file
+        FROM journal_submissions j
+        ORDER BY j.submitted_at DESC
     ");
 
     if ($journalsQuery) {
-
         while ($jnl = $journalsQuery->fetch_assoc()) {
-
-            $studentJournalsByStudentId[$jnl['student_pk']][] = $jnl;
-
+            $journalText = trim(preg_replace('/\s+/', ' ', strip_tags((string)$jnl['content'])));
+            if ($journalText === '') $journalText = 'Contains formatted content or images.';
+            if (mb_strlen($journalText) > 280) $journalText = mb_substr($journalText, 0, 277) . '...';
+            $statusLabels = ['pending' => 'Pending', 'reviewed' => 'Reviewed', 'returned' => 'Returned'];
+            $submittedAt = strtotime((string)$jnl['submitted_at']);
+            $studentJournalsByStudentId[$jnl['student_pk']][] = [
+                'id' => (int)$jnl['id'],
+                'title' => $jnl['title'],
+                'submission_type' => $jnl['submission_type'] === 'final' ? 'Final Compilation' : 'Weekly Journal',
+                'submitted_at' => $submittedAt ? date('M j, Y g:i A', $submittedAt) : (string)$jnl['submitted_at'],
+                'journal_entry' => $journalText,
+                'status' => $statusLabels[$jnl['status']] ?? ucfirst((string)$jnl['status']),
+                'feedback' => $jnl['adviser_remarks'],
+                'has_pdf' => !empty($jnl['pdf_file'])
+            ];
         }
-
         $journalsQuery->free();
-
     }
 
  
@@ -145,4 +159,3 @@ try {
 }
 
  
-

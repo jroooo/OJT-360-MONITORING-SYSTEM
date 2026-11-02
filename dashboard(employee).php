@@ -987,7 +987,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
 <div class="modal-backdrop" id="studentAdviserRecordModal">
 
-    <div class="modal evaluation-modal" style="max-width: 800px;">
+    <div class="modal evaluation-modal" style="max-width: 1000px;">
 
         <div class="modal-head">
 
@@ -1071,7 +1071,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
  
 
-            <h3 style="font-size: 14px; margin-bottom: 10px;">Weekly Journals</h3>
+            <h3 style="font-size: 14px; margin-bottom: 10px;">Journal Submissions</h3>
 
             <div class="table-wrap">
 
@@ -1081,13 +1081,14 @@ require __DIR__ . "/includes/employee_company_data.php";
 
                         <tr>
 
-                            <th>Week</th>
+                            <th>Submission</th>
 
                             <th>Journal Entry</th>
 
                             <th>Status</th>
 
                             <th>Feedback</th>
+                            <th>PDF</th>
 
                         </tr>
 
@@ -1702,4 +1703,3 @@ const MESSAGE_API_URL = <?= json_encode($_SERVER["PHP_SELF"], JSON_HEX_TAG | JSO
 </body>
 
 </html>
-

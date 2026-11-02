@@ -155,9 +155,47 @@ document.getElementById("sidebarProfile")?.addEventListener("keydown", event => 
 });
 document.getElementById("topProfileBtn")?.addEventListener("click", openEmployeeProfile);
 
-// Use the existing logout endpoint so the session is cleared securely.
-document.getElementById("signOutBtn")?.addEventListener("click", () => {
+// Sign-out confirmation modal
+const signOutBtn = document.getElementById("signOutBtn");
+const signOutModal = document.getElementById("signoutConfirmModal");
+const staySignedInBtn = document.getElementById("staySignedInBtn");
+const confirmSignOutBtn = document.getElementById("confirmSignOutBtn");
+
+signOutBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+
+    if (!signOutModal) {
+        if (confirm("Are you sure you want to log out?")) {
+            window.location.href = "logout.php";
+        }
+        return;
+    }
+
+    signOutModal.hidden = false;
+    staySignedInBtn?.focus();
+});
+
+staySignedInBtn?.addEventListener("click", () => {
+    signOutModal.hidden = true;
+    signOutBtn?.focus();
+});
+
+confirmSignOutBtn?.addEventListener("click", () => {
     window.location.href = "logout.php";
+});
+
+signOutModal?.addEventListener("click", (event) => {
+    if (event.target === signOutModal) {
+        signOutModal.hidden = true;
+        signOutBtn?.focus();
+    }
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && signOutModal && !signOutModal.hidden) {
+        signOutModal.hidden = true;
+        signOutBtn?.focus();
+    }
 });
 
 // Persist the sidebar and reduced-motion preferences on this browser.
@@ -679,7 +717,7 @@ function openStudentAdviserRecord(studentId){
 
     if(!student.journals || student.journals.length === 0){
 
-        jnlTbody.innerHTML = `<tr><td colspan="4"><div class="empty" style="padding:10px;">No weekly journals submitted yet.</div></td></tr>`;
+        jnlTbody.innerHTML = `<tr><td colspan="5"><div class="empty" style="padding:10px;">No journals submitted yet.</div></td></tr>`;
 
     } else {
 
@@ -687,13 +725,15 @@ function openStudentAdviserRecord(studentId){
 
             <tr>
 
-                <td><strong>Week ${escapeHtml(j.week_number)}</strong><br><small>${escapeHtml(j.start_date)} to ${escapeHtml(j.end_date)}</small></td>
+                <td><strong>${escapeHtml(j.submission_type)}</strong><br>${escapeHtml(j.title)}<br><small>${escapeHtml(j.submitted_at)}</small></td>
 
                 <td>${escapeHtml(j.journal_entry)}</td>
 
-                <td><span class="badge ${j.status === 'Approved' ? 'green' : 'yellow'}">${escapeHtml(j.status || 'Pending')}</span></td>
+                <td><span class="badge ${j.status === 'Reviewed' ? 'green' : 'yellow'}">${escapeHtml(j.status || 'Pending')}</span></td>
 
                 <td>${escapeHtml(j.feedback || 'None')}</td>
+
+                <td>${j.has_pdf ? `<a class="btn btn-light" href="api/employee_journal_pdf.php?id=${encodeURIComponent(j.id)}" target="_blank" rel="noopener">View PDF</a>` : 'Unavailable'}</td>
 
             </tr>
 

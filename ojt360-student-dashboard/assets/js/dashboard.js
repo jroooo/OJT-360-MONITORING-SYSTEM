@@ -3,6 +3,7 @@
 'use strict';
 const { $, $$, hms, hm, tracker: T, on, icon, esc } = window.OJT;
 const card = $('#trackerCard'); if (!card) return;
+const dashboardData = window.OJT_DASH || { completed: 0, required: 480, todaySeconds: 0, lastTimeIn: null, lastTimeOut: null };
 
 /* ---------- live text ---------- */
 const el = id => document.getElementById(id);
@@ -12,30 +13,56 @@ function render(d) {
   const evs = d.events || [];
   const firstIn = evs.find(e => e.type === 'time_in');
   const lastOut = [...evs].reverse().find(e => e.type === 'time_out');
-  el('liveClock').textContent = st === 'idle' ? hms(d.todayNet) : hms(d.sessionNet);
-  el('liveClockLabel').textContent = st === 'working' ? 'Work time running' : st === 'break' ? 'Paused · on break' : (d.todayNet > 0 ? 'Rendered today' : 'Ready when you are');
-  el('trackerSub').textContent = st === 'working' ? 'You timed in at ' + d.session.time_in_label + '. Keep going!' : st === 'break' ? 'You are on a break. Resume when you are back.' : (lastOut ? 'Attendance completed. Last time out: ' + lastOut.label + '.' : "You haven't timed in yet.");
-  el('tmIn').textContent = st !== 'idle' ? d.session.time_in_label : (firstIn ? firstIn.label : '—');
-  el('tmBreak').textContent = hm(d.todayBreak);
-  el('tmToday').textContent = hm(d.todayNet);
-  const vs = el('vizState'); vs.className = 'viz-state ' + st; vs.querySelector('em').textContent = st === 'working' ? 'Live' : st === 'break' ? 'On break' : 'Idle';
-  el('vizNote').textContent = st === 'working' ? 'Your time is running — the wave flows while you work.' : st === 'break' ? 'Timer paused. Resume Work to continue.' : 'Scan the company QR to start your timer.';
+  const shift = d.session ? (d.session.slot === 'afternoon' ? 'Afternoon' : 'Morning') : '';
+  const sessionCredit = d.session ? Math.min(4 * 3600, Math.floor(d.sessionElapsed / 3600) * 3600) : 0;
+  const todayCredit = Math.min(8 * 3600, dashboardData.todaySeconds + sessionCredit);
+  const completedHours = Math.min(dashboardData.required, dashboardData.completed + sessionCredit / 3600);
+  const liveClock = el('liveClock');
+  liveClock.textContent = st === 'idle' ? hms(todayCredit) : hms(d.sessionElapsed);
+  liveClock.style.color = d.timerState === 'warning' ? 'var(--amber)' : d.timerState === 'overdue' ? 'var(--red)' : '';
+  el('liveClockLabel').textContent = st === 'idle'
+    ? 'Credited today'
+    : d.timerState === 'overdue' ? 'Over 4-hour shift limit - live timer continues'
+      : d.timerState === 'warning' ? 'Approaching 4-hour shift limit'
+        : st === 'scheduled' ? 'Attendance timer will begin at Time In' : 'Elapsed attendance time';
+  const dailyCredit = hm(todayCredit) + ' / 8h';
+  el('trackerSub').textContent = st === 'idle'
+    ? 'Daily requirement: 8 hours. Credited today: ' + dailyCredit + '. Only full hours count toward rendered credit.'
+    : st === 'scheduled'
+      ? shift + ' shift starts at ' + d.session.time_in_label + '. Daily requirement: 8 hours.'
+      : shift + ' shift: ' + hm(sessionCredit) + ' credited (4h maximum). Daily credit: ' + dailyCredit + '. Elapsed time continues live; only full hours count toward rendered credit.';
+  el('tmIn').textContent = st !== 'idle' ? d.session.time_in_label : (firstIn ? (firstIn.actual_label || firstIn.label) : (dashboardData.lastTimeIn || '--'));
+  el('tmOut').textContent = lastOut ? (lastOut.actual_label || lastOut.label) : (st === 'idle' ? (dashboardData.lastTimeOut || '--') : '--');
+  el('tmToday').textContent = dailyCredit;
+  const vs = el('vizState');
+  vs.className = 'viz-state ' + st;
+  vs.querySelector('em').textContent = st === 'working' ? 'Live' : st === 'scheduled' ? 'Scheduled' : 'Idle';
+  el('vizNote').textContent = st === 'idle'
+    ? dashboardData.lastTimeIn
+      ? 'Last recorded Time In: ' + dashboardData.lastTimeIn + (dashboardData.lastTimeOut ? ' · Time Out: ' + dashboardData.lastTimeOut : '') + '. Daily requirement: 4 hours in the morning and 4 in the afternoon.'
+      : 'Daily requirement: 4 hours in the morning and 4 in the afternoon.'
+    : st === 'scheduled'
+      ? 'Your timer starts from the actual scan time.'
+      : d.timerState === 'overdue'
+        ? 'The timer continues; credited hours remain capped at 4 for this shift.'
+        : 'Live elapsed time is shown; credited time is capped at 4 hours per shift.';
   // progress
-  const pct = d.pct, shown = pct >= 100 ? 100 : Math.round(pct * 10) / 10;
-  el('statRendered').textContent = d.completed.toFixed(2);
-  el('statRemaining').textContent = Math.max(0, d.required - d.completed).toFixed(2) + ' hours remaining';
+  const pct = dashboardData.required > 0 ? Math.min(100, completedHours / dashboardData.required * 100) : 0;
+  const shown = pct >= 100 ? 100 : Math.round(pct * 10) / 10;
+  el('statRendered').textContent = completedHours.toFixed(0);
+  el('statRemaining').textContent = Math.max(0, dashboardData.required - completedHours).toFixed(0) + ' hours remaining';
   el('progressRing').style.setProperty('--progress', pct.toFixed(2) + '%');
   el('ringPct').textContent = shown + '%'; el('pctPill').textContent = shown + '%'; el('goalPct').textContent = shown + '%';
   el('goalFill').style.width = pct.toFixed(2) + '%';
-  el('goalDone').textContent = d.completed.toFixed(2) + ' rendered';
-  el('metaDone').textContent = d.completed.toFixed(1) + ' hrs';
+  el('goalDone').textContent = completedHours.toFixed(0) + ' rendered';
+  el('metaDone').textContent = completedHours.toFixed(0) + ' hrs';
 }
 let lastEventsKey = '';
 function renderTimeline(d) {
   const evs = d.events || [];
   const key = JSON.stringify(evs); if (key === lastEventsKey) return; lastEventsKey = key;
   const names = { time_in: ['Time in', 'in'], break_start: ['Break started', 'break'], break_end: ['Back to work', 'in'], time_out: ['Time out', 'out'] };
-  el('timelineMini').innerHTML = evs.length ? evs.map(e => `<div class="tl-item ${names[e.type][1]}"><i></i><b>${esc(e.label)}</b><span>${names[e.type][0]}</span></div>`).join('') : '<div class="tl-empty">Today\'s timeline will appear here.</div>';
+  el('timelineMini').innerHTML = evs.length ? evs.map(e => `<div class="tl-item ${names[e.type][1]}"><i></i><b>${esc(e.actual_label || e.label)}</b><span>${names[e.type][0]}</span></div>`).join('') : '<div class="tl-empty">Today\'s timeline will appear here.</div>';
 }
 on('tick', d => render(d));
 on('state', d => { render(d); renderTimeline(d); });
@@ -60,7 +87,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   if (document.hidden) { last = now; return; }
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  const st = T.state.status;
+  const st = T.derive().status;
   const targetAmp = st === 'working' ? 0.34 : st === 'break' ? 0.10 : 0.035;
   const speed = st === 'working' ? 2.4 : st === 'break' ? 0.7 : 0.35;
   amp += (targetAmp - amp) * Math.min(1, dt * 3);
@@ -96,13 +123,13 @@ requestAnimationFrame(frame);
 /* ---------- sparklines ---------- */
 function drawSpark(svg) {
   let data; try { data = JSON.parse(svg.dataset.series || '[]'); } catch (e) { data = []; }
-  const vals = data.map(v => (v === null || v === undefined) ? null : Number(v));
-  const has = vals.some(v => v !== null && v > 0);
-  const n = vals.length || 14;
-  let series = vals.map((v, i) => v === null ? 0 : v);
-  if (!has) series = Array.from({ length: n }, (_, i) => 22 + Math.sin(i * 0.9) * 14 + Math.sin(i * 0.37) * 8);
+  const series = Array.isArray(data) && data.length
+    ? data.map(v => Number.isFinite(Number(v)) ? Math.max(0, Number(v)) : 0)
+    : Array(14).fill(0);
+  const has = series.some(v => v > 0);
+  const n = series.length;
   const max = Math.max(...series, 1);
-  const pts = series.map((v, i) => [i / (n - 1) * 160, 62 - (v / max) * 50]);
+  const pts = series.map((v, i) => [i / Math.max(1, n - 1) * 160, 62 - (v / max) * 50]);
   let dstr = `M${pts[0][0]},${pts[0][1]}`;
   for (let i = 1; i < pts.length; i++) { const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], cx = (x0 + x1) / 2; dstr += ` C${cx},${y0} ${cx},${y1} ${x1},${y1}`; }
   const id = 'sg' + Math.random().toString(36).slice(2, 7);

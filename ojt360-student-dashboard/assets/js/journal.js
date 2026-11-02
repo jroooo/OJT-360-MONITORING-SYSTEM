@@ -4,32 +4,81 @@
 const { $, api, toast, confirm: ask } = window.OJT;
 const root = document.getElementById('journalEditor'); if (!root) return;
 const ed = OJTEditor.init(root, { onSave: () => save(false) });
-let dirty = false, saving = false, timer = null;
+let dirty = false, saving = false, timer = null, revision = 0, created = false;
 const idEl = $('#journalId');
 
-function payload(auto) {
+function payload(auto, action) {
   const l = ed.getLayout();
-  return { action: 'save', journal_id: idEl.value || 0, week_start: $('#journalWeek').value, title: $('#journalTitle').value.trim(), content: ed.getHTML(), orientation: l.orientation, page_size: l.size, margin_preset: l.margin, autosave: auto ? 1 : '' };
+  return { action: action || 'save', journal_id: idEl.value || 0, week_start: $('#journalWeek').value, title: $('#journalTitle').value.trim(), content: ed.getHTML(), orientation: l.orientation, page_size: l.size, margin_preset: l.margin, autosave: auto ? 1 : '' };
 }
 async function save(auto) {
-  if (saving) return;
+  if (saving) {
+    clearTimeout(timer);
+    timer = setTimeout(() => save(auto), 1000);
+    return;
+  }
   const empty = ed.isEmpty();
   if (auto && (empty || !$('#journalTitle').value.trim())) return;
   if (!auto && empty) { toast('Write something first, then save your draft.', 'warn'); return; }
+  clearTimeout(timer);
+  timer = null;
+  const savedRevision = revision;
   saving = true; ed.setSaveState('Saving…', '');
   const j = await api('api/journal.php', payload(auto));
   saving = false;
   if (j.ok) {
     const first = !idEl.value || idEl.value === '0';
-    idEl.value = j.journal_id; dirty = false; ed.setSaveState('Saved at ' + j.saved_at, 'ok');
+    idEl.value = j.journal_id;
+    created = created || first;
     if (!auto) toast('Draft saved.', 'success');
-    history.replaceState(null, '', 'journal.php?id=' + j.journal_id); $('#wsTitle').textContent = 'Continue this week'; if (first) setTimeout(() => { if (!dirty) location.reload(); }, 1000);
+    history.replaceState(null, '', 'journal.php?id=' + j.journal_id);
+    $('#wsTitle').textContent = 'Continue this week';
+    if (revision === savedRevision) {
+      dirty = false;
+      ed.setSaveState('Saved at ' + j.saved_at, 'ok');
+      if (created) setTimeout(() => { if (!dirty) location.reload(); }, 1000);
+    } else {
+      dirty = true;
+      ed.setSaveState('Unsaved changes', 'warn');
+      clearTimeout(timer);
+      timer = setTimeout(() => save(true), 1000);
+    }
   } else { ed.setSaveState('Not saved', 'bad'); toast(j.message, 'error'); }
 }
-function touch() { dirty = true; ed.setSaveState('Unsaved changes', 'warn'); clearTimeout(timer); timer = setTimeout(() => save(true), 3000); }
+function touch() { revision++; dirty = true; ed.setSaveState('Unsaved changes', 'warn'); clearTimeout(timer); timer = setTimeout(() => save(true), 3000); }
 ed.onChange(touch);
 ['journalTitle', 'journalWeek'].forEach(id => $('#' + id).addEventListener('input', touch));
 $('#saveDraft').onclick = () => save(false);
+$('#submitWeeklyJournal').onclick = async () => {
+  if (ed.isEmpty()) { toast('Write something in your weekly journal before submitting.', 'warn'); return; }
+  if (!$('#journalTitle').value.trim()) { toast('Enter a week title before submitting.', 'warn'); return; }
+  if (!await ask({ title: 'Submit weekly journal to your adviser?', message: 'A PDF copy of this weekly journal will be sent to your adviser for review. You can edit and submit it again later.', confirmText: 'Submit' })) return;
+  clearTimeout(timer);
+  const submittedRevision = revision;
+  const btn = $('#submitWeeklyJournal'); btn.disabled = true;
+  const label = btn.textContent;
+  btn.textContent = 'Creating PDF…';
+  try {
+    const l = ed.getLayout(), title = $('#journalTitle').value.trim(), content = ed.getHTML();
+    const pdf = await ed.createPdfBlob(content);
+    const data = { action: 'submit', journal_id: idEl.value || 0, week_start: $('#journalWeek').value, title, content, orientation: l.orientation, page_size: l.size, margin_preset: l.margin, autosave: '', pdf: new File([pdf], 'weekly-journal.pdf', { type: 'application/pdf' }) };
+    btn.textContent = 'Sending PDF…';
+    const j = await api('api/journal.php', data);
+    if (j.ok) {
+      dirty = revision !== submittedRevision;
+      idEl.value = j.journal_id;
+      ed.setSaveState(dirty ? 'Submitted; newer changes unsaved' : 'Submitted to adviser', dirty ? 'warn' : 'ok');
+      toast(j.message, 'success', 5000);
+      if (dirty) { clearTimeout(timer); timer = setTimeout(() => save(true), 1000); }
+      else setTimeout(() => location.reload(), 1000);
+    } else toast(j.message, 'error');
+  } catch (error) {
+    toast(error.message || 'The journal PDF could not be submitted. Please try again.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+};
 $('#printDraft').onclick = () => ed.print($('#journalTitle').value);
 $('#newDraftBtn').onclick = async () => {
   if (dirty && !await ask({ title: 'Leave this draft?', message: 'You have unsaved changes. They will be lost if you start a new week.', confirmText: 'Discard & continue', danger: true })) return;

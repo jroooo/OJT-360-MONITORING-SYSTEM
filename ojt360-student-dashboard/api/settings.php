@@ -12,11 +12,9 @@ try {
     if ($action === 'schedule') {
         $start = (string)($_POST['shift_start'] ?? '08:00');
         $grace = (int)($_POST['grace_minutes'] ?? 15);
-        $target = (float)($_POST['daily_target'] ?? 8);
-        if (!preg_match('/^\d{2}:\d{2}$/', $start)) json_out(['ok' => false, 'message' => 'Enter a valid shift start time.'], 422);
+        if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $start)) json_out(['ok' => false, 'message' => 'Enter a valid shift start time.'], 422);
         if ($grace < 0 || $grace > 120) json_out(['ok' => false, 'message' => 'Grace period must be between 0 and 120 minutes.'], 422);
-        if ($target < 1 || $target > 16) json_out(['ok' => false, 'message' => 'Daily target must be between 1 and 16 hours.'], 422);
-        db()->prepare('INSERT INTO student_settings(student_pk,shift_start,grace_minutes,daily_target) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE shift_start=VALUES(shift_start),grace_minutes=VALUES(grace_minutes),daily_target=VALUES(daily_target)')->execute([$uid, $start . ':00', $grace, $target]);
+        db()->prepare('INSERT INTO student_settings(student_pk,shift_start,grace_minutes) VALUES(?,?,?) ON DUPLICATE KEY UPDATE shift_start=VALUES(shift_start),grace_minutes=VALUES(grace_minutes)')->execute([$uid, $start . ':00', $grace]);
         json_out(['ok' => true, 'message' => 'Work schedule saved.']);
     }
     if ($action === 'goal') {

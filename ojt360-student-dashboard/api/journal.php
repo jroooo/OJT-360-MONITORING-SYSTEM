@@ -7,6 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') json_out(['ok' => false, 'message' =>
 verify_csrf();
 $uid = (int)$_SESSION['student_pk'];
 $action = (string)($_POST['action'] ?? 'save');
+$submissionPdf = null;
 
 try {
     if ($action === 'delete') {
@@ -34,6 +35,11 @@ try {
     if (mb_strlen($content) > 400000) json_out(['ok' => false, 'message' => 'The journal entry is too large.']);
     $week = week_start_of($week); // always store the Monday of that week
 
+    if ($action === 'submit') {
+        $submissionPdf = save_journal_submission_pdf('pdf');
+        db()->beginTransaction();
+    }
+
     if ($id) {
         $chk = db()->prepare('SELECT id FROM journals WHERE id=? AND student_pk=?');
         $chk->execute([$id, $uid]);
@@ -54,8 +60,19 @@ try {
             $id = (int)db()->lastInsertId();
         }
     }
+    if ($action === 'submit') {
+        db()->prepare("INSERT INTO journal_submissions(student_pk,submission_type,pdf_file,title,content,orientation,page_size,margin_preset,status) VALUES(?,'weekly',?,?,?,?,?,?,'pending')")
+            ->execute([$uid, $submissionPdf, $title, $content, $orientation, $size, $margin]);
+        add_activity($uid, 'Submitted a weekly journal to the adviser');
+        add_notification($uid, 'Weekly journal submitted', 'Your weekly journal PDF was sent to your adviser for review.', '▤');
+        db()->commit();
+        $submissionPdf = null;
+        json_out(['ok' => true, 'message' => 'Weekly journal PDF submitted to your adviser.', 'journal_id' => $id, 'week_start' => $week, 'saved_at' => date('g:i A')]);
+    }
     if (empty($_POST['autosave'])) add_activity($uid, 'Saved weekly journal draft');
     json_out(['ok' => true, 'message' => 'Draft saved.', 'journal_id' => $id, 'week_start' => $week, 'saved_at' => date('g:i A')]);
 } catch (Throwable $e) {
+    if (db()->inTransaction()) db()->rollBack();
+    if ($submissionPdf !== null) @unlink(__DIR__ . '/../uploads/journal_submissions/' . basename($submissionPdf));
     json_out(['ok' => false, 'message' => 'Could not save: ' . $e->getMessage()], 500);
 }

@@ -191,6 +191,18 @@ if ($raw === false || $curlError !== '') {
 $data = json_decode($raw, true);
 if (!is_array($data) || $statusCode >= 400) {
     $providerError = is_array($data) ? trim((string)($data['error']['message'] ?? '')) : '';
+    $providerStatus = is_array($data) ? strtoupper((string)($data['error']['status'] ?? '')) : '';
+    if ($statusCode === 429 || $providerStatus === 'RESOURCE_EXHAUSTED' || stripos($providerError, 'quota') !== false) {
+        $fallback = 'Gemini is temporarily unavailable because this API key has reached its quota. Please check the key’s Gemini API usage and billing, or wait for the quota to reset. For now, here is the assistance available from your OJT360 account: ' . local_fallback($message, $context);
+        $pdo->prepare('INSERT INTO assistant_messages(student_pk,role,message) VALUES(?,?,?)')->execute([$uid, 'assistant', $fallback]);
+        echo json_encode([
+            'ok' => true,
+            'mode' => 'quota_fallback',
+            'reply' => $fallback,
+            'ai_configured' => true,
+        ]);
+        exit;
+    }
     $reply = $providerError !== ''
         ? 'Gemini returned an error: ' . $providerError
         : 'Gemini returned an error. Check the Gemini API key and model configuration, then try again.';
@@ -233,5 +245,5 @@ function local_fallback(string $message, array $context): string {
     if (str_contains($q, 'attendance') || str_contains($q, 'time in') || str_contains($q, 'time out')) return 'I can explain your attendance records and help troubleshoot them. Time In/Out itself requires the valid company QR scan so OJT360 can record the actual event.';
     if (str_contains($q, 'notification')) return 'Your Notifications page contains your OJT updates. You can mark all notifications as read from that page.';
     if (str_contains($q, 'profile')) return 'I can help you decide what information to update in your profile. Your email and student number are read-only in the current portal.';
-    return 'The AI Assistant is ready once a Gemini API key is configured on the server. Even before that, I can answer basic OJT questions from the dashboard data currently available to your account.';
+    return 'I can help with OJT questions, dashboard features, and general study topics. For questions about your records, ask about your attendance, internship hours, journal, or notifications.';
 }

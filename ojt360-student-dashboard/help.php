@@ -3,12 +3,12 @@ $page_title = 'Help & Support';
 $page_scripts = ['help.js'];
 require_once 'includes/header.php';
 $faqs = [
-  ['Getting started', 'How do I time in?', 'Press Time In on the Dashboard or Attendance page. The QR scanner opens, you scan your company\'s OJT360 QR code, and your live timer starts. A daily log for today is created automatically.'],
+  ['Getting started', 'How do I time in?', 'Press Time In on the Dashboard or Attendance page and scan your company\'s current OJT360 QR code. Your live timer starts and the attendance session appears on the Attendance page.'],
   ['Getting started', 'How do I take a break?', 'While you are timed in, press Take a Break. Your work timer pauses and the break is counted separately. Press Resume Work when you are back. A break that is still open is closed automatically when you time out.'],
-  ['Getting started', 'How do I time out?', 'Press Time Out and scan the same company QR again. Your rendered hours (time in to time out minus breaks) are saved, and you are taken to today\'s daily log to describe what you did.'],
-  ['Hours & logs', 'Why does my daily log say "Needs details"?', 'Daily logs are created for you when you time in, but only you can describe the work. Open it, add the task and what you accomplished, and optionally attach a photo.'],
-  ['Hours & logs', 'Can I add a log for a day I forgot to time in?', 'Yes. Use New Entry on Daily Logs and enter the times. Manual entries appear in your reports, but only QR attendance counts toward your required OJT hours.'],
-  ['Hours & logs', 'Where can I see past days?', 'Open Attendance. The Calendar shows every day colour-coded; click a date to see your attendance, log and photo. History and Timeline tabs list every session and break.'],
+  ['Attendance & reports', 'How do I time out?', 'Press Time Out and scan the same company QR again. Your actual time, breaks, and rendered hours are recorded and shown in Attendance and Reports.'],
+  ['Attendance & reports', 'Where can I see past attendance?', 'Open Attendance. The calendar shows recorded days; click a date to see its sessions and events. History and Timeline list your attendance records and breaks.'],
+  ['Attendance & reports', 'How are report hours calculated?', 'Weekly and monthly reports use your recorded attendance sessions, with a maximum of four credited hours per shift and eight per day.'],
+  ['Journal', 'Where do I describe my OJT work?', 'Use the Weekly Journal to describe your tasks and accomplishments. Attendance records time and breaks; the journal is for your work documentation.'],
   ['Journal', 'How does the weekly journal work?', 'Each week is a draft written in a Word-style editor. Insert pictures, then click a picture to resize, drag, wrap text, crop, rotate, or flip it. Drafts autosave as you type.'],
   ['Journal', 'What is the Final Compilation?', 'It combines all your weekly drafts into one editable document. Edit it, print it, save it as a PDF, or submit it to your adviser.'],
   ['Journal', 'How do I save the journal as a PDF?', 'Open Final Compilation, press Save as PDF, and choose "Save as PDF" as the destination in your browser\'s print window.'],
