@@ -31,9 +31,8 @@ $margin = $current['margin_preset'] ?? 'normal';
   <div>
     <span class="eyebrow">DOCUMENTATION</span>
     <h1>Weekly Journal<span class="title-dot">.</span></h1>
-    <p>Write each week as a draft in a Word-style editor. Combine every draft in the Final Compilation to edit, print, or send to your adviser.</p>
+    <p>Write each week as a draft in a Word-style editor. Write and save each week, or submit an individual weekly journal to your adviser. Your compiled journal is available below when you need it.</p>
   </div>
-  <div class="page-actions"><a class="btn secondary" href="journal_compilation.php"><?= icon('layers') ?> Final Compilation</a></div>
 </div>
 
 <div class="journal-layout">
@@ -50,7 +49,7 @@ $margin = $current['margin_preset'] ?? 'normal';
     <?php render_editor_shell('journalEditor', $content, $orientation, $size, $margin); ?>
     <div class="editor-foot">
       <p class="muted small">Tip: paste or drop pictures straight into the page. Click a picture to resize it, drag it to move it, and use the Picture tab for wrapping and cropping.</p>
-      <div class="form-actions"><button type="button" class="btn secondary" id="newDraftBtn"><?= icon('plus') ?> New week</button><button type="button" class="btn secondary" id="printDraft"><?= icon('print') ?> Print</button><button type="button" class="btn primary" id="saveDraft"><?= icon('check') ?> Save Draft</button></div>
+      <div class="form-actions"><button type="button" class="btn secondary" id="newDraftBtn"><?= icon('plus') ?> Add Weekly Journal</button><button type="button" class="btn secondary" id="printDraft"><?= icon('print') ?> Print</button><button type="button" class="btn secondary" id="saveDraft"><?= icon('check') ?> Save Draft</button><button type="button" class="btn primary" id="submitWeeklyJournal"><?= icon('send') ?> Submit to Adviser</button></div>
     </div>
   </section>
 
@@ -75,9 +74,9 @@ $margin = $current['margin_preset'] ?? 'normal';
     </section>
     <section class="panel compile-card">
       <div class="guide-icon alt"><?= icon('layers') ?></div>
-      <h3>Ready for final compilation?</h3>
-      <p class="muted">Combine every weekly draft into one editable document before printing, saving as PDF, or submitting to your adviser.</p>
-      <a class="btn primary wide" href="journal_compilation.php">Open Compilation</a>
+      <h3>Compiled Journal</h3>
+      <p class="muted">Open your compiled journal to review all weekly drafts together, print, save as PDF, or submit the compilation to your adviser.</p>
+      <a class="btn primary wide" href="journal_compilation.php">Open Compiled Journal</a>
     </section>
   </aside>
 </div>

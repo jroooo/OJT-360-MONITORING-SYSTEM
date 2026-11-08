@@ -464,6 +464,43 @@ function init(root, opts = {}) {
     window.addEventListener('afterprint', done); setTimeout(() => window.print(), 80);
   }
 
+  async function createPdfBlob(html) {
+    if (typeof window.html2pdf !== 'function') throw new Error('PDF generation is unavailable. Check your internet connection and try again.');
+    const dims = PAGE[state.size] || PAGE.A4;
+    const width = state.orientation === 'landscape' ? dims[1] : dims[0];
+    const height = state.orientation === 'landscape' ? dims[0] : dims[1];
+    const pad = MARGINS[state.margin] || MARGINS.normal;
+    const area = paper.cloneNode(false);
+    area.className = 'paper print-paper';
+    area.removeAttribute('contenteditable');
+    area.innerHTML = html;
+    area.style.cssText = `width:${width}px;min-height:${height}px;box-sizing:border-box;padding:${pad}px;position:fixed;left:-100000px;top:0;margin:0;background:#fff;background-image:none;box-shadow:none;transform:none`;
+    $$('.is-selected,.is-dragging', area).forEach(n => n.classList.remove('is-selected', 'is-dragging'));
+    document.body.appendChild(area);
+    try {
+      await Promise.all([...area.querySelectorAll('img')].map(img => {
+        if (img.complete) return img.naturalWidth ? Promise.resolve() : Promise.reject(new Error('A journal image could not be loaded for the PDF.'));
+        return new Promise((resolve, reject) => {
+          img.addEventListener('load', resolve, { once: true });
+          img.addEventListener('error', () => reject(new Error('A journal image could not be loaded for the PDF.')), { once: true });
+        });
+      }));
+      const pdfWidth = width * 25.4 / 96;
+      const pdfHeight = height * 25.4 / 96;
+      const blob = await window.html2pdf().set({
+        margin: 0,
+        image: { type: 'jpeg', quality: 0.96 },
+        html2canvas: { scale: 1.5, useCORS: true, allowTaint: false, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: [pdfWidth, pdfHeight], orientation: state.orientation },
+        pagebreak: { mode: ['css', 'legacy'] }
+      }).from(area).toPdf().outputPdf('blob');
+      if (!(blob instanceof Blob) || blob.size < 8) throw new Error('The PDF could not be generated. Please try again.');
+      return blob;
+    } finally {
+      area.remove();
+    }
+  }
+
   /* ---------- public API ---------- */
   applyLayout(); stats();
   setTimeout(() => { if (desk.clientWidth && desk.clientWidth < pageDims()[0] + 30) fit(); }, 60);
@@ -472,7 +509,7 @@ function init(root, opts = {}) {
     setHTML, getLayout: () => ({ orientation: state.orientation, size: state.size, margin: state.margin }),
     setLayout(o) { if (o.orientation) state.orientation = o.orientation; if (o.size) state.size = o.size; if (o.margin) state.margin = o.margin; applyLayout(); },
     isEmpty() { const t = (paper.innerText || '').replace(/\s+/g, '').trim(); return !t && !paper.querySelector('img,table,hr'); },
-    onChange(fn) { state.changeCbs.push(fn); }, setSaveState, print, focus() { paper.focus(); }, fit, paper
+    onChange(fn) { state.changeCbs.push(fn); }, setSaveState, print, createPdfBlob, focus() { paper.focus(); }, fit, paper
   };
   return api_;
 }

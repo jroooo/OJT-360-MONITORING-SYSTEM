@@ -5,26 +5,86 @@ require_once 'includes/header.php';
 
 $internship = internship_for($uid);
 $totalHours = (float)($internship['required_hours'] ?? 480);
-$completedHours = (float)($internship['completed_hours'] ?? 0);
-$progress = $totalHours > 0 ? min(100, round(($completedHours / $totalHours) * 100, 1)) : 0;
 $daysRemaining = !empty($internship['end_date']) ? max(0, (int)ceil((strtotime($internship['end_date']) - strtotime(date('Y-m-d'))) / 86400)) : 0;
+$companyStmt = db()->prepare("SELECT company_name FROM internships WHERE student_pk=? AND NULLIF(TRIM(company_name),'') IS NOT NULL ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END, id DESC LIMIT 1");
+$companyStmt->execute([$uid]);
+$assignedCompany = $companyStmt->fetchColumn() ?: ($internship['company_name'] ?? 'Not assigned');
 
 $firstName = explode(' ', trim($user['full_name']))[0];
 $hour = (int)date('G');
 $greet = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good evening');
 
 $month = date('Y-m');
-$q = db()->prepare("SELECT COUNT(*) c, SUM(title='' OR description='' OR title IS NULL OR description IS NULL) inc FROM daily_logs WHERE student_pk=? AND DATE_FORMAT(log_date,'%Y-%m')=?");
-$q->execute([$uid, $month]); $lm = $q->fetch();
-$logsThisMonth = (int)$lm['c']; $incomplete = (int)$lm['inc'];
-$q = db()->prepare("SELECT COUNT(DISTINCT DATE(time_in)) FROM attendance WHERE student_pk=? AND DATE_FORMAT(time_in,'%Y-%m')=?");
-$q->execute([$uid, $month]); $attDays = (int)$q->fetchColumn();
-$q = db()->prepare("SELECT COUNT(*) FROM daily_logs WHERE student_pk=? AND title<>'' AND description<>''");
-$q->execute([$uid]); $documented = (int)$q->fetchColumn();
+$today = date('Y-m-d');
+$settings = student_settings($uid);
+$graceSeconds = (int)$settings['grace_minutes'] * 60;
+$attendanceStmt = db()->prepare(
+    "SELECT a.*,
+            COALESCE(
+                (SELECT MIN(ev.event_time)
+                 FROM attendance_events ev
+                 WHERE ev.attendance_id = a.id
+                   AND ev.student_pk = a.student_pk
+                   AND ev.event_type = 'time_in'),
+                a.time_in
+            ) AS actual_time_in
+     FROM attendance a
+     WHERE a.student_pk = ?
+     ORDER BY a.time_in"
+);
+$attendanceStmt->execute([$uid]);
+$allHoursByDate = $monthHoursByDate = $todayHoursByDate = $punctualByMonth = [];
+$monthShiftCounts = $monthOnTimeCounts = [];
+$todayLastTimeIn = null;
+foreach ($attendanceStmt->fetchAll() as $attendanceRow) {
+    $actualStart = strtotime((string)$attendanceRow['actual_time_in']) ?: strtotime((string)$attendanceRow['time_in']);
+    $actualDate = date('Y-m-d', $actualStart);
+    $actualMonth = date('Y-m', $actualStart);
+    $scheduledStart = strtotime((string)$attendanceRow['time_in']);
+    $isOnTime = $actualStart <= $scheduledStart + $graceSeconds;
+    $monthShiftCounts[$actualMonth] = ($monthShiftCounts[$actualMonth] ?? 0) + 1;
+    $monthOnTimeCounts[$actualMonth] = ($monthOnTimeCounts[$actualMonth] ?? 0) + ($isOnTime ? 1 : 0);
+    $punctualByMonth[$actualMonth][$actualDate] = ($punctualByMonth[$actualMonth][$actualDate] ?? true) && $isOnTime;
 
-$ins = attendance_insights($uid);
-$q = db()->prepare("SELECT * FROM daily_logs WHERE student_pk=? ORDER BY log_date DESC, created_at DESC LIMIT 4");
-$q->execute([$uid]); $recentLogs = $q->fetchAll();
+    if (!empty($attendanceRow['time_out'])) {
+        $checkoutDate = date('Y-m-d', strtotime((string)$attendanceRow['time_out']));
+        $checkoutMonth = date('Y-m', strtotime((string)$attendanceRow['time_out']));
+        $sessionHours = min(4, (int)floor(session_seconds($attendanceRow)['net'] / 3600));
+        $allHoursByDate[$checkoutDate] = min(8, ($allHoursByDate[$checkoutDate] ?? 0) + $sessionHours);
+        $monthHoursByDate[$checkoutMonth][$checkoutDate] = min(8, ($monthHoursByDate[$checkoutMonth][$checkoutDate] ?? 0) + $sessionHours);
+        if ($checkoutDate === $today) {
+            $todayHoursByDate[$checkoutDate] = min(8, ($todayHoursByDate[$checkoutDate] ?? 0) + $sessionHours);
+            if ($todayLastTimeIn === null || strtotime((string)$attendanceRow['time_out']) > $todayLastTimeIn['checkout_ts']) {
+                $todayLastTimeIn = [
+                    'checkout_ts' => strtotime((string)$attendanceRow['time_out']),
+                    'label' => date('h:i A', $actualStart),
+                    'time_out' => date('h:i A', strtotime((string)$attendanceRow['time_out'])),
+                ];
+            }
+        }
+    }
+}
+$completedHours = min($totalHours, (float)array_sum($allHoursByDate));
+$progress = $totalHours > 0 ? min(100, round(($completedHours / $totalHours) * 100, 1)) : 0;
+$attDays = count($punctualByMonth[$month] ?? []);
+$previousMonth = date('Y-m', strtotime('first day of last month'));
+$currentShiftCount = (int)($monthShiftCounts[$month] ?? 0);
+$previousShiftCount = (int)($monthShiftCounts[$previousMonth] ?? 0);
+$currentOnTime = $currentShiftCount ? (int)round(($monthOnTimeCounts[$month] / $currentShiftCount) * 100) : 0;
+$previousOnTime = $previousShiftCount ? (int)round(($monthOnTimeCounts[$previousMonth] / $previousShiftCount) * 100) : 0;
+$currentMonthHours = (int)array_sum($monthHoursByDate[$month] ?? []);
+$previousMonthHours = (int)array_sum($monthHoursByDate[$previousMonth] ?? []);
+$dashboardWorkSeries = $dashboardOnTimeSeries = $dashboardLateSeries = [];
+for ($dayOffset = 13; $dayOffset >= 0; $dayOffset--) {
+    $seriesDate = date('Y-m-d', strtotime('-' . $dayOffset . ' days'));
+    $dashboardWorkSeries[] = (int)($monthHoursByDate[date('Y-m', strtotime($seriesDate))][$seriesDate] ?? 0);
+    $dayStatus = $punctualByMonth[date('Y-m', strtotime($seriesDate))][$seriesDate] ?? null;
+    $dashboardOnTimeSeries[] = $dayStatus === null ? null : ($dayStatus ? 100 : 0);
+    $dashboardLateSeries[] = $dayStatus === null ? null : ($dayStatus ? 0 : 100);
+}
+$todayCompletedHours = (int)($todayHoursByDate[$today] ?? 0);
+$todayLastTimeInLabel = $todayLastTimeIn['label'] ?? null;
+$todayLastTimeOutLabel = $todayLastTimeIn['time_out'] ?? null;
 $q = db()->prepare("SELECT action_text, created_at FROM activity_logs WHERE student_pk=? ORDER BY created_at DESC LIMIT 5");
 $q->execute([$uid]); $activities = $q->fetchAll();
 $announcement = db()->query("SELECT * FROM announcements WHERE is_active=1 ORDER BY created_at DESC LIMIT 1")->fetch();
@@ -35,7 +95,7 @@ $wj->execute([$uid, date('Y-m-d', strtotime('monday this week'))]); $weekJournal
   <div>
     <span class="eyebrow">OJT TRACKER</span>
     <h1><?= e($greet) ?>, <?= e($firstName) ?><span class="title-dot">.</span></h1>
-    <p>Record your attendance, daily tasks, and rendered internship hours.</p>
+    <p>Stay informed about your attendance and monitor your progress toward completing your internship hours.</p>
   </div>
 </div>
 
@@ -52,8 +112,8 @@ $wj->execute([$uid, date('Y-m-d', strtotime('monday this week'))]); $weekJournal
     </div>
     <div class="tracker-mini">
       <div><span>Time in</span><strong id="tmIn">—</strong></div>
-      <div><span>Break today</span><strong id="tmBreak">0h 00m</strong></div>
-      <div><span>Rendered today</span><strong id="tmToday">0h 00m</strong></div>
+      <div><span>Time out</span><strong id="tmOut">—</strong></div>
+      <div><span>Today (8h total)</span><strong id="tmToday">0h 00m / 8h</strong></div>
     </div>
   </div>
   <div class="tracker-viz">
@@ -67,57 +127,38 @@ $wj->execute([$uid, date('Y-m-d', strtotime('monday this week'))]); $weekJournal
 <span class="eyebrow section-label">INSIGHTS</span>
 <div class="grid-3 insights">
   <article class="insight">
-    <div class="insight-info"><span>On-time percentage</span><small><?= e(date('F')) ?></small><strong><?= (int)$ins['cur']['pct'] ?>%</strong><?= trend_badge($ins['cur']['pct'], $ins['prev']['pct'], true) ?></div>
-    <svg class="spark" data-series="<?= e(json_encode($ins['series']['ontime'])) ?>" data-color="green" viewBox="0 0 160 70" preserveAspectRatio="none"></svg>
+    <div class="insight-info"><span>On-time percentage</span><small><?= e(date('F')) ?> · <?= $currentShiftCount ?> recorded shifts</small><strong><?= $currentOnTime ?>%</strong><?= trend_badge($currentOnTime, $previousOnTime, true) ?></div>
+    <svg class="spark" data-series="<?= e(json_encode($dashboardOnTimeSeries)) ?>" data-color="green" viewBox="0 0 160 70" preserveAspectRatio="none"></svg>
   </article>
   <article class="insight">
-    <div class="insight-info"><span>Late percentage</span><small><?= e(date('F')) ?></small><strong><?= (int)$ins['cur']['late_pct'] ?>%</strong><?= trend_badge($ins['cur']['late_pct'], $ins['prev']['late_pct'], false) ?></div>
-    <svg class="spark" data-series="<?= e(json_encode($ins['series']['late'])) ?>" data-color="red" viewBox="0 0 160 70" preserveAspectRatio="none"></svg>
+    <div class="insight-info"><span>Late percentage</span><small><?= e(date('F')) ?> · <?= $currentShiftCount ?> recorded shifts</small><strong><?= $currentShiftCount ? 100 - $currentOnTime : 0 ?>%</strong><?= trend_badge($currentShiftCount ? 100 - $currentOnTime : 0, $previousShiftCount ? 100 - $previousOnTime : 0, false) ?></div>
+    <svg class="spark" data-series="<?= e(json_encode($dashboardLateSeries)) ?>" data-color="red" viewBox="0 0 160 70" preserveAspectRatio="none"></svg>
   </article>
   <article class="insight">
-    <?php $bs = (int)$ins['cur']['break']; ?>
-    <div class="insight-info"><span>Total break hours</span><small><?= e(date('F')) ?></small><strong><?= intdiv($bs, 3600) ?>h <?= str_pad((string)intdiv($bs % 3600, 60), 2, '0', STR_PAD_LEFT) ?>m</strong><?= trend_badge(round($bs / 60), round($ins['prev']['break'] / 60), false, ' min') ?></div>
-    <svg class="spark" data-series="<?= e(json_encode($ins['series']['break'])) ?>" data-color="amber" viewBox="0 0 160 70" preserveAspectRatio="none"></svg>
+    <div class="insight-info"><span>Total hours</span><small><?= e(date('F')) ?> · full hours credited</small><strong><?= $currentMonthHours ?>h 00m</strong><?= trend_badge($currentMonthHours, $previousMonthHours, true, ' h') ?></div>
+    <svg class="spark" data-series="<?= e(json_encode($dashboardWorkSeries)) ?>" data-color="amber" viewBox="0 0 160 70" preserveAspectRatio="none"></svg>
   </article>
 </div>
-<p class="insight-note">Morning attendance uses your configured grace period; afternoon Time In is on time through 1:30 PM. Scans after the fixed-time cutoffs use their actual scan times. <a class="text-link" href="settings.php">Review settings</a>.</p>
-
 <!-- PROGRESS -->
 <div class="section-row"><div><span class="eyebrow">AT A GLANCE</span><h3>Your progress</h3></div><a class="text-link" href="settings.php#goal">Edit goal</a></div>
-<div class="grid-3">
-  <article class="stat"><div class="stat-ic"><?= icon('clock') ?></div><span>Rendered hours</span><strong><b id="statRendered"><?= number_format($completedHours, 2) ?></b> <em>hrs</em></strong><small id="statRemaining"><?= number_format(max(0, $totalHours - $completedHours), 2) ?> hours remaining</small></article>
+<div class="grid-2">
+  <article class="stat"><div class="stat-ic"><?= icon('clock') ?></div><span>Rendered hours</span><strong><b id="statRendered"><?= number_format($completedHours, 0) ?></b> <em>hrs</em></strong><small id="statRemaining"><?= number_format(max(0, $totalHours - $completedHours), 0) ?> hours remaining</small></article>
   <article class="stat"><div class="stat-ic"><?= icon('target') ?></div><span>Required hours</span><strong><b><?= number_format($totalHours, 0) ?></b> <em>hrs</em></strong><small>OJT requirement</small></article>
-  <article class="stat"><div class="stat-ic"><?= icon('journal') ?></div><span>Daily entries</span><strong><b><?= $documented ?></b></strong><small>Days documented</small></article>
 </div>
 <div class="grid-3 strip">
-  <a class="strip-item" href="daily_logs.php"><span>Logs this month</span><b><?= $logsThisMonth ?></b></a>
-  <a class="strip-item" href="attendance.php"><span>Attendance days</span><b><?= $attDays ?></b></a>
-  <a class="strip-item" href="daily_logs.php?filter=incomplete"><span>Incomplete</span><b class="<?= $incomplete ? 'warn-text' : '' ?>"><?= $incomplete ?></b></a>
+  <a class="strip-item" style="grid-column:1 / -1" href="attendance.php"><span>Attendance days</span><b><?= $attDays ?></b></a>
 </div>
 
 <div class="grid-main">
-  <section class="panel progress-panel">
+  <section class="panel progress-panel" style="grid-column:1 / -1">
     <div class="panel-head"><div><span class="eyebrow">INTERNSHIP</span><h3>OJT Progress</h3></div><span class="pill green-pill" id="pctPill"><?= e((string)$progress) ?>%</span></div>
     <div class="progress-ring" id="progressRing" style="--progress:<?= e((string)$progress) ?>%"><div><strong id="ringPct"><?= e((string)$progress) ?>%</strong><span>Completed</span></div></div>
     <div class="progress-meta">
-      <div><span>Completed</span><strong id="metaDone"><?= number_format($completedHours, 1) ?> hrs</strong></div>
+      <div><span>Completed</span><strong id="metaDone"><?= number_format($completedHours, 0) ?> hrs</strong></div>
       <div><span>Required</span><strong><?= number_format($totalHours, 0) ?> hrs</strong></div>
-      <div><span>Company</span><strong><?= e($internship['company_name'] ?? 'Not assigned') ?></strong></div>
+      <div><span>Company</span><strong><?= e($assignedCompany) ?></strong></div>
     </div>
-    <div class="goal-bar"><div class="goal-top"><strong>Hours goal</strong><b id="goalPct"><?= e((string)$progress) ?>%</b></div><div class="bar"><i id="goalFill" style="width:<?= e((string)$progress) ?>%"></i></div><div class="goal-bottom"><span id="goalDone"><?= number_format($completedHours, 2) ?> rendered</span><span><?= (int)$daysRemaining ?> days left</span></div></div>
-  </section>
-  <section class="panel">
-    <div class="panel-head"><div><span class="eyebrow">DAILY LOGS</span><h3>Recent entries</h3></div><a href="daily_logs.php" class="text-link">View all</a></div>
-    <?php if (!$recentLogs): ?><div class="dash-empty">No daily logs yet.<br><small>They appear here automatically when you time in.</small></div><?php endif; ?>
-    <div class="mini-list">
-      <?php foreach ($recentLogs as $r): $inc = trim((string)$r['title']) === ''; ?>
-        <a class="mini-row" href="daily_logs.php?edit=<?= (int)$r['id'] ?>">
-          <div class="mini-date"><b><?= e(date('d', strtotime($r['log_date']))) ?></b><span><?= e(date('M', strtotime($r['log_date']))) ?></span></div>
-          <div class="mini-main"><strong><?= $inc ? 'Add what you worked on' : e($r['title']) ?></strong><small><?= $r['time_in'] ? e(date('g:i A', strtotime($r['time_in']))) . ($r['time_out'] ? ' – ' . e(date('g:i A', strtotime($r['time_out']))) : ' · in progress') : 'Manual entry' ?></small></div>
-          <span class="pill <?= $inc ? 'amber-pill' : 'blue-pill' ?>"><?= $inc ? 'Needs details' : number_format((float)$r['hours'], 2) . ' h' ?></span>
-        </a>
-      <?php endforeach; ?>
-    </div>
+    <div class="goal-bar"><div class="goal-top"><strong>Hours goal</strong><b id="goalPct"><?= e((string)$progress) ?>%</b></div><div class="bar"><i id="goalFill" style="width:<?= e((string)$progress) ?>%"></i></div><div class="goal-bottom"><span id="goalDone"><?= number_format($completedHours, 0) ?> rendered</span><span><?= (int)$daysRemaining ?> days left</span></div></div>
   </section>
 </div>
 
@@ -140,5 +181,5 @@ $wj->execute([$uid, date('Y-m-d', strtotime('monday this week'))]); $weekJournal
     <div class="journal-nudge"><span class="pill <?= $weekJournal === 'submitted' ? 'green-pill' : 'amber-pill' ?>">Weekly journal: <?= $weekJournal ? e(ucfirst($weekJournal)) : 'Not started' ?></span><a class="text-link" href="journal.php">Open Journal</a></div>
   </section>
 </div>
-<script>window.OJT_DASH = <?= json_encode(['required' => $totalHours, 'completed' => $completedHours], JSON_HEX_TAG) ?>;</script>
+<script>window.OJT_DASH = <?= json_encode(['required' => $totalHours, 'completed' => $completedHours, 'todaySeconds' => $todayCompletedHours * 3600, 'lastTimeIn' => $todayLastTimeInLabel, 'lastTimeOut' => $todayLastTimeOutLabel], JSON_HEX_TAG) ?>;</script>
 <?php require_once 'includes/footer.php'; ?>

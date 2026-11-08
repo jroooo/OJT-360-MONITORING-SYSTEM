@@ -7,6 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') json_out(['ok' => false, 'message' =>
 verify_csrf();
 $uid = (int)$_SESSION['student_pk'];
 $action = (string)($_POST['action'] ?? 'save');
+$submissionPdf = null;
 
 try {
     if ($action === 'rebuild') {
@@ -27,6 +28,11 @@ try {
     if (trim(strip_tags($content, '<img>')) === '') json_out(['ok' => false, 'message' => 'The compilation is empty.'], 422);
     if (mb_strlen($content) > 900000) json_out(['ok' => false, 'message' => 'The compilation is too large.'], 422);
 
+    if ($action === 'submit') {
+        $submissionPdf = save_journal_submission_pdf('pdf');
+        db()->beginTransaction();
+    }
+
     $find = db()->prepare('SELECT id FROM journal_compilations WHERE student_pk=?');
     $find->execute([$uid]);
     $id = $find->fetchColumn();
@@ -38,17 +44,20 @@ try {
     }
 
     if ($action === 'submit') {
-        // Snapshot for the adviser. The adviser dashboard will read journal_submissions (adviser_id is filled in there).
-        db()->prepare("INSERT INTO journal_submissions(student_pk,title,content,orientation,page_size,margin_preset,status) VALUES(?,?,?,?,?,?,'pending')")
-            ->execute([$uid, $title, $content, $orientation, $size, $margin]);
+        db()->prepare("INSERT INTO journal_submissions(student_pk,submission_type,pdf_file,title,content,orientation,page_size,margin_preset,status) VALUES(?,'final',?,?,?,?,?,?,'pending')")
+            ->execute([$uid, $submissionPdf, $title, $content, $orientation, $size, $margin]);
         $subId = (int)db()->lastInsertId();
         add_activity($uid, 'Submitted the final journal compilation to the adviser');
-        add_notification($uid, 'Journal submitted', 'Your final journal compilation was sent to your adviser for review.', '▤');
-        json_out(['ok' => true, 'message' => 'Submitted to your adviser. You can still edit and resubmit later.', 'submission_id' => $subId, 'submitted_at' => date('M j, Y g:i A')]);
+        add_notification($uid, 'Journal submitted', 'Your final journal PDF was sent to your adviser for review.', '▤');
+        db()->commit();
+        $submissionPdf = null;
+        json_out(['ok' => true, 'message' => 'Final journal PDF submitted to your adviser. You can still edit and resubmit later.', 'submission_id' => $subId, 'submitted_at' => date('M j, Y g:i A')]);
     }
 
     add_activity($uid, 'Saved final journal compilation');
     json_out(['ok' => true, 'message' => 'Final compilation saved.', 'id' => (int)$id, 'saved_at' => date('g:i A')]);
 } catch (Throwable $e) {
+    if (db()->inTransaction()) db()->rollBack();
+    if ($submissionPdf !== null) @unlink(__DIR__ . '/../uploads/journal_submissions/' . basename($submissionPdf));
     json_out(['ok' => false, 'message' => 'Could not save: ' . $e->getMessage()], 500);
 }

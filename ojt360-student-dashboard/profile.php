@@ -3,8 +3,8 @@ $page_title = 'Profile';
 $page_scripts = ['profile.js'];
 require_once 'includes/header.php';
 $internship = internship_for($uid);
-$stats = db()->prepare("SELECT (SELECT COUNT(*) FROM attendance WHERE student_pk=? AND time_out IS NOT NULL) sessions, (SELECT COUNT(*) FROM daily_logs WHERE student_pk=?) logs, (SELECT COUNT(*) FROM journals WHERE student_pk=?) journals");
-$stats->execute([$uid, $uid, $uid]);
+$stats = db()->prepare("SELECT (SELECT COUNT(*) FROM attendance WHERE student_pk=? AND time_out IS NOT NULL) sessions, (SELECT COUNT(*) FROM journals WHERE student_pk=?) journals");
+$stats->execute([$uid, $uid]);
 $st = $stats->fetch();
 $progress = $internship && (float)$internship['required_hours'] > 0 ? min(100, round($internship['completed_hours'] / $internship['required_hours'] * 100, 1)) : 0;
 ?>
@@ -28,10 +28,9 @@ $progress = $internship && (float)$internship['required_hours'] > 0 ? min(100, r
   <div class="profile-actions"><button class="btn secondary" type="button" data-photo-action="upload"><?= icon('camera') ?> Change photo</button></div>
 </section>
 
-<div class="grid-4 profile-stats">
+<div class="grid-3 profile-stats">
   <article class="stat"><div class="stat-ic"><?= icon('target') ?></div><span>OJT progress</span><strong><b><?= $progress ?></b><em>%</em></strong><small><?= number_format((float)($internship['completed_hours'] ?? 0), 1) ?> of <?= number_format((float)($internship['required_hours'] ?? 480), 0) ?> hours</small></article>
   <article class="stat"><div class="stat-ic"><?= icon('clock') ?></div><span>Attendance</span><strong><b><?= (int)$st['sessions'] ?></b></strong><small>completed sessions</small></article>
-  <article class="stat"><div class="stat-ic"><?= icon('logs') ?></div><span>Daily logs</span><strong><b><?= (int)$st['logs'] ?></b></strong><small>entries recorded</small></article>
   <article class="stat"><div class="stat-ic"><?= icon('journal') ?></div><span>Journals</span><strong><b><?= (int)$st['journals'] ?></b></strong><small>weekly drafts</small></article>
 </div>
 

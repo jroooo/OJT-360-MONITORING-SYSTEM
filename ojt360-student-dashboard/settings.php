@@ -29,12 +29,13 @@ $req = (float)($internship['required_hours'] ?? 480);
 
   <section class="panel" id="goal">
     <div class="panel-head"><div><span class="eyebrow">WORK SCHEDULE</span><h3>Attendance & hours goal</h3></div></div>
-    <p class="muted small" style="margin-bottom:14px">Attendance uses fixed shifts: 8:00 AM–12:00 PM and 1:00 PM–5:00 PM. Afternoon Time In is on time through 1:30 PM; set the morning on-time grace period below.</p>
+    <p class="muted small" style="margin-bottom:14px">Set your morning shift start and grace period. Attendance credit is fixed at four hours per shift.</p>
     <form class="form" id="scheduleForm">
       <div class="form-grid-2">
+        <label>Morning shift starts<input type="time" name="shift_start" value="<?= e(substr($settingsRow['shift_start'], 0, 5)) ?>" required></label>
         <label>Grace period (min)<input type="number" name="grace_minutes" min="0" max="120" value="<?= (int)$settingsRow['grace_minutes'] ?>" required></label>
-        <label>Daily target (hours)<input type="number" name="daily_target" min="1" max="16" step="0.5" value="<?= e((string)$settingsRow['daily_target']) ?>" required></label>
       </div>
+      <p class="field-hint">The daily attendance limit is fixed at 8 hours: 4 hours in the morning and 4 after lunch. The afternoon shift starts 5 hours after the configured morning start.</p>
       <div class="form-actions"><span class="form-state"></span><button class="btn primary">Save schedule</button></div>
     </form>
     <hr class="sep-line">
