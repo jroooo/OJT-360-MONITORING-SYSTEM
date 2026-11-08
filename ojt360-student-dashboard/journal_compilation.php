@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $page_title = 'Final Compilation';
 $page_scripts = ['editor.js', 'compilation.js'];
 require_once 'includes/header.php';

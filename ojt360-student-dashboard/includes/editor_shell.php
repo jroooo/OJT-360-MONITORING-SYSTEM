@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /* Word-style editor markup shared by journal.php and journal_compilation.php.
    The ribbon is built by assets/js/editor.js. */
 function render_editor_shell(string $id, string $html, string $orientation = 'portrait', string $size = 'A4', string $margin = 'normal'): void {

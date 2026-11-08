@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $page_title = 'Weekly Journal';
 $page_scripts = ['editor.js', 'journal.js'];
 require_once 'includes/header.php';

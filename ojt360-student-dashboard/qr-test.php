@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 declare(strict_types=1);
 require_once 'includes/auth.php';
 require_once 'includes/helpers.php';

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $page_title = 'Notifications';
 $page_scripts = ['notifications.js'];
 require_once 'includes/header.php';

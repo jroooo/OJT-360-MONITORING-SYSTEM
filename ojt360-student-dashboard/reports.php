@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $page_title = 'Reports';
 $page_scripts = ['reports.js'];
 require_once 'includes/header.php';

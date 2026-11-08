@@ -46,25 +46,12 @@ if ($companyId <= 0) {
 |--------------------------------------------------------------------------
 | AJAX / API REQUESTS
 |--------------------------------------------------------------------------
-|
-| messages.php?api=employees
-| messages.php?api=conversations
-| messages.php?api=thread&employee_id=1
-| messages.php?api=send
-| messages.php?api=mark_read&employee_id=1
-|
-|--------------------------------------------------------------------------
 */
 
 $api = isset($_GET['api']) ? trim((string)$_GET['api']) : '';
 
 if ($api !== '') {
 
-    /*
-    |--------------------------------------------------------------------------
-    | Get employees
-    |--------------------------------------------------------------------------
-    */
     if ($api === 'employees') {
 
         try {
@@ -118,20 +105,10 @@ if ($api !== '') {
         }
     }
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | Get conversation list
-    |--------------------------------------------------------------------------
-    */
     if ($api === 'conversations') {
 
         try {
 
-            /*
-             * Get every employee and their latest conversation
-             * with the currently logged-in company.
-             */
             $stmt = $pdo->prepare("
                 SELECT
                     e.id,
@@ -245,12 +222,6 @@ if ($api !== '') {
         }
     }
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | Get conversation thread
-    |--------------------------------------------------------------------------
-    */
     if ($api === 'thread') {
 
         $employeeId = isset($_GET['employee_id'])
@@ -266,9 +237,6 @@ if ($api !== '') {
 
         try {
 
-            /*
-             * Make sure employee exists.
-             */
             $employeeStmt = $pdo->prepare("
                 SELECT
                     id,
@@ -295,9 +263,6 @@ if ($api !== '') {
                 ], 404);
             }
 
-            /*
-             * Mark employee messages as read.
-             */
             $markStmt = $pdo->prepare("
                 UPDATE messages
                 SET is_read = 1
@@ -312,9 +277,6 @@ if ($api !== '') {
                 $employeeId
             ]);
 
-            /*
-             * Get messages.
-             */
             $stmt = $pdo->prepare("
                 SELECT
                     id,
@@ -381,12 +343,6 @@ if ($api !== '') {
         }
     }
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | Mark conversation as read
-    |--------------------------------------------------------------------------
-    */
     if ($api === 'mark_read') {
 
         $employeeId = isset($_GET['employee_id'])
@@ -430,12 +386,6 @@ if ($api !== '') {
         }
     }
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | Send message
-    |--------------------------------------------------------------------------
-    */
     if ($api === 'send') {
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -478,9 +428,6 @@ if ($api !== '') {
 
         try {
 
-            /*
-             * Make sure employee exists.
-             */
             $employeeCheck = $pdo->prepare("
                 SELECT id
                 FROM employees
@@ -498,12 +445,6 @@ if ($api !== '') {
                 ], 404);
             }
 
-            /*
-             * Save message.
-             *
-             * sender_type = company
-             * sender_id   = current company ID
-             */
             $stmt = $pdo->prepare("
                 INSERT INTO messages
                 (
@@ -549,18 +490,11 @@ if ($api !== '') {
         }
     }
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | Unknown API
-    |--------------------------------------------------------------------------
-    */
     messagesJson([
         'success' => false,
         'message' => 'Unknown API request.'
     ], 404);
 }
-
 
 /*
 |--------------------------------------------------------------------------
@@ -612,23 +546,21 @@ while ($row = $employeeStmt->fetch(PDO::FETCH_ASSOC)) {
     ];
 }
 
-
-/*
-|--------------------------------------------------------------------------
-| Layout
-|--------------------------------------------------------------------------
-*/
 require_once __DIR__ . '/includes/layout_top.php';
 
 ?>
 
 <style>
+/* ============================================================
+   MESSAGES PAGE - DUAL THEME SUPPORT
+   ============================================================ */
 
 .messages-page {
     width: 100%;
-    max-width: 1500px;
+    max-width: 1400px;
     margin: 0 auto;
     padding: 24px;
+    font-family: "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif;
 }
 
 .messages-header {
@@ -637,26 +569,51 @@ require_once __DIR__ . '/includes/layout_top.php';
     align-items: flex-start;
     gap: 20px;
     margin-bottom: 24px;
+    flex-wrap: wrap;
 }
 
-.messages-header h1 {
-    margin: 4px 0 6px;
-    font-size: 30px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-}
-
-.messages-header p {
-    margin: 0;
-    color: #64748b;
-    font-size: 14px;
+.messages-header-left {
+    min-width: 0;
 }
 
 .messages-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     font-size: 11px;
     font-weight: 800;
-    letter-spacing: 1.6px;
-    color: #2563eb;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--qr-brand, #2563eb);
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+.messages-eyebrow::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--qr-brand, #2563eb);
+    box-shadow: 0 0 10px rgba(37, 99, 235, 0.4);
+}
+
+.messages-header h1 {
+    margin: 0;
+    font-size: clamp(30px, 3.4vw, 42px);
+    line-height: 1.12;
+    letter-spacing: -0.04em;
+    font-weight: 800;
+    color: var(--qr-text, #0f172a);
+}
+
+.messages-header p {
+    margin: 10px 0 0;
+    max-width: 720px;
+    color: var(--qr-text-muted, #64748b);
+    font-size: 14px;
+    line-height: 1.65;
+    font-weight: 400;
 }
 
 .company-badge {
@@ -665,10 +622,11 @@ require_once __DIR__ . '/includes/layout_top.php';
     gap: 8px;
     padding: 9px 14px;
     border-radius: 999px;
-    background: #eff6ff;
-    color: #1d4ed8;
+    background: var(--qr-surface-alt, #eff6ff);
+    color: var(--qr-brand, #1d4ed8);
     font-size: 12px;
     font-weight: 700;
+    border: 1px solid var(--qr-border, #e2e8f0);
 }
 
 .company-badge-dot {
@@ -685,17 +643,13 @@ require_once __DIR__ . '/includes/layout_top.php';
 .messenger {
     display: grid;
     grid-template-columns: 330px minmax(0, 1fr);
-    min-height: 680px;
     height: calc(100vh - 230px);
     min-height: 600px;
-
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background: var(--qr-surface, #ffffff);
+    border: 1px solid var(--qr-border, #e2e8f0);
     border-radius: 20px;
     overflow: hidden;
-
-    box-shadow:
-        0 15px 45px rgba(15, 23, 42, 0.07);
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.05);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -703,8 +657,8 @@ require_once __DIR__ . '/includes/layout_top.php';
 /* -------------------------------------------------------------------------- */
 
 .inbox-sidebar {
-    border-right: 1px solid #e2e8f0;
-    background: #f8fafc;
+    border-right: 1px solid var(--qr-border, #e2e8f0);
+    background: var(--qr-surface-alt, #f8fafc);
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -712,8 +666,8 @@ require_once __DIR__ . '/includes/layout_top.php';
 
 .inbox-top {
     padding: 20px;
-    border-bottom: 1px solid #e2e8f0;
-    background: #ffffff;
+    border-bottom: 1px solid var(--qr-border, #e2e8f0);
+    background: var(--qr-surface, #ffffff);
 }
 
 .inbox-title-row {
@@ -726,6 +680,7 @@ require_once __DIR__ . '/includes/layout_top.php';
 .inbox-title {
     font-size: 17px;
     font-weight: 800;
+    color: var(--qr-text, #0f172a);
 }
 
 .new-message-btn {
@@ -737,12 +692,11 @@ require_once __DIR__ . '/includes/layout_top.php';
     color: white;
     font-size: 20px;
     cursor: pointer;
-
     display: flex;
     align-items: center;
     justify-content: center;
-
-    transition: .2s ease;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+    transition: transform 0.15s ease, background 0.15s ease;
 }
 
 .new-message-btn:hover {
@@ -757,19 +711,19 @@ require_once __DIR__ . '/includes/layout_top.php';
 .search-box input {
     width: 100%;
     height: 42px;
-    border: 1px solid #dbe3ee;
-    border-radius: 11px;
+    border: 1px solid var(--qr-border-strong, #cbd5e1);
+    border-radius: 12px;
     padding: 0 13px 0 38px;
     outline: none;
-    background: #f8fafc;
-    color: #0f172a;
+    background: var(--qr-surface-alt, #f8fafc);
+    color: var(--qr-text, #0f172a);
     font-size: 13px;
 }
 
 .search-box input:focus {
-    border-color: #93c5fd;
-    background: #ffffff;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, .08);
+    border-color: #3b82f6;
+    background: var(--qr-surface, #ffffff);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 .search-icon {
@@ -777,7 +731,7 @@ require_once __DIR__ . '/includes/layout_top.php';
     left: 13px;
     top: 50%;
     transform: translateY(-50%);
-    color: #94a3b8;
+    color: var(--qr-text-subtle, #94a3b8);
     font-size: 14px;
 }
 
@@ -789,14 +743,14 @@ require_once __DIR__ . '/includes/layout_top.php';
     display: flex;
     gap: 6px;
     padding: 12px 16px;
-    border-bottom: 1px solid #e2e8f0;
-    background: #ffffff;
+    border-bottom: 1px solid var(--qr-border, #e2e8f0);
+    background: var(--qr-surface, #ffffff);
 }
 
 .filter-btn {
     border: 0;
     background: transparent;
-    color: #64748b;
+    color: var(--qr-text-muted, #64748b);
     padding: 7px 10px;
     border-radius: 8px;
     cursor: pointer;
@@ -805,12 +759,12 @@ require_once __DIR__ . '/includes/layout_top.php';
 }
 
 .filter-btn:hover {
-    background: #f1f5f9;
+    background: var(--qr-surface-soft, #f1f5f9);
 }
 
 .filter-btn.active {
-    background: #eff6ff;
-    color: #2563eb;
+    background: var(--qr-surface-alt, #eff6ff);
+    color: var(--qr-brand, #2563eb);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -827,33 +781,34 @@ require_once __DIR__ . '/includes/layout_top.php';
     display: flex;
     gap: 12px;
     cursor: pointer;
-    border-bottom: 1px solid #edf2f7;
-    transition: .15s ease;
+    border-bottom: 1px solid var(--qr-border, #e2e8f0);
+    transition: background 0.15s ease;
+    background: var(--qr-surface, #ffffff);
 }
 
 .conversation-item:hover {
-    background: #f1f5f9;
+    background: var(--qr-surface-alt, #f8fafc);
 }
 
 .conversation-item.active {
-    background: #eff6ff;
-    border-left: 3px solid #2563eb;
+    background: var(--qr-surface-alt, #eff6ff);
+    border-left: 3px solid var(--qr-brand, #2563eb);
     padding-left: 13px;
 }
 
 .avatar {
-    width: 42px;
-    height: 42px;
-    min-width: 42px;
-    border-radius: 13px;
-    background: linear-gradient(135deg, #2563eb, #4f46e5);
-    color: white;
-    font-weight: 800;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 12px;
+    background: var(--qr-surface-alt, #f8fafc);
+    color: var(--qr-brand, #2563eb);
+    font-weight: 900;
     font-size: 12px;
-
     display: flex;
     align-items: center;
     justify-content: center;
+    border: 1px solid var(--qr-border, #e2e8f0);
 }
 
 .conversation-content {
@@ -870,15 +825,14 @@ require_once __DIR__ . '/includes/layout_top.php';
 .conversation-name {
     font-size: 13px;
     font-weight: 800;
-    color: #0f172a;
-
+    color: var(--qr-text, #0f172a);
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
 }
 
 .conversation-time {
-    color: #94a3b8;
+    color: var(--qr-text-subtle, #94a3b8);
     font-size: 10px;
     white-space: nowrap;
 }
@@ -891,9 +845,8 @@ require_once __DIR__ . '/includes/layout_top.php';
 }
 
 .preview-text {
-    color: #64748b;
+    color: var(--qr-text-muted, #64748b);
     font-size: 11px;
-
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -904,14 +857,11 @@ require_once __DIR__ . '/includes/layout_top.php';
     height: 18px;
     padding: 0 5px;
     border-radius: 999px;
-
     background: #2563eb;
     color: white;
-
     display: inline-flex;
     align-items: center;
     justify-content: center;
-
     font-size: 9px;
     font-weight: 800;
 }
@@ -919,13 +869,13 @@ require_once __DIR__ . '/includes/layout_top.php';
 .empty-list {
     padding: 45px 25px;
     text-align: center;
-    color: #94a3b8;
+    color: var(--qr-text-muted, #94a3b8);
     font-size: 13px;
 }
 
 .empty-list strong {
     display: block;
-    color: #475569;
+    color: var(--qr-text-soft, #475569);
     margin-bottom: 5px;
 }
 
@@ -937,41 +887,39 @@ require_once __DIR__ . '/includes/layout_top.php';
     min-width: 0;
     display: flex;
     flex-direction: column;
-    background: #ffffff;
+    background: var(--qr-surface, #ffffff);
 }
 
 .chat-empty {
     flex: 1;
-
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-
     text-align: center;
     padding: 30px;
-    color: #94a3b8;
+    color: var(--qr-text-muted, #94a3b8);
 }
 
 .chat-empty-icon {
     width: 70px;
     height: 70px;
     border-radius: 20px;
-    background: #eff6ff;
-    color: #2563eb;
-
+    background: var(--qr-surface-alt, #eff6ff);
+    color: var(--qr-brand, #2563eb);
     display: flex;
     align-items: center;
     justify-content: center;
-
     font-size: 28px;
     margin-bottom: 18px;
+    border: 1px solid var(--qr-border, #e2e8f0);
 }
 
 .chat-empty h3 {
     margin: 0 0 7px;
-    color: #1e293b;
+    color: var(--qr-text, #1e293b);
     font-size: 18px;
+    font-weight: 800;
 }
 
 .chat-empty p {
@@ -979,6 +927,7 @@ require_once __DIR__ . '/includes/layout_top.php';
     margin: 0;
     line-height: 1.6;
     font-size: 13px;
+    color: var(--qr-text-muted, #64748b);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -990,9 +939,8 @@ require_once __DIR__ . '/includes/layout_top.php';
     align-items: center;
     gap: 13px;
     padding: 17px 20px;
-
-    border-bottom: 1px solid #e2e8f0;
-    background: #ffffff;
+    border-bottom: 1px solid var(--qr-border, #e2e8f0);
+    background: var(--qr-surface, #ffffff);
 }
 
 .chat-header.visible {
@@ -1007,12 +955,12 @@ require_once __DIR__ . '/includes/layout_top.php';
 .chat-user-name {
     font-size: 14px;
     font-weight: 800;
-    color: #0f172a;
+    color: var(--qr-text, #0f172a);
 }
 
 .chat-user-meta {
     margin-top: 3px;
-    color: #64748b;
+    color: var(--qr-text-muted, #64748b);
     font-size: 11px;
 }
 
@@ -1033,10 +981,7 @@ require_once __DIR__ . '/includes/layout_top.php';
     flex: 1;
     overflow-y: auto;
     padding: 25px;
-    background:
-        radial-gradient(circle at top right, rgba(37, 99, 235, .04), transparent 35%),
-        #f8fafc;
-
+    background: var(--qr-surface-alt, #f8fafc);
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -1066,9 +1011,9 @@ require_once __DIR__ . '/includes/layout_top.php';
 }
 
 .message-row.employee .message-bubble {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    color: #334155;
+    background: var(--qr-surface, #ffffff);
+    border: 1px solid var(--qr-border, #e2e8f0);
+    color: var(--qr-text-soft, #334155);
     border-bottom-left-radius: 5px;
 }
 
@@ -1081,7 +1026,7 @@ require_once __DIR__ . '/includes/layout_top.php';
 .message-time {
     margin-top: 5px;
     font-size: 9px;
-    color: #94a3b8;
+    color: var(--qr-text-subtle, #94a3b8);
 }
 
 .message-row.company .message-time {
@@ -1093,8 +1038,7 @@ require_once __DIR__ . '/includes/layout_top.php';
     display: flex;
     align-items: center;
     justify-content: center;
-
-    color: #94a3b8;
+    color: var(--qr-text-muted, #94a3b8);
     font-size: 13px;
     text-align: center;
 }
@@ -1106,9 +1050,8 @@ require_once __DIR__ . '/includes/layout_top.php';
 .message-composer {
     display: none;
     padding: 14px 18px;
-
-    border-top: 1px solid #e2e8f0;
-    background: #ffffff;
+    border-top: 1px solid var(--qr-border, #e2e8f0);
+    background: var(--qr-surface, #ffffff);
 }
 
 .message-composer.visible {
@@ -1124,50 +1067,43 @@ require_once __DIR__ . '/includes/layout_top.php';
 .composer-form textarea {
     flex: 1;
     resize: none;
-
     min-height: 46px;
     max-height: 130px;
-
     padding: 13px 14px;
-
-    border: 1px solid #dbe3ee;
-    border-radius: 13px;
-
+    border: 1px solid var(--qr-border-strong, #dbe3ee);
+    border-radius: 12px;
     outline: none;
-
     font-family: inherit;
     font-size: 13px;
-
-    background: #f8fafc;
+    background: var(--qr-surface-alt, #f8fafc);
+    color: var(--qr-text, #0f172a);
 }
 
 .composer-form textarea:focus {
-    border-color: #93c5fd;
-    background: #ffffff;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, .08);
+    border-color: #3b82f6;
+    background: var(--qr-surface, #ffffff);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 .send-btn {
     width: 46px;
     height: 46px;
-
     border: 0;
-    border-radius: 13px;
-
+    border-radius: 12px;
     background: #2563eb;
     color: white;
-
     cursor: pointer;
-
     font-size: 17px;
-
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+    transition: transform 0.15s ease, background 0.15s ease;
 }
 
 .send-btn:hover {
     background: #1d4ed8;
+    transform: translateY(-1px);
 }
 
 .send-btn:disabled {
@@ -1178,7 +1114,7 @@ require_once __DIR__ . '/includes/layout_top.php';
 .composer-help {
     margin-top: 7px;
     font-size: 10px;
-    color: #94a3b8;
+    color: var(--qr-text-subtle, #94a3b8);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1188,15 +1124,12 @@ require_once __DIR__ . '/includes/layout_top.php';
 .modal-overlay {
     position: fixed;
     inset: 0;
-
-    background: rgba(15, 23, 42, .5);
-
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
     display: none;
     align-items: center;
     justify-content: center;
-
     z-index: 9999;
-
     padding: 20px;
 }
 
@@ -1207,100 +1140,87 @@ require_once __DIR__ . '/includes/layout_top.php';
 .modal {
     width: 100%;
     max-width: 480px;
-
-    background: #ffffff;
-
-    border-radius: 18px;
-
-    box-shadow: 0 30px 80px rgba(15, 23, 42, .25);
-
+    background: var(--qr-surface, #ffffff);
+    border: 1px solid var(--qr-border, #e2e8f0);
+    border-radius: 20px;
+    box-shadow: 0 25px 80px rgba(15, 23, 42, 0.25);
     overflow: hidden;
 }
 
 .modal-header {
     padding: 20px;
-
     display: flex;
     align-items: center;
     justify-content: space-between;
-
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--qr-border, #e2e8f0);
 }
 
 .modal-header h3 {
     margin: 0;
     font-size: 17px;
+    font-weight: 800;
+    color: var(--qr-text, #0f172a);
 }
 
 .close-modal {
     width: 32px;
     height: 32px;
-
     border: 0;
     border-radius: 8px;
-
-    background: #f1f5f9;
-    color: #64748b;
-
+    background: var(--qr-surface-alt, #f1f5f9);
+    color: var(--qr-text-muted, #64748b);
     cursor: pointer;
 }
 
 .modal-body {
     padding: 20px;
+    background: var(--qr-surface, #ffffff);
 }
 
 .form-label {
     display: block;
     margin-bottom: 7px;
-
     font-size: 11px;
     font-weight: 800;
-    color: #475569;
-}
-
-.employee-select-wrapper {
-    position: relative;
+    color: var(--qr-text-soft, #475569);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
 
 .employee-search {
     width: 100%;
     height: 42px;
-
-    border: 1px solid #dbe3ee;
+    border: 1px solid var(--qr-border-strong, #dbe3ee);
     border-radius: 10px;
-
     padding: 0 12px;
-
     outline: none;
-
     font-family: inherit;
     font-size: 13px;
+    background: var(--qr-surface-alt, #f8fafc);
+    color: var(--qr-text, #0f172a);
 }
 
 .employee-search:focus {
-    border-color: #93c5fd;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 .employee-results {
     margin-top: 8px;
-
     max-height: 260px;
     overflow-y: auto;
-
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--qr-border, #e2e8f0);
     border-radius: 11px;
+    background: var(--qr-surface, #ffffff);
 }
 
 .employee-option {
     padding: 11px 12px;
-
     display: flex;
     align-items: center;
     gap: 10px;
-
     cursor: pointer;
-
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid var(--qr-border, #f1f5f9);
 }
 
 .employee-option:last-child {
@@ -1308,7 +1228,7 @@ require_once __DIR__ . '/includes/layout_top.php';
 }
 
 .employee-option:hover {
-    background: #eff6ff;
+    background: var(--qr-surface-alt, #eff6ff);
 }
 
 .employee-option-info {
@@ -1318,43 +1238,39 @@ require_once __DIR__ . '/includes/layout_top.php';
 .employee-option-name {
     font-size: 12px;
     font-weight: 800;
+    color: var(--qr-text, #0f172a);
 }
 
 .employee-option-meta {
     margin-top: 3px;
-    color: #64748b;
+    color: var(--qr-text-muted, #64748b);
     font-size: 10px;
 }
 
 .modal-footer {
     padding: 15px 20px;
-
-    border-top: 1px solid #e2e8f0;
-
+    border-top: 1px solid var(--qr-border, #e2e8f0);
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+    background: var(--qr-surface-alt, #f8fafc);
 }
 
 .cancel-btn,
 .start-chat-btn {
     height: 38px;
-
     border-radius: 9px;
-
     padding: 0 15px;
-
     font-family: inherit;
     font-size: 12px;
     font-weight: 800;
-
     cursor: pointer;
 }
 
 .cancel-btn {
-    border: 1px solid #dbe3ee;
-    background: #ffffff;
-    color: #64748b;
+    border: 1px solid var(--qr-border-strong, #dbe3ee);
+    background: var(--qr-surface, #ffffff);
+    color: var(--qr-text-muted, #64748b);
 }
 
 .start-chat-btn {
@@ -1374,28 +1290,19 @@ require_once __DIR__ . '/includes/layout_top.php';
 
 .toast {
     position: fixed;
-
     right: 24px;
     bottom: 24px;
-
     padding: 12px 16px;
-
     background: #0f172a;
     color: white;
-
     border-radius: 10px;
-
     font-size: 12px;
     font-weight: 700;
-
     box-shadow: 0 12px 30px rgba(15, 23, 42, .2);
-
     transform: translateY(20px);
     opacity: 0;
     pointer-events: none;
-
     transition: .25s ease;
-
     z-index: 10000;
 }
 
@@ -1417,94 +1324,202 @@ require_once __DIR__ . '/includes/layout_top.php';
 /* -------------------------------------------------------------------------- */
 
 @media (max-width: 900px) {
-
-    .messages-page {
-        padding: 16px;
-    }
-
-    .messenger {
-        grid-template-columns: 280px minmax(0, 1fr);
-    }
+    .messages-page { padding: 16px; }
+    .messenger { grid-template-columns: 280px minmax(0, 1fr); }
 }
 
 @media (max-width: 700px) {
-
-    .messages-header {
-        flex-direction: column;
-    }
-
-    .messenger {
-        grid-template-columns: 1fr;
-        height: calc(100vh - 260px);
-    }
-
-    .inbox-sidebar {
-        display: flex;
-    }
-
-    .chat-panel {
-        display: none;
-    }
-
-    .messenger.chat-open .inbox-sidebar {
-        display: none;
-    }
-
-    .messenger.chat-open .chat-panel {
-        display: flex;
-    }
-
-    .message-bubble {
-        max-width: 85%;
-    }
+    .messages-header { flex-direction: column; }
+    .messenger { grid-template-columns: 1fr; height: calc(100vh - 260px); }
+    .inbox-sidebar { display: flex; }
+    .chat-panel { display: none; }
+    .messenger.chat-open .inbox-sidebar { display: none; }
+    .messenger.chat-open .chat-panel { display: flex; }
+    .message-bubble { max-width: 85%; }
 }
 
-</style>
+/* ============================================================
+   DARK MODE OVERRIDES (DEEP NAVY)
+   ============================================================ */
+html[data-theme="dark"] .messages-page,
+.dark .messages-page {
+    --qr-bg: #0b0f19;
+    --qr-surface: #111c38;
+    --qr-surface-alt: #0d152c;
+    --qr-surface-soft: #172342;
+    --qr-border: #1e293b;
+    --qr-border-strong: #2b3d58;
+    --qr-text: #f8fafc;
+    --qr-text-soft: #e2e8f0;
+    --qr-text-muted: #cbd5e1;
+    --qr-text-subtle: #94a3b8;
+    --qr-brand: #60a5fa;
+    --qr-brand-strong: #bfdbfe;
+}
 
+html[data-theme="dark"] .messages-header h1,
+.dark .messages-header h1,
+html[data-theme="dark"] .conversation-name,
+.dark .conversation-name,
+html[data-theme="dark"] .chat-empty h3,
+.dark .chat-empty h3,
+html[data-theme="dark"] .chat-user-name,
+.dark .chat-user-name,
+html[data-theme="dark"] .employee-option-name,
+.dark .employee-option-name,
+html[data-theme="dark"] .modal-header h3,
+.dark .modal-header h3,
+html[data-theme="dark"] .inbox-title,
+.dark .inbox-title {
+    color: #ffffff !important;
+}
+
+html[data-theme="dark"] .messenger,
+.dark .messenger {
+    background: var(--qr-surface) !important;
+    border-color: var(--qr-border) !important;
+}
+
+html[data-theme="dark"] .inbox-sidebar,
+.dark .inbox-sidebar {
+    background: var(--qr-surface-alt) !important;
+    border-right-color: var(--qr-border) !important;
+}
+
+html[data-theme="dark"] .inbox-top,
+.dark .inbox-top,
+html[data-theme="dark"] .filters,
+.dark .filters,
+html[data-theme="dark"] .chat-header,
+.dark .chat-header,
+html[data-theme="dark"] .message-composer,
+.dark .message-composer,
+html[data-theme="dark"] .modal,
+.dark .modal,
+html[data-theme="dark"] .modal-body,
+.dark .modal-body {
+    background: var(--qr-surface) !important;
+    border-color: var(--qr-border) !important;
+}
+
+html[data-theme="dark"] .conversation-item,
+.dark .conversation-item {
+    background: var(--qr-surface) !important;
+    border-bottom-color: var(--qr-border) !important;
+}
+
+html[data-theme="dark"] .conversation-item:hover,
+.dark .conversation-item:hover {
+    background: var(--qr-surface-alt) !important;
+}
+
+html[data-theme="dark"] .conversation-item.active,
+.dark .conversation-item.active {
+    background: var(--qr-surface-alt) !important;
+    border-left-color: var(--qr-brand) !important;
+}
+
+html[data-theme="dark"] .chat-panel,
+.dark .chat-panel {
+    background: var(--qr-surface) !important;
+}
+
+html[data-theme="dark"] .chat-messages,
+.dark .chat-messages {
+    background: var(--qr-surface-alt) !important;
+}
+
+html[data-theme="dark"] .message-row.employee .message-bubble,
+.dark .message-row.employee .message-bubble {
+    background: var(--qr-surface-alt) !important;
+    border-color: var(--qr-border) !important;
+    color: var(--qr-text-soft) !important;
+}
+
+html[data-theme="dark"] .message-row.company .message-bubble,
+.dark .message-row.company .message-bubble {
+    background: #2563eb !important;
+    color: #ffffff !important;
+}
+
+html[data-theme="dark"] .search-box input,
+.dark .search-box input,
+html[data-theme="dark"] .employee-search,
+.dark .employee-search,
+html[data-theme="dark"] .composer-form textarea,
+.dark .composer-form textarea {
+    background: var(--qr-surface-alt) !important;
+    border-color: var(--qr-border) !important;
+    color: #ffffff !important;
+}
+
+html[data-theme="dark"] .filter-btn,
+.dark .filter-btn,
+html[data-theme="dark"] .cancel-btn,
+.dark .cancel-btn {
+    background: var(--qr-surface-alt) !important;
+    border-color: var(--qr-border) !important;
+    color: var(--qr-text-soft) !important;
+}
+
+html[data-theme="dark"] .filter-btn.active,
+.dark .filter-btn.active {
+    background: var(--qr-surface-alt) !important;
+    color: var(--qr-brand) !important;
+}
+
+html[data-theme="dark"] .new-message-btn,
+.dark .new-message-btn,
+html[data-theme="dark"] .send-btn,
+.dark .send-btn,
+html[data-theme="dark"] .start-chat-btn,
+.dark .start-chat-btn {
+    background: #2563eb !important;
+    color: #ffffff !important;
+}
+
+html[data-theme="dark"] .employee-option,
+.dark .employee-option {
+    background: var(--qr-surface) !important;
+    border-bottom-color: var(--qr-border) !important;
+}
+
+html[data-theme="dark"] .employee-option:hover,
+.dark .employee-option:hover {
+    background: var(--qr-surface-alt) !important;
+}
+
+html[data-theme="dark"] .employee-results,
+.dark .employee-results {
+    background: var(--qr-surface) !important;
+    border-color: var(--qr-border) !important;
+}
+</style>
 
 <div class="messages-page">
 
     <div class="messages-header">
-
-        <div>
+        <div class="messages-header-left">
             <div class="messages-eyebrow">
-                <?= htmlspecialchars($eyebrow) ?>
+                <?= e($eyebrow) ?>
             </div>
-
             <h1>Messages</h1>
-
-            <p>
-                Communicate directly with OJT employees and manage your conversations.
-            </p>
+            <p>Communicate directly with OJT employees and manage your chats.</p>
         </div>
 
         <div class="company-badge">
             <span class="company-badge-dot"></span>
-
-            <?= htmlspecialchars(
-                (string)($company['company_name'] ?? 'Company')
-            ) ?>
+            <?= e((string)($company['company_name'] ?? 'Company')) ?>
         </div>
-
     </div>
-
 
     <div class="messenger" id="messenger">
 
-        <!-- ================================================================ -->
-        <!-- INBOX SIDEBAR                                                   -->
-        <!-- ================================================================ -->
-
+        <!-- INBOX SIDEBAR -->
         <aside class="inbox-sidebar">
-
             <div class="inbox-top">
-
                 <div class="inbox-title-row">
-
-                    <div class="inbox-title">
-                        Conversations
-                    </div>
-
+                    <div class="inbox-title">Chats</div>
                     <button
                         type="button"
                         class="new-message-btn"
@@ -1513,147 +1528,49 @@ require_once __DIR__ . '/includes/layout_top.php';
                     >
                         +
                     </button>
-
                 </div>
 
-
                 <div class="search-box">
-
-                    <span class="search-icon">
-                        🔍
-                    </span>
-
+                    <span class="search-icon">🔍</span>
                     <input
                         type="text"
                         id="conversationSearch"
-                        placeholder="Search conversations..."
+                        placeholder="Search chats..."
                         autocomplete="off"
                     >
-
                 </div>
-
             </div>
-
 
             <div class="filters">
-
-                <button
-                    type="button"
-                    class="filter-btn active"
-                    data-filter="all"
-                >
-                    All
-                </button>
-
-                <button
-                    type="button"
-                    class="filter-btn"
-                    data-filter="unread"
-                >
-                    Unread
-                </button>
-
+                <button type="button" class="filter-btn active" data-filter="all">All</button>
+                <button type="button" class="filter-btn" data-filter="unread">Unread</button>
             </div>
 
-
-            <div
-                class="conversation-list"
-                id="conversationList"
-            >
-
-                <div class="empty-list">
-                    Loading conversations...
-                </div>
-
+            <div class="conversation-list" id="conversationList">
+                <div class="empty-list">Loading chats...</div>
             </div>
-
         </aside>
 
-
-        <!-- ================================================================ -->
-        <!-- CHAT PANEL                                                       -->
-        <!-- ================================================================ -->
-
+        <!-- CHAT PANEL -->
         <section class="chat-panel">
-
-            <!-- Empty state -->
-
-            <div
-                class="chat-empty"
-                id="chatEmpty"
-            >
-
-                <div class="chat-empty-icon">
-                    💬
-                </div>
-
-                <h3>Select a conversation</h3>
-
-                <p>
-                    Choose an employee from the conversation list
-                    or start a new conversation.
-                </p>
-
+            <div class="chat-empty" id="chatEmpty">
+                <div class="chat-empty-icon">💬</div>
+                <h3>Select a chat</h3>
+                <p>Choose an employee from the chat list or start a new conversation.</p>
             </div>
 
-
-            <!-- Chat Header -->
-
-            <div
-                class="chat-header"
-                id="chatHeader"
-            >
-
-                <div
-                    class="avatar"
-                    id="chatAvatar"
-                >
-                    EM
-                </div>
-
+            <div class="chat-header" id="chatHeader">
+                <div class="avatar" id="chatAvatar">EM</div>
                 <div class="chat-user-info">
-
-                    <div
-                        class="chat-user-name"
-                        id="chatUserName"
-                    >
-                        Employee
-                    </div>
-
-                    <div
-                        class="chat-user-meta"
-                        id="chatUserMeta"
-                    >
-                        Employee
-                    </div>
-
+                    <div class="chat-user-name" id="chatUserName">Employee</div>
+                    <div class="chat-user-meta" id="chatUserMeta">Employee</div>
                 </div>
-
             </div>
 
+            <div class="chat-messages" id="chatMessages" style="display:none;"></div>
 
-            <!-- Chat Messages -->
-
-            <div
-                class="chat-messages"
-                id="chatMessages"
-                style="display:none;"
-            >
-            </div>
-
-
-            <!-- Composer -->
-
-            <div
-                class="message-composer"
-                id="messageComposer"
-            >
-
-                <form
-                    class="composer-form"
-                    id="messageForm"
-                >
-
+            <div class="message-composer" id="messageComposer">
+                <form class="composer-form" id="messageForm">
                     <textarea
                         id="messageInput"
                         name="message"
@@ -1661,63 +1578,25 @@ require_once __DIR__ . '/includes/layout_top.php';
                         maxlength="5000"
                         rows="1"
                     ></textarea>
-
-                    <button
-                        type="submit"
-                        class="send-btn"
-                        id="sendBtn"
-                        title="Send message"
-                    >
-                        ➤
-                    </button>
-
+                    <button type="submit" class="send-btn" id="sendBtn" title="Send message">➤</button>
                 </form>
-
-                <div class="composer-help">
-                    Press Enter to send · Shift + Enter for a new line
-                </div>
-
+                <div class="composer-help">Press Enter to send · Shift + Enter for a new line</div>
             </div>
-
         </section>
 
     </div>
-
 </div>
 
-
-<!-- ====================================================================== -->
-<!-- NEW MESSAGE MODAL                                                     -->
-<!-- ====================================================================== -->
-
-<div
-    class="modal-overlay"
-    id="newMessageModal"
->
-
+<!-- NEW MESSAGE MODAL -->
+<div class="modal-overlay" id="newMessageModal">
     <div class="modal">
-
         <div class="modal-header">
-
             <h3>New message</h3>
-
-            <button
-                type="button"
-                class="close-modal"
-                id="closeModalBtn"
-            >
-                ✕
-            </button>
-
+            <button type="button" class="close-modal" id="closeModalBtn">✕</button>
         </div>
 
-
         <div class="modal-body">
-
-            <label class="form-label">
-                Select employee
-            </label>
-
+            <label class="form-label">Select employee</label>
             <input
                 type="text"
                 class="employee-search"
@@ -1725,1195 +1604,348 @@ require_once __DIR__ . '/includes/layout_top.php';
                 placeholder="Search employee..."
                 autocomplete="off"
             >
-
-
-            <div
-                class="employee-results"
-                id="employeeResults"
-            ></div>
-
+            <div class="employee-results" id="employeeResults"></div>
         </div>
-
 
         <div class="modal-footer">
-
-            <button
-                type="button"
-                class="cancel-btn"
-                id="cancelModalBtn"
-            >
-                Cancel
-            </button>
-
-            <button
-                type="button"
-                class="start-chat-btn"
-                id="startChatBtn"
-                disabled
-            >
-                Start conversation
-            </button>
-
+            <button type="button" class="cancel-btn" id="cancelModalBtn">Cancel</button>
+            <button type="button" class="start-chat-btn" id="startChatBtn" disabled>Start chat</button>
         </div>
-
     </div>
-
 </div>
 
-
-<!-- ====================================================================== -->
-<!-- TOAST                                                                  -->
-<!-- ====================================================================== -->
-
-<div
-    class="toast"
-    id="toast"
-></div>
-
+<div class="toast" id="toast"></div>
 
 <script>
-
 const companyId = <?= json_encode($companyId) ?>;
-
-const initialEmployees = <?= json_encode(
-    $employees,
-    JSON_UNESCAPED_UNICODE |
-    JSON_UNESCAPED_SLASHES
-) ?>;
-
+const initialEmployees = <?= json_encode($employees, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 
 let conversations = [];
 let employees = initialEmployees;
-
 let selectedEmployeeId = null;
 let selectedEmployee = null;
-
 let activeFilter = 'all';
-
 let threadTimer = null;
 let conversationTimer = null;
 
-
-/* ==========================================================================
-   ELEMENTS
-   ========================================================================== */
-
-const messenger =
-    document.getElementById('messenger');
-
-const conversationList =
-    document.getElementById('conversationList');
-
-const conversationSearch =
-    document.getElementById('conversationSearch');
-
-const chatEmpty =
-    document.getElementById('chatEmpty');
-
-const chatHeader =
-    document.getElementById('chatHeader');
-
-const chatAvatar =
-    document.getElementById('chatAvatar');
-
-const chatUserName =
-    document.getElementById('chatUserName');
-
-const chatUserMeta =
-    document.getElementById('chatUserMeta');
-
-const chatMessages =
-    document.getElementById('chatMessages');
-
-const messageComposer =
-    document.getElementById('messageComposer');
-
-const messageForm =
-    document.getElementById('messageForm');
-
-const messageInput =
-    document.getElementById('messageInput');
-
-const sendBtn =
-    document.getElementById('sendBtn');
-
-const newMessageBtn =
-    document.getElementById('newMessageBtn');
-
-const newMessageModal =
-    document.getElementById('newMessageModal');
-
-const closeModalBtn =
-    document.getElementById('closeModalBtn');
-
-const cancelModalBtn =
-    document.getElementById('cancelModalBtn');
-
-const employeeSearch =
-    document.getElementById('employeeSearch');
-
-const employeeResults =
-    document.getElementById('employeeResults');
-
-const startChatBtn =
-    document.getElementById('startChatBtn');
-
-const toast =
-    document.getElementById('toast');
-
-
-/* ==========================================================================
-   HELPERS
-   ========================================================================== */
+const messenger = document.getElementById('messenger');
+const conversationList = document.getElementById('conversationList');
+const conversationSearch = document.getElementById('conversationSearch');
+const chatEmpty = document.getElementById('chatEmpty');
+const chatHeader = document.getElementById('chatHeader');
+const chatAvatar = document.getElementById('chatAvatar');
+const chatUserName = document.getElementById('chatUserName');
+const chatUserMeta = document.getElementById('chatUserMeta');
+const chatMessages = document.getElementById('chatMessages');
+const messageComposer = document.getElementById('messageComposer');
+const messageForm = document.getElementById('messageForm');
+const messageInput = document.getElementById('messageInput');
+const sendBtn = document.getElementById('sendBtn');
+const newMessageBtn = document.getElementById('newMessageBtn');
+const newMessageModal = document.getElementById('newMessageModal');
+const closeModalBtn = document.getElementById('closeModalBtn');
+const cancelModalBtn = document.getElementById('cancelModalBtn');
+const employeeSearch = document.getElementById('employeeSearch');
+const employeeResults = document.getElementById('employeeResults');
+const startChatBtn = document.getElementById('startChatBtn');
+const toast = document.getElementById('toast');
 
 function escapeHtml(value) {
-
     const div = document.createElement('div');
-
-    div.textContent =
-        value === null || value === undefined
-            ? ''
-            : String(value);
-
+    div.textContent = value === null || value === undefined ? '' : String(value);
     return div.innerHTML;
 }
 
-
 function showToast(message, type = 'success') {
-
     toast.textContent = message;
-
-    toast.className =
-        'toast show ' + type;
-
-    setTimeout(() => {
-
-        toast.className = 'toast';
-
-    }, 2500);
+    toast.className = 'toast show ' + type;
+    setTimeout(() => { toast.className = 'toast'; }, 2500);
 }
-
 
 function formatMessageTime(dateString) {
-
-    if (!dateString) {
-        return '';
-    }
-
-    const date = new Date(
-        dateString.replace(' ', 'T')
-    );
-
-    if (Number.isNaN(date.getTime())) {
-        return dateString;
-    }
-
-    return date.toLocaleTimeString(
-        [],
-        {
-            hour: 'numeric',
-            minute: '2-digit'
-        }
-    );
+    if (!dateString) return '';
+    const date = new Date(dateString.replace(' ', 'T'));
+    if (Number.isNaN(date.getTime())) return dateString;
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
-
 
 function formatConversationTime(dateString) {
-
-    if (!dateString) {
-        return '';
-    }
-
-    const date = new Date(
-        dateString.replace(' ', 'T')
-    );
-
-    if (Number.isNaN(date.getTime())) {
-        return '';
-    }
-
+    if (!dateString) return '';
+    const date = new Date(dateString.replace(' ', 'T'));
+    if (Number.isNaN(date.getTime())) return '';
     const now = new Date();
-
-    const sameDay =
-        date.toDateString() === now.toDateString();
-
-    if (sameDay) {
-
-        return date.toLocaleTimeString(
-            [],
-            {
-                hour: 'numeric',
-                minute: '2-digit'
-            }
-        );
+    if (date.toDateString() === now.toDateString()) {
+        return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     }
-
-    return date.toLocaleDateString(
-        [],
-        {
-            month: 'short',
-            day: 'numeric'
-        }
-    );
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
-
 
 function initialsFromName(name) {
-
-    const parts =
-        String(name || '')
-            .trim()
-            .split(/\s+/)
-            .filter(Boolean);
-
-    if (parts.length === 0) {
-        return 'EM';
-    }
-
-    if (parts.length === 1) {
-        return parts[0]
-            .substring(0, 2)
-            .toUpperCase();
-    }
-
-    return (
-        parts[0][0] +
-        parts[parts.length - 1][0]
-    ).toUpperCase();
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'EM';
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
-
-
-/* ==========================================================================
-   LOAD CONVERSATIONS
-   ========================================================================== */
 
 async function loadConversations() {
-
     try {
-
-        const response =
-            await fetch(
-                'messages.php?api=conversations',
-                {
-                    credentials: 'same-origin',
-                    cache: 'no-store'
-                }
-            );
-
-        const data =
-            await response.json();
-
-        if (!data.success) {
-            throw new Error(
-                data.message ||
-                'Unable to load conversations.'
-            );
-        }
-
-        conversations =
-            data.conversations || [];
-
+        const response = await fetch('messages.php?api=conversations', { credentials: 'same-origin', cache: 'no-store' });
+        const data = await response.json();
+        if (!data.success) throw new Error(data.message || 'Unable to load chats.');
+        conversations = data.conversations || [];
         renderConversations();
-
     } catch (error) {
-
-        console.error(error);
-
-        conversationList.innerHTML = `
-            <div class="empty-list">
-                <strong>Unable to load</strong>
-                Please refresh the page.
-            </div>
-        `;
+        conversationList.innerHTML = `<div class="empty-list"><strong>Unable to load</strong>Please refresh the page.</div>`;
     }
 }
 
-
-/* ==========================================================================
-   RENDER CONVERSATIONS
-   ========================================================================== */
-
 function renderConversations() {
-
-    const search =
-        conversationSearch.value
-            .trim()
-            .toLowerCase();
-
-    let filtered =
-        conversations.filter(item => {
-
-            const matchesSearch =
-                !search ||
-                item.name.toLowerCase().includes(search) ||
-                String(item.employee_id)
-                    .toLowerCase()
-                    .includes(search) ||
-                String(item.department || '')
-                    .toLowerCase()
-                    .includes(search);
-
-            const matchesFilter =
-                activeFilter === 'all' ||
-                (
-                    activeFilter === 'unread' &&
-                    Number(item.unread_count) > 0
-                );
-
-            return matchesSearch && matchesFilter;
-        });
-
+    const search = conversationSearch.value.trim().toLowerCase();
+    let filtered = conversations.filter(item => {
+        const matchesSearch = !search || item.name.toLowerCase().includes(search) || String(item.employee_id).toLowerCase().includes(search) || String(item.department || '').toLowerCase().includes(search);
+        const matchesFilter = activeFilter === 'all' || (activeFilter === 'unread' && Number(item.unread_count) > 0);
+        return matchesSearch && matchesFilter;
+    });
 
     if (filtered.length === 0) {
-
         conversationList.innerHTML = `
             <div class="empty-list">
-
-                <strong>
-                    ${
-                        activeFilter === 'unread'
-                            ? 'No unread messages'
-                            : 'No conversations'
-                    }
-                </strong>
-
-                ${
-                    activeFilter === 'all'
-                        ? 'Click + to start a new conversation.'
-                        : 'You are all caught up.'
-                }
-
+                <strong>${activeFilter === 'unread' ? 'No unread messages' : 'No chats'}</strong>
+                ${activeFilter === 'all' ? 'Click + to start a new chat.' : 'You are all caught up.'}
             </div>
         `;
-
         return;
     }
 
+    conversationList.innerHTML = filtered.map(item => {
+        const active = Number(item.id) === Number(selectedEmployeeId);
+        const preview = item.last_message ? item.last_message : 'No messages yet';
+        const unread = Number(item.unread_count || 0);
 
-    conversationList.innerHTML =
-        filtered.map(item => {
-
-            const active =
-                Number(item.id) ===
-                Number(selectedEmployeeId);
-
-            const preview =
-                item.last_message
-                    ? item.last_message
-                    : 'No messages yet';
-
-            const unread =
-                Number(item.unread_count || 0);
-
-
-            return `
-
-                <div
-                    class="conversation-item ${active ? 'active' : ''}"
-                    data-employee-id="${Number(item.id)}"
-                >
-
-                    <div class="avatar">
-                        ${escapeHtml(item.initials || 'EM')}
+        return `
+            <div class="conversation-item ${active ? 'active' : ''}" data-employee-id="${Number(item.id)}">
+                <div class="avatar">${escapeHtml(item.initials || 'EM')}</div>
+                <div class="conversation-content">
+                    <div class="conversation-name-row">
+                        <div class="conversation-name">${escapeHtml(item.name)}</div>
+                        <div class="conversation-time">${escapeHtml(formatConversationTime(item.last_message_time))}</div>
                     </div>
-
-                    <div class="conversation-content">
-
-                        <div class="conversation-name-row">
-
-                            <div class="conversation-name">
-                                ${escapeHtml(item.name)}
-                            </div>
-
-                            <div class="conversation-time">
-                                ${escapeHtml(
-                                    formatConversationTime(
-                                        item.last_message_time
-                                    )
-                                )}
-                            </div>
-
-                        </div>
-
-
-                        <div class="conversation-preview">
-
-                            <div class="preview-text">
-
-                                ${
-                                    item.last_sender === 'company'
-                                        ? 'You: '
-                                        : ''
-                                }
-
-                                ${escapeHtml(preview)}
-
-                            </div>
-
-                            ${
-                                unread > 0
-                                    ? `
-                                        <span class="unread-badge">
-                                            ${unread > 99 ? '99+' : unread}
-                                        </span>
-                                    `
-                                    : ''
-                            }
-
-                        </div>
-
+                    <div class="conversation-preview">
+                        <div class="preview-text">${item.last_sender === 'company' ? 'You: ' : ''}${escapeHtml(preview)}</div>
+                        ${unread > 0 ? `<span class="unread-badge">${unread > 99 ? '99+' : unread}</span>` : ''}
                     </div>
-
                 </div>
-            `;
+            </div>
+        `;
+    }).join('');
 
-        }).join('');
-
-
-    document
-        .querySelectorAll('.conversation-item')
-        .forEach(item => {
-
-            item.addEventListener(
-                'click',
-                () => {
-
-                    const employeeId =
-                        Number(
-                            item.dataset.employeeId
-                        );
-
-                    openConversation(employeeId);
-                }
-            );
-
+    document.querySelectorAll('.conversation-item').forEach(item => {
+        item.addEventListener('click', () => {
+            openConversation(Number(item.dataset.employeeId));
         });
+    });
 }
 
-
-/* ==========================================================================
-   OPEN CONVERSATION
-   ========================================================================== */
-
 async function openConversation(employeeId) {
-
-    selectedEmployeeId =
-        Number(employeeId);
-
-    selectedEmployee =
-        employees.find(
-            employee =>
-                Number(employee.id) ===
-                selectedEmployeeId
-        ) || null;
-
+    selectedEmployeeId = Number(employeeId);
+    selectedEmployee = employees.find(e => Number(e.id) === selectedEmployeeId) || null;
 
     messenger.classList.add('chat-open');
-
     chatEmpty.style.display = 'none';
-
     chatHeader.classList.add('visible');
-
     chatMessages.style.display = 'flex';
-
     messageComposer.classList.add('visible');
 
-
     await loadThread();
-
     renderConversations();
-
     startThreadPolling();
 }
 
-
-/* ==========================================================================
-   LOAD THREAD
-   ========================================================================== */
-
 async function loadThread() {
-
-    if (!selectedEmployeeId) {
-        return;
-    }
-
+    if (!selectedEmployeeId) return;
     try {
+        const response = await fetch('messages.php?api=thread&employee_id=' + encodeURIComponent(selectedEmployeeId), { credentials: 'same-origin', cache: 'no-store' });
+        const data = await response.json();
+        if (!data.success) throw new Error(data.message || 'Unable to load messages.');
 
-        const response =
-            await fetch(
-                'messages.php?api=thread&employee_id=' +
-                encodeURIComponent(
-                    selectedEmployeeId
-                ),
-                {
-                    credentials: 'same-origin',
-                    cache: 'no-store'
-                }
-            );
+        selectedEmployee = data.employee;
+        const name = data.employee.name || 'Employee';
+        chatAvatar.textContent = initialsFromName(name);
+        chatUserName.textContent = name;
+        chatUserMeta.innerHTML = `<span class="online-indicator"></span>${escapeHtml(data.employee.position || 'Employee')}${data.employee.department ? ' · ' + escapeHtml(data.employee.department) : ''}`;
 
-        const data =
-            await response.json();
-
-        if (!data.success) {
-            throw new Error(
-                data.message ||
-                'Unable to load messages.'
-            );
-        }
-
-
-        selectedEmployee =
-            data.employee;
-
-
-        const name =
-            data.employee.name ||
-            'Employee';
-
-        chatAvatar.textContent =
-            initialsFromName(name);
-
-        chatUserName.textContent =
-            name;
-
-        chatUserMeta.innerHTML = `
-            <span class="online-indicator"></span>
-            ${escapeHtml(
-                data.employee.position ||
-                'Employee'
-            )}
-            ${
-                data.employee.department
-                    ? ' · ' +
-                      escapeHtml(
-                          data.employee.department
-                      )
-                    : ''
-            }
-        `;
-
-
-        renderMessages(
-            data.messages || []
-        );
-
-
-        /*
-         * Update conversation list so unread
-         * badges disappear immediately.
-         */
+        renderMessages(data.messages || []);
         await loadConversations();
-
     } catch (error) {
-
-        console.error(error);
-
-        chatMessages.innerHTML = `
-            <div class="no-messages">
-                Unable to load this conversation.
-            </div>
-        `;
+        chatMessages.innerHTML = `<div class="no-messages">Unable to load this conversation.</div>`;
     }
 }
-
-
-/* ==========================================================================
-   RENDER MESSAGES
-   ========================================================================== */
 
 function renderMessages(messages) {
-
     if (!messages.length) {
-
-        chatMessages.innerHTML = `
-            <div class="no-messages">
-                No messages yet.<br>
-                Start the conversation below.
-            </div>
-        `;
-
+        chatMessages.innerHTML = `<div class="no-messages">No messages yet.<br>Start the conversation below.</div>`;
         return;
     }
 
-
-    chatMessages.innerHTML =
-        messages.map(item => {
-
-            const isCompany =
-                item.sender_type === 'company';
-
-
-            return `
-
-                <div
-                    class="message-row ${
-                        isCompany
-                            ? 'company'
-                            : 'employee'
-                    }"
-                >
-
-                    <div>
-
-                        <div class="message-bubble">
-                            ${escapeHtml(
-                                item.message
-                            )}
-                        </div>
-
-                        <div class="message-time">
-                            ${escapeHtml(
-                                formatMessageTime(
-                                    item.created_at
-                                )
-                            )}
-                        </div>
-
-                    </div>
-
+    chatMessages.innerHTML = messages.map(item => {
+        const isCompany = item.sender_type === 'company';
+        return `
+            <div class="message-row ${isCompany ? 'company' : 'employee'}">
+                <div>
+                    <div class="message-bubble">${escapeHtml(item.message)}</div>
+                    <div class="message-time">${escapeHtml(formatMessageTime(item.created_at))}</div>
                 </div>
-            `;
+            </div>
+        `;
+    }).join('');
 
-        }).join('');
-
-
-    /*
-     * Scroll to bottom.
-     */
-    chatMessages.scrollTop =
-        chatMessages.scrollHeight;
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 }
-
-
-/* ==========================================================================
-   START THREAD POLLING
-   ========================================================================== */
 
 function startThreadPolling() {
-
-    if (threadTimer) {
-        clearInterval(threadTimer);
-    }
-
-    threadTimer =
-        setInterval(
-            () => {
-
-                if (selectedEmployeeId) {
-                    loadThread();
-                }
-
-            },
-            4000
-        );
+    if (threadTimer) clearInterval(threadTimer);
+    threadTimer = setInterval(() => { if (selectedEmployeeId) loadThread(); }, 4000);
 }
-
-
-/* ==========================================================================
-   START CONVERSATION LIST POLLING
-   ========================================================================== */
 
 function startConversationPolling() {
-
-    if (conversationTimer) {
-        clearInterval(conversationTimer);
-    }
-
-    conversationTimer =
-        setInterval(
-            () => {
-
-                loadConversations();
-
-            },
-            5000
-        );
+    if (conversationTimer) clearInterval(conversationTimer);
+    conversationTimer = setInterval(() => { loadConversations(); }, 5000);
 }
 
+messageForm.addEventListener('submit', async function(event) {
+    event.preventDefault();
+    if (!selectedEmployeeId) {
+        showToast('Select an employee first.', 'error');
+        return;
+    }
 
-/* ==========================================================================
-   SEND MESSAGE
-   ========================================================================== */
+    const message = messageInput.value.trim();
+    if (!message) return;
 
-messageForm.addEventListener(
-    'submit',
-    async function(event) {
+    sendBtn.disabled = true;
 
+    try {
+        const formData = new FormData();
+        formData.append('employee_id', selectedEmployeeId);
+        formData.append('message', message);
+
+        const response = await fetch('messages.php?api=send', { method: 'POST', body: formData, credentials: 'same-origin' });
+        const data = await response.json();
+        if (!data.success) throw new Error(data.message || 'Unable to send message.');
+
+        messageInput.value = '';
+        autoResizeTextarea();
+        await loadThread();
+        await loadConversations();
+    } catch (error) {
+        showToast(error.message || 'Unable to send message.', 'error');
+    } finally {
+        sendBtn.disabled = false;
+        messageInput.focus();
+    }
+});
+
+messageInput.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
-
-        if (!selectedEmployeeId) {
-
-            showToast(
-                'Select an employee first.',
-                'error'
-            );
-
-            return;
-        }
-
-
-        const message =
-            messageInput.value.trim();
-
-        if (!message) {
-            return;
-        }
-
-
-        sendBtn.disabled = true;
-
-
-        try {
-
-            const formData =
-                new FormData();
-
-            formData.append(
-                'employee_id',
-                selectedEmployeeId
-            );
-
-            formData.append(
-                'message',
-                message
-            );
-
-
-            const response =
-                await fetch(
-                    'messages.php?api=send',
-                    {
-                        method: 'POST',
-                        body: formData,
-                        credentials: 'same-origin'
-                    }
-                );
-
-
-            const data =
-                await response.json();
-
-
-            if (!data.success) {
-
-                throw new Error(
-                    data.message ||
-                    'Unable to send message.'
-                );
-            }
-
-
-            messageInput.value = '';
-
-            autoResizeTextarea();
-
-            await loadThread();
-
-            await loadConversations();
-
-
-        } catch (error) {
-
-            console.error(error);
-
-            showToast(
-                error.message ||
-                'Unable to send message.',
-                'error'
-            );
-
-        } finally {
-
-            sendBtn.disabled = false;
-
-            messageInput.focus();
-        }
+        messageForm.requestSubmit();
     }
-);
-
-
-/* ==========================================================================
-   ENTER TO SEND
-   ========================================================================== */
-
-messageInput.addEventListener(
-    'keydown',
-    function(event) {
-
-        if (
-            event.key === 'Enter' &&
-            !event.shiftKey
-        ) {
-
-            event.preventDefault();
-
-            messageForm.requestSubmit();
-        }
-    }
-);
-
-
-/* ==========================================================================
-   AUTO RESIZE TEXTAREA
-   ========================================================================== */
+});
 
 function autoResizeTextarea() {
-
     messageInput.style.height = 'auto';
-
-    messageInput.style.height =
-        Math.min(
-            messageInput.scrollHeight,
-            130
-        ) + 'px';
+    messageInput.style.height = Math.min(messageInput.scrollHeight, 130) + 'px';
 }
 
+messageInput.addEventListener('input', autoResizeTextarea);
+conversationSearch.addEventListener('input', renderConversations);
 
-messageInput.addEventListener(
-    'input',
-    autoResizeTextarea
-);
-
-
-/* ==========================================================================
-   SEARCH CONVERSATIONS
-   ========================================================================== */
-
-conversationSearch.addEventListener(
-    'input',
-    renderConversations
-);
-
-
-/* ==========================================================================
-   FILTERS
-   ========================================================================== */
-
-document
-    .querySelectorAll('.filter-btn')
-    .forEach(button => {
-
-        button.addEventListener(
-            'click',
-            () => {
-
-                document
-                    .querySelectorAll('.filter-btn')
-                    .forEach(btn => {
-                        btn.classList.remove(
-                            'active'
-                        );
-                    });
-
-
-                button.classList.add('active');
-
-
-                activeFilter =
-                    button.dataset.filter ||
-                    'all';
-
-
-                renderConversations();
-            }
-        );
-
+document.querySelectorAll('.filter-btn').forEach(button => {
+    button.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+        activeFilter = button.dataset.filter || 'all';
+        renderConversations();
     });
-
-
-/* ==========================================================================
-   NEW MESSAGE MODAL
-   ========================================================================== */
+});
 
 function openNewMessageModal() {
-
     newMessageModal.classList.add('show');
-
     employeeSearch.value = '';
-
     selectedModalEmployee = null;
-
     startChatBtn.disabled = true;
-
     renderEmployeeResults();
-
-    setTimeout(
-        () => employeeSearch.focus(),
-        100
-    );
+    setTimeout(() => employeeSearch.focus(), 100);
 }
 
-
 function closeNewMessageModal() {
-
     newMessageModal.classList.remove('show');
 }
 
-
 let selectedModalEmployee = null;
 
+newMessageBtn.addEventListener('click', openNewMessageModal);
+closeModalBtn.addEventListener('click', closeNewMessageModal);
+cancelModalBtn.addEventListener('click', closeNewMessageModal);
+newMessageModal.addEventListener('click', function(event) {
+    if (event.target === newMessageModal) closeNewMessageModal();
+});
 
-newMessageBtn.addEventListener(
-    'click',
-    openNewMessageModal
-);
-
-
-closeModalBtn.addEventListener(
-    'click',
-    closeNewMessageModal
-);
-
-
-cancelModalBtn.addEventListener(
-    'click',
-    closeNewMessageModal
-);
-
-
-newMessageModal.addEventListener(
-    'click',
-    function(event) {
-
-        if (
-            event.target ===
-            newMessageModal
-        ) {
-            closeNewMessageModal();
-        }
-    }
-);
-
-
-/* ==========================================================================
-   EMPLOYEE SEARCH
-   ========================================================================== */
-
-employeeSearch.addEventListener(
-    'input',
-    renderEmployeeResults
-);
-
+employeeSearch.addEventListener('input', renderEmployeeResults);
 
 function renderEmployeeResults() {
-
-    const search =
-        employeeSearch.value
-            .trim()
-            .toLowerCase();
-
-
-    const filtered =
-        employees.filter(employee => {
-
-            return (
-                !search ||
-
-                employee.name
-                    .toLowerCase()
-                    .includes(search) ||
-
-                String(
-                    employee.employee_id
-                )
-                    .toLowerCase()
-                    .includes(search) ||
-
-                String(
-                    employee.department || ''
-                )
-                    .toLowerCase()
-                    .includes(search) ||
-
-                String(
-                    employee.position || ''
-                )
-                    .toLowerCase()
-                    .includes(search)
-            );
-        });
-
+    const search = employeeSearch.value.trim().toLowerCase();
+    const filtered = employees.filter(employee => {
+        return !search || employee.name.toLowerCase().includes(search) || String(employee.employee_id).toLowerCase().includes(search) || String(employee.department || '').toLowerCase().includes(search) || String(employee.position || '').toLowerCase().includes(search);
+    });
 
     if (filtered.length === 0) {
-
-        employeeResults.innerHTML = `
-            <div class="empty-list">
-                <strong>No employees found</strong>
-                Try another search.
-            </div>
-        `;
-
+        employeeResults.innerHTML = `<div class="empty-list"><strong>No employees found</strong>Try another search.</div>`;
         return;
     }
 
-
-    employeeResults.innerHTML =
-        filtered.map(employee => {
-
-            return `
-
-                <div
-                    class="employee-option"
-                    data-id="${Number(employee.id)}"
-                >
-
-                    <div class="avatar">
-                        ${escapeHtml(
-                            employee.initials ||
-                            initialsFromName(
-                                employee.name
-                            )
-                        )}
+    employeeResults.innerHTML = filtered.map(employee => {
+        return `
+            <div class="employee-option" data-id="${Number(employee.id)}">
+                <div class="avatar">${escapeHtml(employee.initials || initialsFromName(employee.name))}</div>
+                <div class="employee-option-info">
+                    <div class="employee-option-name">${escapeHtml(employee.name)}</div>
+                    <div class="employee-option-meta">
+                        ${escapeHtml(employee.employee_id)} · ${escapeHtml(employee.position || 'Employee')}${employee.department ? ' · ' + escapeHtml(employee.department) : ''}
                     </div>
-
-                    <div class="employee-option-info">
-
-                        <div class="employee-option-name">
-                            ${escapeHtml(
-                                employee.name
-                            )}
-                        </div>
-
-                        <div class="employee-option-meta">
-
-                            ${escapeHtml(
-                                employee.employee_id
-                            )}
-
-                            ·
-
-                            ${escapeHtml(
-                                employee.position ||
-                                'Employee'
-                            )}
-
-                            ${
-                                employee.department
-                                    ? ' · ' +
-                                      escapeHtml(
-                                          employee.department
-                                      )
-                                    : ''
-                            }
-
-                        </div>
-
-                    </div>
-
                 </div>
-            `;
+            </div>
+        `;
+    }).join('');
 
-        }).join('');
-
-
-    document
-        .querySelectorAll('.employee-option')
-        .forEach(option => {
-
-            option.addEventListener(
-                'click',
-                () => {
-
-                    const id =
-                        Number(
-                            option.dataset.id
-                        );
-
-                    selectedModalEmployee =
-                        employees.find(
-                            employee =>
-                                Number(employee.id) ===
-                                id
-                        ) || null;
-
-
-                    document
-                        .querySelectorAll(
-                            '.employee-option'
-                        )
-                        .forEach(item => {
-
-                            item.style.background =
-                                '';
-
-                        });
-
-
-                    option.style.background =
-                        '#eff6ff';
-
-
-                    startChatBtn.disabled =
-                        !selectedModalEmployee;
-                }
-            );
-
+    document.querySelectorAll('.employee-option').forEach(option => {
+        option.addEventListener('click', () => {
+            selectedModalEmployee = employees.find(e => Number(e.id) === Number(option.dataset.id)) || null;
+            document.querySelectorAll('.employee-option').forEach(item => { item.style.background = ''; });
+            option.style.background = 'var(--qr-surface-alt, #eff6ff)';
+            startChatBtn.disabled = !selectedModalEmployee;
         });
+    });
 }
 
-
-/* ==========================================================================
-   START CHAT
-   ========================================================================== */
-
-startChatBtn.addEventListener(
-    'click',
-    async function() {
-
-        if (!selectedModalEmployee) {
-            return;
-        }
-
-
-        const employeeId =
-            Number(
-                selectedModalEmployee.id
-            );
-
-
-        closeNewMessageModal();
-
-
-        /*
-         * Open the employee conversation.
-         *
-         * It is okay if there are no messages yet.
-         * The first message will create the conversation
-         * in the database.
-         */
-        await openConversation(employeeId);
-    }
-);
-
-
-/* ==========================================================================
-   INITIALIZE
-   ========================================================================== */
+startChatBtn.addEventListener('click', async function() {
+    if (!selectedModalEmployee) return;
+    const employeeId = Number(selectedModalEmployee.id);
+    closeNewMessageModal();
+    await openConversation(employeeId);
+});
 
 async function initializeMessages() {
-
     renderEmployeeResults();
-
     await loadConversations();
-
     startConversationPolling();
 }
 
-
 initializeMessages();
-
 </script>
 
-
 <?php
-
-/*
-|--------------------------------------------------------------------------
-| Layout bottom
-|--------------------------------------------------------------------------
-*/
 if (file_exists(__DIR__ . '/includes/layout_bottom.php')) {
     require_once __DIR__ . '/includes/layout_bottom.php';
 }
-
 ?>

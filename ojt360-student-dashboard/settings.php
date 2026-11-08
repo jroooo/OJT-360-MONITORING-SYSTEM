@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $page_title = 'Settings';
 $page_scripts = ['settings.js'];
 require_once 'includes/header.php';

@@ -119,50 +119,104 @@ require __DIR__ . '/includes/layout_top.php';
 ?>
 
 <style>
-/* =========================================
-    OJT360 INTERACTIVE SETTINGS UI
-========================================= */
+/* ============================================================
+   SETTINGS PAGE - DUAL THEME SUPPORT
+   ============================================================ */
+
 .company-settings {
-    --settings-border: #e2e8f0;
-    --settings-muted: #64748b;
-    --settings-text: #0f172a;
-    --settings-primary: #0284c7;
-    --settings-primary-light: #e0f2fe;
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+    box-sizing: border-box;
+    font-family: "Segoe UI", Inter, "Helvetica Neue", Arial, sans-serif;
     padding-bottom: 28px;
 }
+
 .company-settings *, .company-settings *::before, .company-settings *::after { box-sizing: border-box; }
-.company-settings .settings-intro { margin-bottom: 25px; }
-.company-settings .settings-intro .sub { max-width: 650px; line-height: 1.7; color: var(--settings-muted); }
+
+.company-settings .settings-intro {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.company-settings .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--qr-brand, #2563eb);
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+.company-settings .eyebrow::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--qr-brand, #2563eb);
+    box-shadow: 0 0 10px rgba(37, 99, 235, 0.4);
+}
+
+.company-settings .title {
+    margin: 0;
+    font-size: clamp(30px, 3.4vw, 42px);
+    line-height: 1.12;
+    letter-spacing: -0.04em;
+    font-weight: 800;
+    color: var(--qr-text, #0f172a);
+}
+
+.company-settings .dotc {
+    color: var(--qr-brand, #2563eb);
+}
+
+.company-settings .sub {
+    margin: 10px 0 0;
+    max-width: 720px;
+    color: var(--qr-text-muted, #64748b);
+    font-size: 14px;
+    line-height: 1.65;
+    font-weight: 400;
+}
 
 .company-settings .settings-layout {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 20px;
+    gap: 24px;
     align-items: start;
 }
-.company-settings .settings-column { display: grid; gap: 20px; min-width: 0; }
+.company-settings .settings-column { display: grid; gap: 24px; min-width: 0; }
 
 .company-settings .settings-card {
     min-width: 0; overflow: hidden; padding: 0;
-    border: 1px solid var(--settings-border);
-    border-radius: 16px; background: #ffffff;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.035);
+    border: 1px solid var(--qr-border, #e2e8f0);
+    border-radius: 20px; background: var(--qr-surface, #ffffff);
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.05);
     transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s;
 }
-.company-settings .settings-card:hover { border-color: #cbd5e1; box-shadow: 0 5px 16px rgba(15, 23, 42, 0.045); }
+.company-settings .settings-card:hover { border-color: #cbd5e1; box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08); }
 .company-settings .settings-card-body { padding: 24px; }
 
 .company-settings .field { min-width: 0; margin-bottom: 16px; }
 .company-settings .field:last-child { margin-bottom: 0; }
-.company-settings .field label { display: block; margin-bottom: 7px; color: #334155; font-size: 13px; font-weight: 650; }
+.company-settings .field label { display: block; margin-bottom: 7px; color: var(--qr-text-soft, #334155); font-size: 12px; font-weight: 700; }
 .company-settings .field input {
     display: block; width: 100%; min-width: 0; min-height: 44px; padding: 10px 14px;
-    border: 1px solid #cbd5e1; border-radius: 10px; outline: none; background: #ffffff;
-    color: #0f172a; font: inherit; font-size: 13px; transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    border: 1px solid var(--qr-border-strong, #cbd5e1); border-radius: 12px; outline: none; background: var(--qr-surface-alt, #f8fafc);
+    color: var(--qr-text, #0f172a); font: inherit; font-size: 13px; transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 .company-settings .field input:hover { border-color: #94a3b8; }
-.company-settings .field input:focus { border-color: #0284c7; box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12); }
-.company-settings .field input[readonly] { background: #f8fafc; border-color: #e2e8f0; color: #64748b; cursor: not-allowed; }
+.company-settings .field input:focus { border-color: #3b82f6; background: var(--qr-surface, #ffffff); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
+.company-settings .field input[readonly] { background: var(--qr-surface-alt, #f1f5f9); border-color: var(--qr-border, #e2e8f0); color: var(--qr-text-muted, #64748b); cursor: not-allowed; }
 
 .company-settings .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
 
@@ -171,37 +225,37 @@ require __DIR__ . '/includes/layout_top.php';
 .company-settings .password-toggle {
     position: absolute; top: 50%; right: 10px; display: flex; align-items: center; justify-content: center;
     width: 32px; height: 32px; padding: 0; transform: translateY(-50%); border: 0; border-radius: 8px;
-    background: transparent; color: #64748b; cursor: pointer;
+    background: transparent; color: var(--qr-text-muted, #64748b); cursor: pointer;
 }
-.company-settings .password-toggle:hover { background: #f1f5f9; color: #0f172a; }
+.company-settings .password-toggle:hover { background: var(--qr-surface-alt, #f1f5f9); color: var(--qr-text, #0f172a); }
 
 .company-settings .settings-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 .company-settings .settings-submit {
-    display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 10px 20px;
-    border: 0; border-radius: 10px; background: #172554; color: #ffffff; font: inherit; font-size: 13px; font-weight: 700;
-    cursor: pointer; box-shadow: 0 2px 4px rgba(2, 132, 199, 0.2); transition: background 0.18s ease;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 10px 20px;
+    border: 0; border-radius: 12px; background: #2563eb; color: #ffffff; font: inherit; font-size: 12px; font-weight: 800;
+    cursor: pointer; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); transition: transform 0.15s ease, background 0.15s ease;
 }
-.company-settings .settings-submit:hover { background: #1e40af; }
+.company-settings .settings-submit:hover { background: #1d4ed8; transform: translateY(-1px); }
 
 .company-settings .settings-feedback {
     display: none; align-items: flex-start; gap: 9px; margin-bottom: 16px; padding: 12px 14px;
     border-radius: 10px; font-size: 12px; line-height: 1.6;
 }
-.company-settings .settings-feedback.error { display: flex; border: 1px solid #fecaca; background: #fff5f5; color: #b91c1c; }
-.company-settings .settings-feedback.success { display: flex; border: 1px solid #bbf7d0; background: #f0fdf4; color: #15803d; }
+.company-settings .settings-feedback.error { display: flex; border: 1px solid #fecaca; background: #fee2e2; color: #991b1b; }
+.company-settings .settings-feedback.success { display: flex; border: 1px solid #bbf7d0; background: #dcfce7; color: #166534; }
 
-.company-settings .section-label { display: block; margin-bottom: 8px; color: #0284c7; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
-.company-settings .section-title { margin: 0 0 4px; color: var(--settings-text); font-size: 16px; font-weight: 750; }
-.company-settings .section-desc { margin: 0 0 16px; color: var(--settings-muted); font-size: 12px; }
+.company-settings .section-label { display: block; margin-bottom: 8px; color: var(--qr-brand, #2563eb); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.company-settings .section-title { margin: 0 0 4px; color: var(--qr-text, #0f172a); font-size: 18px; font-weight: 800; }
+.company-settings .section-desc { margin: 0 0 16px; color: var(--qr-text-muted, #64748b); font-size: 12px; }
 
-.company-settings .theme-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 20px; }
+.company-settings .theme-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
 .company-settings .theme-option {
-    padding: 10px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff; text-align: left; cursor: pointer; transition: all 0.18s ease;
+    padding: 12px; border: 1px solid var(--qr-border, #e2e8f0); border-radius: 14px; background: var(--qr-surface, #ffffff); text-align: left; cursor: pointer; transition: all 0.18s ease;
 }
 .company-settings .theme-option:hover { border-color: #94a3b8; }
-.company-settings .theme-option[aria-pressed="true"] { border-color: #0284c7; background: #f0f9ff; box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15); }
+.company-settings .theme-option[aria-pressed="true"] { border-color: #2563eb; background: var(--qr-surface-alt, #eff6ff); box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15); }
 
-.company-settings .theme-preview { display: grid; grid-template-columns: 28% 1fr; gap: 4px; height: 55px; padding: 5px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; }
+.company-settings .theme-preview { display: grid; grid-template-columns: 28% 1fr; gap: 4px; height: 55px; padding: 5px; border: 1px solid var(--qr-border, #e2e8f0); border-radius: 8px; background: #f8fafc; }
 .company-settings .theme-preview.dark { background: #0f172a; border-color: #334155; }
 .company-settings .preview-sidebar { border-radius: 3px; background: #e2e8f0; }
 .company-settings .theme-preview.dark .preview-sidebar { background: #334155; }
@@ -212,78 +266,129 @@ require __DIR__ . '/includes/layout_top.php';
 .company-settings .preview-panels span { border-radius: 2px; background: #ffffff; border: 1px solid #e2e8f0; }
 .company-settings .theme-preview.dark .preview-panels span { background: #1e293b; border-color: #334155; }
 
-.company-settings .theme-name { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: #1e293b; font-size: 12px; font-weight: 700; }
-.company-settings .theme-name i { color: #0284c7; font-size: 11px; }
-.company-settings .theme-description { display: block; margin-top: 2px; color: #64748b; font-size: 10px; }
+.company-settings .theme-name { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--qr-text, #1e293b); font-size: 12px; font-weight: 800; }
+.company-settings .theme-name i { color: var(--qr-brand, #2563eb); font-size: 11px; }
+.company-settings .theme-description { display: block; margin-top: 2px; color: var(--qr-text-muted, #64748b); font-size: 10px; }
 
-.company-settings .setting-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding-top: 15px; border-top: 1px solid #f1f5f9; margin-top: 15px; }
-.company-settings .setting-toggle-copy strong { display: block; color: #1e293b; font-size: 13px; font-weight: 650; }
-.company-settings .setting-toggle-copy span { display: block; margin-top: 2px; color: #64748b; font-size: 11px; }
+.company-settings .setting-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding-top: 16px; border-top: 1px solid var(--qr-border, #f1f5f9); margin-top: 16px; }
+.company-settings .setting-toggle-copy strong { display: block; color: var(--qr-text, #1e293b); font-size: 13px; font-weight: 800; }
+.company-settings .setting-toggle-copy span { display: block; margin-top: 2px; color: var(--qr-text-muted, #64748b); font-size: 11px; }
 
 .company-settings .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
 .company-settings .switch input { opacity: 0; width: 0; height: 0; }
 .company-settings .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .2s; border-radius: 24px; }
 .company-settings .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .2s; border-radius: 50%; }
-.company-settings .switch input:checked + .slider { background-color: #0284c7; }
+.company-settings .switch input:checked + .slider { background-color: #2563eb; }
 .company-settings .switch input:checked + .slider:before { transform: translateX(20px); }
 
 .company-settings .settings-links { display: grid; }
-.company-settings .settings-link { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f1f5f9; color: #334155; text-decoration: none; transition: color 0.18s ease; }
+.company-settings .settings-link { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--qr-border, #f1f5f9); color: var(--qr-text-soft, #334155); text-decoration: none; transition: color 0.18s ease; }
 .company-settings .settings-link:last-child { border-bottom: none; padding-bottom: 0; }
 .company-settings .settings-link:first-child { padding-top: 0; }
-.company-settings .settings-link:hover { color: #0284c7; }
-.company-settings .settings-link-icon { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 8px; background: #f1f5f9; color: #475569; font-size: 13px; }
-.company-settings .settings-link:hover .settings-link-icon { background: #e0f2fe; color: #0284c7; }
+.company-settings .settings-link:hover { color: var(--qr-brand, #2563eb); }
+.company-settings .settings-link-icon { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 10px; background: var(--qr-surface-alt, #f1f5f9); color: var(--qr-text-muted, #475569); font-size: 13px; border: 1px solid var(--qr-border, #e2e8f0); }
+.company-settings .settings-link:hover .settings-link-icon { background: var(--qr-surface-alt, #eff6ff); color: var(--qr-brand, #2563eb); border-color: #93c5fd; }
 .company-settings .settings-link-copy { flex: 1; min-width: 0; }
-.company-settings .settings-link-copy strong { display: block; color: inherit; font-size: 12px; font-weight: 700; }
-.company-settings .settings-link-copy span { display: block; margin-top: 2px; color: #64748b; font-size: 11px; }
-.company-settings .settings-link-arrow { color: #94a3b8; font-size: 11px; }
+.company-settings .settings-link-copy strong { display: block; color: inherit; font-size: 12px; font-weight: 800; }
+.company-settings .settings-link-copy span { display: block; margin-top: 2px; color: var(--qr-text-muted, #64748b); font-size: 11px; }
+.company-settings .settings-link-arrow { color: var(--qr-text-subtle, #94a3b8); font-size: 11px; }
 
-/* DARK MODE ADAPTATION */
-html[data-theme="dark"] .company-settings .title, .dark .company-settings .title,
-html[data-theme="dark"] .company-settings .section-title, .dark .company-settings .section-title,
-html[data-theme="dark"] .company-settings .field label, .dark .company-settings .field label,
-html[data-theme="dark"] .company-settings .setting-toggle-copy strong, .dark .company-settings .setting-toggle-copy strong,
-html[data-theme="dark"] .company-settings .settings-link-copy strong, .dark .company-settings .settings-link-copy strong,
-html[data-theme="dark"] .company-settings .theme-name, .dark .company-settings .theme-name { color: #f8fafc !important; }
-html[data-theme="dark"] .company-settings .sub, .dark .company-settings .sub,
-html[data-theme="dark"] .company-settings .section-desc, .dark .company-settings .section-desc,
-html[data-theme="dark"] .company-settings .field small, .dark .company-settings .field small,
-html[data-theme="dark"] .company-settings .setting-toggle-copy span, .dark .company-settings .setting-toggle-copy span,
-html[data-theme="dark"] .company-settings .settings-link-copy span, .dark .company-settings .settings-link-copy span,
-html[data-theme="dark"] .company-settings .theme-description, .dark .company-settings .theme-description { color: #94a3b8 !important; }
-html[data-theme="dark"] .company-settings .settings-card, .dark .company-settings .settings-card {
-    background: #111c38 !important;
-    border-color: #1e293b !important;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+/* ============================================================
+   DARK MODE OVERRIDES (DEEP NAVY)
+   ============================================================ */
+html[data-theme="dark"] .company-settings,
+.dark .company-settings {
+    --qr-bg: #0b0f19;
+    --qr-surface: #111c38;
+    --qr-surface-alt: #0d152c;
+    --qr-surface-soft: #172342;
+    --qr-border: #1e293b;
+    --qr-border-strong: #2b3d58;
+    --qr-text: #f8fafc;
+    --qr-text-soft: #e2e8f0;
+    --qr-text-muted: #cbd5e1;
+    --qr-text-subtle: #94a3b8;
+    --qr-brand: #60a5fa;
+    --qr-brand-strong: #bfdbfe;
 }
-html[data-theme="dark"] .company-settings .field input, .dark .company-settings .field input {
-    background: #16223f !important;
-    border-color: #233354 !important;
-    color: #f8fafc !important;
+
+html[data-theme="dark"] .company-settings .title,
+.dark .company-settings .title,
+html[data-theme="dark"] .company-settings .section-title,
+.dark .company-settings .section-title,
+html[data-theme="dark"] .company-settings .field label,
+.dark .company-settings .field label,
+html[data-theme="dark"] .company-settings .setting-toggle-copy strong,
+.dark .company-settings .setting-toggle-copy strong,
+html[data-theme="dark"] .company-settings .settings-link-copy strong,
+.dark .company-settings .settings-link-copy strong,
+html[data-theme="dark"] .company-settings .theme-name,
+.dark .company-settings .theme-name {
+    color: #ffffff !important;
 }
-html[data-theme="dark"] .company-settings .field input[readonly], .dark .company-settings .field input[readonly] {
-    background: #0b1329 !important;
-    border-color: #1e293b !important;
-    color: #64748b !important;
+
+html[data-theme="dark"] .company-settings .sub,
+.dark .company-settings .sub,
+html[data-theme="dark"] .company-settings .section-desc,
+.dark .company-settings .section-desc,
+html[data-theme="dark"] .company-settings .field small,
+.dark .company-settings .field small,
+html[data-theme="dark"] .company-settings .setting-toggle-copy span,
+.dark .company-settings .setting-toggle-copy span,
+html[data-theme="dark"] .company-settings .settings-link-copy span,
+.dark .company-settings .settings-link-copy span,
+html[data-theme="dark"] .company-settings .theme-description,
+.dark .company-settings .theme-description {
+    color: var(--qr-text-muted, #94a3b8) !important;
 }
-html[data-theme="dark"] .company-settings .theme-option, .dark .company-settings .theme-option {
-    background: #16223f !important;
-    border-color: #233354 !important;
+
+html[data-theme="dark"] .company-settings .settings-card,
+.dark .company-settings .settings-card {
+    background: var(--qr-surface) !important;
+    border-color: var(--qr-border) !important;
+    box-shadow: 0 15px 45px rgba(0, 0, 0, 0.28) !important;
 }
-html[data-theme="dark"] .company-settings .theme-option[aria-pressed="true"], .dark .company-settings .theme-option[aria-pressed="true"] {
-    background: #1e293b !important;
-    border-color: #0284c7 !important;
+
+html[data-theme="dark"] .company-settings .field input,
+.dark .company-settings .field input {
+    background: var(--qr-surface-alt) !important;
+    border-color: var(--qr-border) !important;
+    color: #ffffff !important;
 }
-html[data-theme="dark"] .company-settings .settings-link, .dark .company-settings .settings-link {
-    border-bottom-color: #1e293b !important;
-    color: #cbd5e1 !important;
+
+html[data-theme="dark"] .company-settings .field input[readonly],
+.dark .company-settings .field input[readonly] {
+    background: var(--qr-surface-alt) !important;
+    border-color: var(--qr-border) !important;
+    color: var(--qr-text-subtle, #64748b) !important;
 }
-html[data-theme="dark"] .company-settings .settings-link:hover, .dark .company-settings .settings-link:hover {
-    background: #16223f !important;
+
+html[data-theme="dark"] .company-settings .theme-option,
+.dark .company-settings .theme-option {
+    background: var(--qr-surface-alt) !important;
+    border-color: var(--qr-border) !important;
 }
-html[data-theme="dark"] .company-settings .setting-toggle-row, .dark .company-settings .setting-toggle-row {
-    border-top-color: #1e293b !important;
+
+html[data-theme="dark"] .company-settings .theme-option[aria-pressed="true"],
+.dark .company-settings .theme-option[aria-pressed="true"] {
+    background: var(--qr-surface-soft) !important;
+    border-color: var(--qr-brand) !important;
+}
+
+html[data-theme="dark"] .company-settings .settings-link,
+.dark .company-settings .settings-link {
+    border-bottom-color: var(--qr-border) !important;
+    color: var(--qr-text-soft, #cbd5e1) !important;
+}
+
+html[data-theme="dark"] .company-settings .settings-link:hover,
+.dark .company-settings .settings-link:hover {
+    background: var(--qr-surface-alt) !important;
+}
+
+html[data-theme="dark"] .company-settings .setting-toggle-row,
+.dark .company-settings .setting-toggle-row {
+    border-top-color: var(--qr-border) !important;
 }
 
 @media (max-width: 1000px) { .company-settings .settings-layout { grid-template-columns: minmax(0, 1fr); } }
@@ -319,11 +424,6 @@ html[data-theme="dark"] .company-settings .setting-toggle-row, .dark .company-se
                             <span class="theme-preview dark" aria-hidden="true"><span class="preview-sidebar"></span><span class="preview-content"><span class="preview-topbar"></span><span class="preview-panels"><span></span><span></span></span></span></span>
                             <span class="theme-name"><i class="fa-solid fa-moon"></i>Dark</span>
                             <span class="theme-description">Easy on the eyes</span>
-                        </button>
-                        <button class="theme-option" type="button" data-theme-set="system" aria-pressed="false">
-                            <span class="theme-preview light" aria-hidden="true"><span class="preview-sidebar"></span><span class="preview-content"><span class="preview-topbar"></span><span class="preview-panels"><span></span><span></span></span></span></span>
-                            <span class="theme-name"><i class="fa-solid fa-desktop"></i>System</span>
-                            <span class="theme-description">Match my device</span>
                         </button>
                     </div>
 
@@ -478,7 +578,7 @@ html[data-theme="dark"] .company-settings .setting-toggle-row, .dark .company-se
                             <span class="settings-link-copy"><strong>Reports &amp; Analytics</strong><span>View training reports.</span></span>
                             <i class="fa-solid fa-chevron-right settings-link-arrow" aria-hidden="true"></i>
                         </a>
-                        <a class="settings-link" href="dynamic.php">
+                        <a class="settings-link" href="dynamic_qr.php">
                             <span class="settings-link-icon"><i class="fa-solid fa-qrcode" aria-hidden="true"></i></span>
                             <span class="settings-link-copy"><strong>Dynamic QR Code</strong><span>Access attendance tools.</span></span>
                             <i class="fa-solid fa-chevron-right settings-link-arrow" aria-hidden="true"></i>

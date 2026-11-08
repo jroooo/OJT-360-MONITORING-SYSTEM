@@ -1,4 +1,4 @@
-﻿</main>
+</main>
 </div><!-- /.content -->
 </div><!-- /.app-shell -->
 

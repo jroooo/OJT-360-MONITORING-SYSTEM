@@ -1,5 +1,8 @@
 ﻿<?php
 
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
+
 /*
 |--------------------------------------------------------------------------
 | OJT360 Login
@@ -147,8 +150,9 @@ if (
 
 if (
     $_SERVER["REQUEST_METHOD"] === "POST" &&
-    isset($_POST["employee_username"])
+    isset($_POST["employee_username"], $_POST["employee_password"])
 ) {
+    mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
     /* =====================================================
        DATABASE CONNECTION
@@ -166,13 +170,19 @@ if (
     $database =
         "ojt360";
 
-
-    $conn = new mysqli(
-        $host,
-        $username,
-        $password,
-        $database
-    );
+    try {
+        $conn = new mysqli(
+            $host,
+            $username,
+            $password,
+            $database
+        );
+        $conn->set_charset("utf8mb4");
+    } catch (Throwable $e) {
+        error_log('Employee login DB connection failed: ' . $e->getMessage());
+        header("Location: login.php?employee_error=1");
+        exit;
+    }
 
 
     /* =====================================================
@@ -180,26 +190,34 @@ if (
     ===================================================== */
 
     if ($conn->connect_error) {
-
-        die(
-            "Database connection failed: " .
-            $conn->connect_error
+        error_log('Employee login DB connection failed: ' . $conn->connect_error);
+        header(
+            "Location: login.php?employee_error=1"
         );
+
+        exit;
     }
-
-
-    $conn->set_charset("utf8mb4");
 
 
     /* =====================================================
        GET EMPLOYEE LOGIN DATA
     ===================================================== */
 
-    $employeeUsername =
-        trim($_POST["employee_username"]);
+    $employeeIdentifier =
+        trim((string) $_POST["employee_username"]);
 
     $employeePassword =
-        $_POST["employee_password"];
+        (string) $_POST["employee_password"];
+
+    if ($employeeIdentifier === "") {
+        $conn->close();
+
+        header(
+            "Location: login.php?employee_error=1"
+        );
+
+        exit;
+    }
 
 
     /* =====================================================
@@ -220,13 +238,15 @@ if (
             department,
             position
          FROM employees
-         WHERE username = ?
+         WHERE LOWER(username) = LOWER(?)
+            OR LOWER(email) = LOWER(?)
+            OR employee_id = ?
          LIMIT 1"
     );
 
 
     if (!$stmt) {
-
+        error_log('Employee login prepare failed: ' . $conn->error);
         $conn->close();
 
         header(
@@ -238,16 +258,22 @@ if (
 
 
     $stmt->bind_param(
-        "s",
-        $employeeUsername
+        "sss",
+        $employeeIdentifier,
+        $employeeIdentifier,
+        $employeeIdentifier
     );
 
-
-    $stmt->execute();
-
-
-    $result =
-        $stmt->get_result();
+    try {
+        $stmt->execute();
+        $result = $stmt->get_result();
+    } catch (Throwable $e) {
+        error_log('Employee login query failed: ' . $e->getMessage());
+        $stmt->close();
+        $conn->close();
+        header("Location: login.php?employee_error=1");
+        exit;
+    }
 
 
     /* =====================================================
@@ -264,12 +290,12 @@ if (
            VERIFY PASSWORD
         ================================================= */
 
-        if (
-            password_verify(
-                $employeePassword,
-                $employee["password_hash"]
-            )
-        ) {
+        $passwordIsValid = is_string($employee["password_hash"] ?? null) && password_verify(
+            $employeePassword,
+            $employee["password_hash"]
+        );
+
+        if ($passwordIsValid) {
 
             /* =============================================
                EMPLOYEE LOGIN SUCCESS
@@ -277,15 +303,17 @@ if (
 
             session_regenerate_id(true);
 
+            $_SESSION["role"] =
+                "employee";
 
             $_SESSION["employee_logged_in"] =
                 true;
 
             $_SESSION["employee_id"] =
-                $employee["employee_id"];
+                (string) $employee["employee_id"];
 
             $_SESSION["employee_db_id"] =
-                $employee["id"];
+                (int) $employee["id"];
 
             $_SESSION["employee_username"] =
                 $employee["username"];
@@ -316,6 +344,9 @@ if (
                GO TO EMPLOYEE DASHBOARD
             ============================================= */
 
+            $stmt->close();
+            $conn->close();
+
             header(
                 "Location: dashboard(employee).php"
             );
@@ -328,6 +359,7 @@ if (
                WRONG PASSWORD
             ============================================= */
 
+            error_log('Employee login password mismatch for identifier: ' . $employeeIdentifier);
             $stmt->close();
             $conn->close();
 
@@ -344,6 +376,7 @@ if (
            USERNAME DOES NOT EXIST
         ============================================= */
 
+        error_log('Employee login not found for identifier: ' . $employeeIdentifier);
         $stmt->close();
         $conn->close();
 
@@ -1929,7 +1962,7 @@ body {
                     class="login-btn"
                 >
 
-                    Sign in securely ΓåÆ
+                    Sign in securely &rarr;
 
                 </button>
 
@@ -1957,9 +1990,9 @@ body {
                     </label>
 
                     <input
-                        type="email"
+                        type="text"
                         name="employee_username"
-                        placeholder="juan.delacruz@lnu.edu.ph"
+                        placeholder="Employee ID, email, or username"
                         required
                         class="input"
                     >
@@ -2027,7 +2060,7 @@ body {
                     class="login-btn"
                 >
 
-                    Sign in securely ΓåÆ
+                    Sign in securely &rarr;
 
                 </button>
 
@@ -2125,7 +2158,7 @@ body {
                     class="login-btn"
                 >
 
-                    Sign in securely ΓåÆ
+                    Sign in securely &rarr;
 
                 </button>
 

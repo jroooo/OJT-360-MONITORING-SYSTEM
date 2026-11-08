@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $page_title = 'Daily Logs';
 $page_scripts = ['daily_logs.js'];
 require_once 'includes/header.php';

@@ -34,9 +34,43 @@ function checkinPage(string $title, string $message, int $status = 200): never
 }
 
 $token = trim((string) ($_GET['token'] ?? ''));
+$sessionKey = strtolower(trim((string) ($_GET['session'] ?? 'am')));
+$stageKey = strtolower(trim((string) ($_GET['stage'] ?? '')));
+
+if (!in_array($sessionKey, ['am', 'pm'], true)) {
+    $sessionKey = 'am';
+}
+
+if ($sessionKey === 'am' && !in_array($stageKey, ['am_in', 'am_out'], true)) {
+    $stageKey = 'am_in';
+}
+
+if ($sessionKey === 'pm' && !in_array($stageKey, ['pm_in', 'pm_out'], true)) {
+    $stageKey = 'pm_in';
+}
 
 if (!preg_match('/^[a-f0-9]{64}$/', $token)) {
     checkinPage('Invalid QR code', 'This QR code is not valid. Scan the current code shown by your company.', 400);
+}
+
+$now = new DateTime('now', new DateTimeZone('Asia/Manila'));
+$nowHour = (int) $now->format('G');
+$nowMinutes = (int) $now->format('i');
+
+if ($sessionKey === 'am' && $stageKey === 'am_out' && !($nowHour > 11 || ($nowHour === 11 && $nowMinutes >= 59))) {
+    checkinPage('Invalid AM OUT session', 'The AM OUT QR can only be used at or after the lunch logout window.', 400);
+}
+
+if ($sessionKey === 'am' && $stageKey === 'am_in' && ($nowHour >= 12 || ($nowHour === 11 && $nowMinutes >= 59))) {
+    checkinPage('Invalid AM IN session', 'The AM IN QR is no longer valid after the lunch logout window.', 400);
+}
+
+if ($sessionKey === 'pm' && $stageKey === 'pm_in' && $nowHour < 13) {
+    checkinPage('Invalid PM IN session', 'The PM IN QR must be used after the 1:00 PM check-in window.', 400);
+}
+
+if ($sessionKey === 'pm' && $stageKey === 'pm_out' && $nowHour < 15) {
+    checkinPage('Invalid PM OUT session', 'The PM OUT QR is only valid after the afternoon work window begins.', 400);
 }
 
 /*
@@ -141,8 +175,15 @@ try {
         checkinPage('QR already used', 'This QR code has already been used. Scan the current code.', 409);
     }
 
+    $sessionLabel = $sessionKey === 'pm' ? 'Afternoon' : 'Morning';
+    $stageLabel = str_replace(['am_', 'pm_'], ['', ''], $stageKey);
+    $stageLabel = strtoupper(str_replace('_', ' ', $stageLabel));
+
     $pdo->commit();
-    checkinPage('Attendance recorded!', 'Your check-in has been saved successfully. You may return to your Student Portal.');
+    checkinPage(
+        'Attendance recorded!',
+        'Your ' . $sessionLabel . ' ' . $stageLabel . ' attendance has been saved successfully. You may return to your Student Portal.'
+    );
 } catch (Throwable $exception) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();

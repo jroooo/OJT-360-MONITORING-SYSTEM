@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /* Inline line icons (24x24, stroke based). Use icon('name') in templates. */
 function icon_paths(): array {
     static $p = null;

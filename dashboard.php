@@ -390,7 +390,7 @@ $attendanceAlerts = count(
 
             <!-- Dynamic QR -->
             <a
-                href="dynamic.php"
+                href="dynamic_qr.php"
                 class="
                     nav-item
                     flex items-center gap-3
@@ -431,25 +431,6 @@ $attendanceAlerts = count(
                     bg-rose-500
                 "></span>
 
-            </a>
-
-
-            <!-- Reports -->
-            <a
-                href="reports.php"
-                class="
-                    nav-item
-                    flex items-center gap-3
-                    px-4 py-3
-                    rounded-xl
-                    text-slate-600
-                    hover:bg-slate-50
-                    hover:text-slate-900
-                    font-medium
-                "
-            >
-                <i class="fa-solid fa-chart-line w-5 text-center"></i>
-                <span>Reports & Analytics</span>
             </a>
 
         </nav>

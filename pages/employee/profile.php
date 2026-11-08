@@ -1,13 +1,32 @@
 ﻿
-<?php /* Adviser profile page fragment. */ ?>
+<?php
+$profileFlash = $_SESSION['employee_profile_flash'] ?? null;
+unset($_SESSION['employee_profile_flash']);
+?>
 
-<!-- Profile cover: same structure as student profile -->
 <div class="employee-profile-cover"></div>
 
-<!-- Profile header -->
 <section class="employee-profile-hero">
-    <div class="employee-profile-avatar">
-        <?= htmlspecialchars($displayInitials, ENT_QUOTES, 'UTF-8') ?>
+    <div class="employee-profile-avatar-shell">
+        <div class="employee-profile-avatar" id="employeeProfileAvatarPreview">
+            <?php if ($employeeHasProfileImage && $employeeProfileImageUrl !== ''): ?>
+                <img src="<?= htmlspecialchars($employeeProfileImageUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Employee profile photo">
+            <?php else: ?>
+                <?= htmlspecialchars($displayInitials, ENT_QUOTES, 'UTF-8') ?>
+            <?php endif; ?>
+        </div>
+
+        <form method="post" action="employee_profile.php" enctype="multipart/form-data" class="employee-profile-upload-form">
+            <input type="hidden" name="profile_action" value="upload_profile_image">
+            <input id="employeeProfileUpload" class="employee-profile-file-input" type="file" name="profile_picture" accept="image/jpeg,image/png,image/webp">
+            <label class="employee-profile-upload-trigger" for="employeeProfileUpload" title="Upload profile photo" aria-label="Upload profile photo">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5m0 0 4 4m-4-4-4 4M4 16.5v2.25A1.25 1.25 0 0 0 5.25 20h13.5A1.25 1.25 0 0 0 20 18.75V16.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </label>
+            <button type="submit" class="employee-profile-save-photo" name="profile_action" value="upload_profile_image">Save photo</button>
+            <?php if ($employeeHasProfileImage): ?>
+                <button type="submit" class="employee-profile-remove-photo" name="profile_action" value="delete_profile_image" formnovalidate>Remove</button>
+            <?php endif; ?>
+        </form>
     </div>
 
     <div class="employee-profile-identity">
@@ -33,10 +52,15 @@
     </div>
 </section>
 
-<!-- Account statistics -->
+<?php if ($profileFlash): ?>
+    <div class="employee-profile-flash <?= htmlspecialchars($profileFlash['type'] ?? 'success', ENT_QUOTES, 'UTF-8') ?>">
+        <?= htmlspecialchars((string)($profileFlash['message'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
+    </div>
+<?php endif; ?>
+
 <div class="employee-profile-stats">
     <article>
-        <span class="employee-profile-icon">ΓÖÖ</span>
+        <span class="employee-profile-icon">◉</span>
         <small>Account type</small>
         <strong>
             <?= htmlspecialchars($displayPosition ?: 'Adviser', ENT_QUOTES, 'UTF-8') ?>
@@ -44,7 +68,7 @@
     </article>
 
     <article>
-        <span class="employee-profile-icon">Γ£ë</span>
+        <span class="employee-profile-icon">✉</span>
         <small>Email address</small>
         <strong>
             <?= htmlspecialchars($displayEmail ?: 'Not provided', ENT_QUOTES, 'UTF-8') ?>
@@ -52,7 +76,7 @@
     </article>
 
     <article>
-        <span class="employee-profile-icon">Γûª</span>
+        <span class="employee-profile-icon">⌂</span>
         <small>Department</small>
         <strong>
             <?= htmlspecialchars($displayDepartment ?: 'Not provided', ENT_QUOTES, 'UTF-8') ?>
@@ -60,13 +84,12 @@
     </article>
 
     <article>
-        <span class="employee-profile-icon">Γ£ô</span>
+        <span class="employee-profile-icon">✓</span>
         <small>Account status</small>
         <strong>Active session</strong>
     </article>
 </div>
 
-<!-- Personal details and work information -->
 <div class="employee-profile-columns">
 
     <section class="employee-profile-card">
@@ -81,7 +104,7 @@
 
             <div>
                 <label>Middle name</label>
-                <p><?= htmlspecialchars($middleName ?: 'ΓÇö', ENT_QUOTES, 'UTF-8') ?></p>
+                <p><?= htmlspecialchars($middleName ?: '—', ENT_QUOTES, 'UTF-8') ?></p>
             </div>
 
             <div>
@@ -91,22 +114,22 @@
 
             <div>
                 <label>Email address</label>
-                <p><?= htmlspecialchars($displayEmail ?: 'ΓÇö', ENT_QUOTES, 'UTF-8') ?></p>
+                <p><?= htmlspecialchars($displayEmail ?: '—', ENT_QUOTES, 'UTF-8') ?></p>
             </div>
 
             <div>
                 <label>Contact number</label>
-                <p><?= htmlspecialchars($displayContact ?: 'ΓÇö', ENT_QUOTES, 'UTF-8') ?></p>
+                <p><?= htmlspecialchars($displayContact ?: '—', ENT_QUOTES, 'UTF-8') ?></p>
             </div>
 
             <div>
                 <label>Username</label>
-                <p><?= htmlspecialchars($displayUsername ?: 'ΓÇö', ENT_QUOTES, 'UTF-8') ?></p>
+                <p><?= htmlspecialchars($displayUsername ?: '—', ENT_QUOTES, 'UTF-8') ?></p>
             </div>
         </div>
 
         <a class="employee-profile-action" href="employee_settings.php">
-            Manage account settings <span>ΓÇ║</span>
+            Manage account settings <span>→</span>
         </a>
     </section>
 
@@ -135,8 +158,31 @@
         </p>
 
         <a class="employee-profile-action" href="employee_settings.php">
-            Open Settings <span>ΓÇ║</span>
+            Open Settings <span>→</span>
         </a>
     </section>
 
 </div>
+
+<script>
+(function () {
+    const input = document.getElementById('employeeProfileUpload');
+    const avatar = document.getElementById('employeeProfileAvatarPreview');
+    if (!input || !avatar) return;
+
+    input.addEventListener('change', function () {
+        const file = this.files && this.files[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function (event) {
+            avatar.innerHTML = '<img src="' + event.target.result + '" alt="Profile preview">';
+        };
+        reader.readAsDataURL(file);
+    });
+})();
+</script>

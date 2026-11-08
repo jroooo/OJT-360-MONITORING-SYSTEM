@@ -40,9 +40,8 @@ $nav = [
     'dashboard'   => ['company_dashboard.php', 'Overview',            'fa-solid fa-table-cells-large', null],
     'students'    => ['assigned_students.php', 'Assigned Students',   'fa-solid fa-user-group',        $stats['interns']],
     'evaluations' => ['evaluations.php',       'Evaluations',         'fa-solid fa-clipboard-check',   $stats['pending']],
-    'qr'          => ['dynamic.php',           'Dynamic QR Code',     'fa-solid fa-qrcode',            null],
+    'qr'          => ['dynamic_qr.php',        'Dynamic QR Code',     'fa-solid fa-qrcode',            null],
     'messages'    => ['messages.php',          'Messages',            'fa-regular fa-comment-dots',    null],
-    'reports'     => ['reports.php',           'Reports & Analytics', 'fa-solid fa-chart-line',        null],
 ];
 
 $flashes = flash_get();
@@ -85,6 +84,33 @@ $flashes = flash_get();
 
 <link rel="stylesheet" href="assets/css/company.css">
 
+<style>
+    .user-card .avatar,
+    .avatar,
+    .avatar.sm {
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        min-height: 38px !important;
+        border-radius: 50% !important;
+        overflow: hidden !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex-shrink: 0 !important;
+    }
+
+    .user-card .avatar img,
+    .avatar img,
+    .avatar.sm img {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+        border-radius: 50% !important;
+        display: block !important;
+    }
+</style>
+
 </head>
 
 <body>
@@ -99,37 +125,9 @@ $flashes = flash_get();
         aria-label="OJT360 Company Portal home"
     >
 
-        <svg
-            width="34"
-            height="34"
-            viewBox="0 0 34 34"
-            fill="none"
-            aria-hidden="true"
-        >
-            <circle
-                cx="11"
-                cy="12"
-                r="6"
-                stroke="#22d3ee"
-                stroke-width="2.4"
-            />
-
-            <circle
-                cx="23"
-                cy="12"
-                r="6"
-                stroke="#60a5fa"
-                stroke-width="2.4"
-            />
-
-            <circle
-                cx="17"
-                cy="23"
-                r="6"
-                stroke="#38bdf8"
-                stroke-width="2.4"
-            />
-        </svg>
+        <div class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+        </div>
 
         <span class="brand-copy">
             <strong>OJT360</strong>
@@ -195,12 +193,24 @@ $flashes = flash_get();
 
         <a
             class="user-card"
-            href="settings.php"
-            title="Account settings"
+            href="company_profile.php"
+            title="View user profile"
         >
 
-            <span class="avatar">
-                <?= e($company['initials']) ?>
+            <span class="avatar" style="overflow:hidden;border-radius:50%;width:38px;height:38px;min-width:38px;min-height:38px;">
+                <?php
+                $profileImage = (string)($company['profile_image'] ?? '');
+                if ($profileImage !== '') {
+                    $realProfileImage = __DIR__ . '/../' . ltrim($profileImage, '/');
+                    if (is_file($realProfileImage)) {
+                        echo '<img src="' . e($profileImage) . '?v=' . (int) filemtime($realProfileImage) . '" alt="Company profile picture" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:50%;">';
+                    } else {
+                        echo e($company['initials']);
+                    }
+                } else {
+                    echo e($company['initials']);
+                }
+                ?>
             </span>
 
             <span class="uc-copy lbl">
@@ -287,10 +297,23 @@ $flashes = flash_get();
 
         <a
             class="avatar sm"
-            href="settings.php"
+            href="company_profile.php"
             title="<?= e($company['representative']) ?>"
+            style="width:38px;height:38px;border-radius:50%;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;"
         >
-            <?= e($company['initials']) ?>
+            <?php
+            $topAvatarImage = (string)($company['profile_image'] ?? '');
+            if ($topAvatarImage !== '') {
+                $topAvatarFile = __DIR__ . '/../' . ltrim($topAvatarImage, '/');
+                if (is_file($topAvatarFile)) {
+                    echo '<img src="' . e($topAvatarImage) . '?v=' . (int) filemtime($topAvatarFile) . '" alt="Company profile picture" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:50%;">';
+                } else {
+                    echo e($company['initials']);
+                }
+            } else {
+                echo e($company['initials']);
+            }
+            ?>
         </a>
 
     </div>

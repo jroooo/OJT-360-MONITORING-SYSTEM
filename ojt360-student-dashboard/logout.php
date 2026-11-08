@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require_once 'config.php';
 $_SESSION = [];
 if (ini_get('session.use_cookies')) {

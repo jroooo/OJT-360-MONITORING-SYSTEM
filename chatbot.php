@@ -13,15 +13,18 @@ function chatbotRespond(int $status, array $payload): void
     exit;
 }
 
-if (
-    ($_SESSION["employee_logged_in"] ?? false) !== true ||
-    empty($_SESSION["employee_id"])
-) {
+$companySession = (($_SESSION["company_logged_in"] ?? false) === true && !empty($_SESSION["company_id"]));
+$employeeSession = (($_SESSION["employee_logged_in"] ?? false) === true && !empty($_SESSION["employee_id"]));
+
+if (!$companySession && !$employeeSession) {
     chatbotRespond(401, [
         "success" => false,
-        "error" => "Your employee session has expired. Please sign in again."
+        "error" => "Your session has expired. Please sign in again."
     ]);
 }
+
+$sessionType = $companySession ? "company" : "employee";
+$csrfSessionKey = $companySession ? "company_chatbot_csrf" : "employee_chatbot_csrf";
 
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     header("Allow: POST");
@@ -41,8 +44,8 @@ if (!is_array($data)) {
 $csrfToken = $data["csrf_token"] ?? null;
 if (
     !is_string($csrfToken) ||
-    !isset($_SESSION["employee_chatbot_csrf"]) ||
-    !hash_equals($_SESSION["employee_chatbot_csrf"], $csrfToken)
+    !isset($_SESSION[$csrfSessionKey]) ||
+    !hash_equals($_SESSION[$csrfSessionKey], $csrfToken)
 ) {
     chatbotRespond(403, ["success" => false, "error" => "Your security token expired. Reload the page and try again."]);
 }

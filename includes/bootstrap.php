@@ -1,4 +1,3 @@
-
 <?php
 /*
 |--------------------------------------------------------------------------
@@ -137,10 +136,21 @@ function flash_set(string $type, string $msg): void
     $_SESSION['flash'][] = [$type, $msg];
 }
 
-function flash_get(): array
+/**
+ * Updated to accept an optional $key parameter so calls like flash_get('success') 
+ * work cleanly without throwing VS Code/PHP parameter mismatch warnings.
+ */
+function flash_get(?string $key = null)
 {
     ojt_start_session();
     $f = $_SESSION['flash'] ?? [];
+    
+    if ($key !== null) {
+        $val = $f[$key] ?? null;
+        unset($_SESSION['flash'][$key]);
+        return $val;
+    }
+    
     unset($_SESSION['flash']);
     return $f;
 }
@@ -251,6 +261,7 @@ function profile_from_row(array $c): array
         'initials' => initials($first, $last, $name),
         'email' => $c['representative_email'] ?? '',
         'username' => $c['company_username'] ?? '',
+        'profile_image' => $c['profile_image'] ?? '',
         'row' => $c,
     ];
 }
@@ -341,11 +352,11 @@ function company_stats(int $cid): array
     return $cache[$cid] = [
         'interns' => $total,
         'pending' => $pending,
-        'completed' => $total - $pending,
+        'completed' => max(0, $total - $pending),
         'hours_done' => $done,
         'hours_req' => $req,
         'progress' => $req > 0
-            ? min(100, (int) round($done / $req * 100))
+            ? min(100, (int) round(($done / $req) * 100))
             : 0,
         'today' => $today,
     ];
@@ -354,7 +365,7 @@ function company_stats(int $cid): array
 function pct(int $done, int $req): int
 {
     return $req > 0
-        ? max(0, min(100, (int) round($done / $req * 100)))
+        ? max(0, min(100, (int) round(($done / $req) * 100)))
         : 0;
 }
 
@@ -363,7 +374,7 @@ function name_ok(string $s, int $max = 50): bool
     return $s !== ''
         && mb_strlen($s) <= $max
         && preg_match(
-            "/^[\\p{L}\\p{M}][\\p{L}\\p{M}\\s.'\\-]*$/u",
+            "/^[\p{L}\p{M}][\p{L}\p{M}\s.'\-]*$/u",
             $s
         ) === 1;
 }

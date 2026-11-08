@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $page_title = 'Help & Support';
 $page_scripts = ['help.js'];
 require_once 'includes/header.php';

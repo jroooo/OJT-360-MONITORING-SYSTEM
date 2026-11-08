@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $page_title = 'Attendance';
 $page_scripts = ['attendance.js'];
 require_once 'includes/header.php';

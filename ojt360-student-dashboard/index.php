@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $page_title = 'Dashboard';
 $page_scripts = ['dashboard.js'];
 require_once 'includes/header.php';

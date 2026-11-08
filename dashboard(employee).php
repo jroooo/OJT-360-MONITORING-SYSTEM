@@ -1,6 +1,4 @@
-﻿
-
-<?php
+﻿<?php
 
 session_start();
 
@@ -17,19 +15,15 @@ $section = $_GET["section"] ?? "overview";
  
 
 if (
-
-    !isset($_SESSION["employee_logged_in"]) ||
-
+    !isset($_SESSION["employee_logged_in"], $_SESSION["employee_id"], $_SESSION["employee_db_id"]) ||
     $_SESSION["employee_logged_in"] !== true ||
-
-    empty($_SESSION["employee_id"])
-
+    trim((string)($_SESSION["employee_id"] ?? "")) === "" ||
+    (int)($_SESSION["employee_db_id"] ?? 0) <= 0
 ) {
-
+    session_unset();
+    session_destroy();
     header("Location: login.php");
-
     exit;
-
 }
 
  
@@ -90,90 +84,205 @@ require __DIR__ . "/actions/employee_settings_actions.php";
 
 ========================================================= */
 
- 
+$sessionEmployeeId = trim((string)($_SESSION["employee_id"] ?? ""));
+$sessionEmployeeDbId = isset($_SESSION["employee_db_id"]) ? (int)$_SESSION["employee_db_id"] : 0;
 
-$stmt = $conn->prepare("
+$stmt = null;
 
-    SELECT
+if ($sessionEmployeeId !== "" && $sessionEmployeeDbId > 0) {
+    $stmt = $conn->prepare("
+        SELECT
+            id,
+            employee_id,
+            first_name,
+            middle_name,
+            last_name,
+            contact_number,
+            email,
+            department,
+            position,
+            username,
+            profile_image
+        FROM employees
+        WHERE employee_id = ? AND id = ?
+        LIMIT 1
+    ");
 
-        id,
+    if ($stmt === false) {
+        error_log("Unable to prepare employee lookup for dashboard(employee).php: " . $conn->error);
+        session_unset();
+        session_destroy();
+        header("Location: login.php");
+        exit;
+    }
 
-        employee_id,
+    $stmt->bind_param("si", $sessionEmployeeId, $sessionEmployeeDbId);
+    $stmt->execute();
 
-        first_name,
+    $result = $stmt->get_result();
 
-        middle_name,
+    if ($result->num_rows !== 1) {
+        $stmt->close();
+        $conn->close();
 
-        last_name,
+        session_unset();
+        session_destroy();
 
-        contact_number,
+        header("Location: login.php");
+        exit;
+    }
 
-        email,
-
-        department,
-
-        position,
-
-        username
-
-    FROM employees
-
-    WHERE employee_id = ?
-
-    LIMIT 1
-
-");
-
- 
-
-if (!$stmt) {
-
-    die("Unable to load employee information.");
-
-}
-
- 
-
-$stmt->bind_param("s", $_SESSION["employee_id"]);
-
-$stmt->execute();
-
- 
-
-$result = $stmt->get_result();
-
- 
-
-if ($result->num_rows !== 1) {
-
+    $employee = $result->fetch_assoc();
     $stmt->close();
-
-    $conn->close();
-
- 
-
+} else {
     session_unset();
-
     session_destroy();
 
- 
-
     header("Location: login.php");
-
     exit;
-
 }
 
- 
+try {
+    $profileColumn = $conn->prepare("SHOW COLUMNS FROM employees LIKE 'profile_image'");
+    if ($profileColumn && $profileColumn->execute()) {
+        $hasProfileColumn = $profileColumn->get_result()->fetch_assoc();
+        if (!$hasProfileColumn) {
+            $conn->query("ALTER TABLE employees ADD COLUMN profile_image VARCHAR(255) NULL AFTER username");
+        }
+        $profileColumn->close();
+    }
+} catch (Throwable $e) {
+    error_log("Unable to ensure employee profile_image column: " . $e->getMessage());
+}
 
-$employee = $result->fetch_assoc();
+$employeeProfileImage = trim((string)($employee['profile_image'] ?? ''));
+$employeeProfileImagePath = $employeeProfileImage !== '' ? __DIR__ . '/' . ltrim($employeeProfileImage, '/') : '';
+$employeeHasProfileImage = $employeeProfileImage !== '' && is_file($employeeProfileImagePath);
+$employeeProfileImageUrl = $employeeHasProfileImage
+    ? $employeeProfileImage . '?v=' . filemtime($employeeProfileImagePath)
+    : '';
 
-$stmt->close();
+if (
+    $_SERVER["REQUEST_METHOD"] === "POST" &&
+    ($_POST["profile_action"] ?? "") !== ""
+) {
+    $profileAction = (string)($_POST["profile_action"] ?? "");
+    $profileRedirect = "employee_profile.php";
 
- 
+    if ($profileAction === "upload_profile_image") {
+        $targetDir = __DIR__ . "/uploads/employee_profile";
+        if (!is_dir($targetDir)) {
+            mkdir($targetDir, 0775, true);
+        }
+
+        $error = "";
+
+        if (
+            empty($_FILES['profile_picture']['name']) ||
+            !isset($_FILES['profile_picture']['tmp_name']) ||
+            !is_uploaded_file($_FILES['profile_picture']['tmp_name'])
+        ) {
+            $error = "Please choose a profile photo to upload.";
+        } else {
+            $file = $_FILES['profile_picture'];
+            $tmp = (string)($file['tmp_name'] ?? '');
+            $name = (string)($file['name'] ?? 'profile.jpg');
+            $size = (int)($file['size'] ?? 0);
+            $type = strtolower((string)($file['type'] ?? ''));
+
+            if (
+                !in_array($type, ['image/jpeg', 'image/png', 'image/webp'], true) &&
+                !preg_match('/\.(jpe?g|png|webp)$/i', $name)
+            ) {
+                $error = "Only JPG, PNG, and WEBP images are allowed.";
+            } elseif ($size <= 0 || $size > 2 * 1024 * 1024) {
+                $error = "Profile picture must be smaller than 2MB.";
+            } elseif (!is_readable($tmp)) {
+                $error = "The uploaded file could not be read.";
+            } else {
+                $imageInfo = @getimagesize($tmp);
+                if ($imageInfo === false) {
+                    $error = "The uploaded file is not a valid image.";
+                } else {
+                    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+                    if ($ext === '') {
+                        $ext = 'jpg';
+                    }
+
+                    $filename = 'employee_' . $_SESSION['employee_id'] . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
+                    $destination = $targetDir . '/' . $filename;
+
+                    if (!move_uploaded_file($tmp, $destination)) {
+                        $error = "The profile picture could not be saved.";
+                    } else {
+                        $relative = 'uploads/employee_profile/' . $filename;
+                        $updateStmt = $conn->prepare("UPDATE employees SET profile_image = ? WHERE employee_id = ?");
+                        if ($updateStmt === false) {
+                            $error = "Unable to save the uploaded profile photo.";
+                        } else {
+                            $updateStmt->bind_param('ss', $relative, $_SESSION['employee_id']);
+                            if ($updateStmt->execute()) {
+                                $oldImage = trim((string)($employee['profile_image'] ?? ''));
+                                if ($oldImage !== '' && $oldImage !== $relative) {
+                                    $oldAbsolute = __DIR__ . '/' . ltrim($oldImage, '/');
+                                    if (is_file($oldAbsolute)) {
+                                        @unlink($oldAbsolute);
+                                    }
+                                }
+                                $_SESSION['employee_profile_flash'] = [
+                                    'type' => 'success',
+                                    'message' => 'Profile photo updated successfully.'
+                                ];
+                                $conn->close();
+                                header('Location: ' . $profileRedirect, true, 303);
+                                exit;
+                            } else {
+                                $error = "Unable to save the uploaded profile photo.";
+                            }
+                            $updateStmt->close();
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($error !== '') {
+            $_SESSION['employee_profile_flash'] = [
+                'type' => 'error',
+                'message' => $error
+            ];
+            $conn->close();
+            header('Location: ' . $profileRedirect, true, 303);
+            exit;
+        }
+    }
+
+    if ($profileAction === "delete_profile_image") {
+        $oldImage = trim((string)($employee['profile_image'] ?? ''));
+        if ($oldImage !== '') {
+            $oldAbsolute = __DIR__ . '/' . ltrim($oldImage, '/');
+            if (is_file($oldAbsolute)) {
+                @unlink($oldAbsolute);
+            }
+            $deleteStmt = $conn->prepare("UPDATE employees SET profile_image = NULL WHERE employee_id = ?");
+            if ($deleteStmt) {
+                $deleteStmt->bind_param('s', $_SESSION['employee_id']);
+                $deleteStmt->execute();
+                $deleteStmt->close();
+            }
+        }
+
+        $_SESSION['employee_profile_flash'] = [
+            'type' => 'success',
+            'message' => 'Profile photo removed.'
+        ];
+        $conn->close();
+        header('Location: ' . $profileRedirect, true, 303);
+        exit;
+    }
+}
 
 require __DIR__ . "/actions/employee_evaluation_actions.php";
-
 /* =========================================================
 
    EMPLOYEE INFORMATION
@@ -324,7 +433,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
             <a class="nav-link active" data-page="overview" href="employee_overview.php" aria-label="Overview" title="Overview">
 
-                <span class="nav-icon">Γûª</span>
+                <span class="nav-icon">▪</span>
 
                 <span>Overview</span>
 
@@ -334,7 +443,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
             <a class="nav-link" data-page="interns" href="employee_interns.php" aria-label="Interns" title="Interns">
 
-                <span class="nav-icon">ΓÖÖ</span>
+                <span class="nav-icon">👥</span>
 
                 <span>Interns</span>
 
@@ -344,7 +453,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
             <a class="nav-link" data-page="evaluations" href="employee_evaluations.php" aria-label="Evaluations" title="Evaluations">
 
-                <span class="nav-icon">Γûñ</span>
+                <span class="nav-icon">📋</span>
 
                 <span>Evaluations</span>
 
@@ -354,7 +463,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
             <a class="nav-link" data-page="messages" href="employee_messages.php" aria-label="Messages" title="Messages">
 
-                <span class="nav-icon">Γ₧ñ</span>
+                <span class="nav-icon">💬</span>
 
                 <span>Messages</span>
 
@@ -398,7 +507,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
             <a class="nav-link settings-bottom-link" data-page="settings" href="employee_settings.php" aria-label="Settings" title="Settings">
 
-                <span class="nav-icon">ΓÜÖ</span>
+                <span class="nav-icon">⚙</span>
 
                 <span>Settings</span>
 
@@ -408,7 +517,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
             <button class="nav-link" id="signOutBtn" aria-label="Sign out" title="Sign out">
 
-                <span class="nav-icon">Γå¬</span>
+                <span class="nav-icon">↪</span>
 
                 <span>Sign out</span>
 
@@ -565,7 +674,10 @@ require __DIR__ . "/includes/employee_company_data.php";
 <?php require __DIR__ . "/pages/employee/support.php"; ?>
 
 <?php require __DIR__ . "/pages/employee/settings.php"; ?>
-<?php require __DIR__ . "/pages/employee/profile.php"; ?>
+<?php if ($section === "profile"){ ?>
+    
+    <?php require __DIR__ . "/pages/employee/profile.php"; ?>
+<?php } ?>
 
 <!-- =============================================================
 
@@ -575,7 +687,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
 <button class="ai-launcher" id="aiLauncher" aria-label="Open OJT360 Assistant" aria-expanded="false" title="OJT360 Assistant">
 
-    <span class="ai-launcher-icon">Γ£ª</span>
+    <span class="ai-launcher-icon">✨</span>
 
 </button>
 
@@ -587,7 +699,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
         <div class="ai-title-wrap">
 
-            <div class="ai-avatar">Γ£ª</div>
+            <div class="ai-avatar">✨</div>
 
             <div>
 
@@ -617,7 +729,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
         <div class="ai-row">
 
-            <div class="ai-mini-avatar">Γ£ª</div>
+            <div class="ai-mini-avatar">✨</div>
 
             <div class="ai-bubble">
 
@@ -647,7 +759,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
         <input class="ai-input" id="aiInput" autocomplete="off" placeholder="Ask OJT360...">
 
-        <button class="ai-send" type="submit" aria-label="Send message">Γåæ</button>
+        <button class="ai-send" type="submit" aria-label="Send message">➔</button>
 
     </form>
 
@@ -1702,4 +1814,3 @@ const MESSAGE_API_URL = <?= json_encode($_SERVER["PHP_SELF"], JSON_HEX_TAG | JSO
 </body>
 
 </html>
-

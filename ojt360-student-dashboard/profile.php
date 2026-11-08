@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $page_title = 'Profile';
 $page_scripts = ['profile.js'];
 require_once 'includes/header.php';
