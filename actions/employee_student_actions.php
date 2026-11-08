@@ -36,11 +36,11 @@ if (
 
     if ($studentDbId === false || $studentDbId === null || $companyName === "") {
 
-        $_SESSION["employee_interns_flash"] = [
+        $_SESSION["employee_companies_flash"] = [
 
             "type" => "error",
 
-            "message" => "Please select a valid student and company."
+            "message" => "Please select a valid intern and company."
 
         ];
 
@@ -86,17 +86,17 @@ if (
 
             if (!$studentExists) {
 
-                $_SESSION["employee_interns_flash"] = [
+                $_SESSION["employee_companies_flash"] = [
 
                     "type" => "error",
 
-                    "message" => "The selected student could not be found."
+                    "message" => "The selected intern could not be found."
 
                 ];
 
             } elseif (!$companyRecord) {
 
-                $_SESSION["employee_interns_flash"] = [
+                $_SESSION["employee_companies_flash"] = [
 
                     "type" => "error",
 
@@ -186,11 +186,11 @@ if (
 
  
 
-                $_SESSION["employee_interns_flash"] = [
+                $_SESSION["employee_companies_flash"] = [
 
                     "type" => "success",
 
-                    "message" => "Student successfully assigned to company."
+                    "message" => "Intern successfully assigned to company."
 
                 ];
 
@@ -204,7 +204,7 @@ if (
 
             );
 
-            $_SESSION["employee_interns_flash"] = [
+            $_SESSION["employee_companies_flash"] = [
 
                 "type" => "error",
 
@@ -218,7 +218,7 @@ if (
 
  
 
-    header("Location: dashboard(employee).php?section=companies", true, 303);
+    header("Location: adviser_companies.php", true, 303);
 
     exit;
 
@@ -362,7 +362,7 @@ if (
 
  
 
-    header("Location: dashboard(employee).php?section=interns", true, 303);
+    header("Location: adviser_interns.php", true, 303);
 
     exit;
 
@@ -702,7 +702,7 @@ if (
 
  
 
-    header("Location: dashboard(employee).php?section=interns", true, 303);
+    header("Location: adviser_interns.php", true, 303);
 
     exit;
 

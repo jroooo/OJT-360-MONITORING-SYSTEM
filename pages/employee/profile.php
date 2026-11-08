@@ -19,7 +19,7 @@
             <?= htmlspecialchars(
                 $displayDepartment !== ''
                     ? $displayDepartment
-                    : 'OJT360 Employee Portal',
+                    : 'OJT360 Adviser Portal',
                 ENT_QUOTES,
                 'UTF-8'
             ) ?>

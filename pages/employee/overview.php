@@ -11,7 +11,7 @@
 
                 <div class="hero">
 
-                    <div class="eyebrow">Employee Workspace</div>
+                    <div class="eyebrow">Adviser Workspace</div>
 
                     <h1>Overview & Analytics</h1>
 

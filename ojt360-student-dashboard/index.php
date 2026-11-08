@@ -37,7 +37,6 @@ $wj->execute([$uid, date('Y-m-d', strtotime('monday this week'))]); $weekJournal
     <h1><?= e($greet) ?>, <?= e($firstName) ?><span class="title-dot">.</span></h1>
     <p>Record your attendance, daily tasks, and rendered internship hours.</p>
   </div>
-  <div class="page-actions"><a class="btn primary lg" href="daily_logs.php?new=1"><?= icon('plus') ?> Add Daily Entry</a></div>
 </div>
 
 <!-- LIVE TRACKER -->
@@ -49,7 +48,6 @@ $wj->execute([$uid, date('Y-m-d', strtotime('monday this week'))]); $weekJournal
     <div class="tracker-clock" aria-live="off"><b id="liveClock">00:00:00</b><span id="liveClockLabel">Ready when you are</span></div>
     <div class="tracker-btns">
       <button class="btn success lg" data-track="timein" type="button"><span class="btn-ic"><?= icon('login') ?></span> Time In</button>
-      <button class="btn warn lg" data-track="break" type="button" disabled><span class="btn-ic"><?= icon('coffee') ?></span> <span class="lbl">Take a Break</span></button>
       <button class="btn danger lg" data-track="timeout" type="button" disabled><span class="btn-ic"><?= icon('logout') ?></span> Time Out</button>
     </div>
     <div class="tracker-mini">
@@ -82,7 +80,7 @@ $wj->execute([$uid, date('Y-m-d', strtotime('monday this week'))]); $weekJournal
     <svg class="spark" data-series="<?= e(json_encode($ins['series']['break'])) ?>" data-color="amber" viewBox="0 0 160 70" preserveAspectRatio="none"></svg>
   </article>
 </div>
-<p class="insight-note">On time means timing in by <?= e(date('g:i A', strtotime($ins['settings']['shift_start']))) ?> (+<?= (int)$ins['settings']['grace_minutes'] ?> min grace). You can change this in <a class="text-link" href="settings.php">Settings</a>.</p>
+<p class="insight-note">Morning attendance uses your configured grace period; afternoon Time In is on time through 1:30 PM. Scans after the fixed-time cutoffs use their actual scan times. <a class="text-link" href="settings.php">Review settings</a>.</p>
 
 <!-- PROGRESS -->
 <div class="section-row"><div><span class="eyebrow">AT A GLANCE</span><h3>Your progress</h3></div><a class="text-link" href="settings.php#goal">Edit goal</a></div>

@@ -100,6 +100,7 @@ function db(): PDO
                 PDO::ATTR_EMULATE_PREPARES => false,
             ]
         );
+        $pdo->exec("SET time_zone = '+08:00'");
     } catch (PDOException $ex) {
         error_log('OJT360 DB connection failed: ' . $ex->getMessage());
         http_response_code(500);

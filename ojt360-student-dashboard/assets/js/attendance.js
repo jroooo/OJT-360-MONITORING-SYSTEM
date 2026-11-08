@@ -22,7 +22,7 @@ function live(d) {
     ? 'Scan your company QR to begin.'
     : st === 'scheduled'
       ? 'Your actual Time In was ' + d.session.time_in_label + '. Daily requirement: 8 hours.'
-      : shift + ' shift: ' + hm(d.sessionNet) + ' credited (4h maximum). Daily credit: ' + hm(d.todayNet) + ' of 8h. Your actual checkout time is recorded when you Time Out.';
+      : shift + ' shift: ' + hm(d.sessionNet) + ' logged after breaks. Today: ' + hm(d.todayNet) + ' (8h daily target). Your actual checkout time is recorded when you Time Out.';
   $('#mTotal').textContent = d.completed.toFixed(2) + ' h';
   $('#mRemain').textContent = Math.max(0, d.required - d.completed).toFixed(2) + ' h';
 }

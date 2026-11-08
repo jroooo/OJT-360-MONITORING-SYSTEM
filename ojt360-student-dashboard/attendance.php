@@ -10,7 +10,7 @@ $completed = (float)($internship['completed_hours'] ?? 0);
   <div>
     <span class="eyebrow">TIME TRACKING</span>
     <h1>Attendance<span class="title-dot">.</span></h1>
-    <p>Track your actual attendance and credited hours. Completed weekdays with no attendance are marked absent; days below 8 rendered hours are incomplete. Weekends and Philippine public holidays are excluded.</p>
+    <p>Track your actual attendance and logged hours. Completed weekdays with no attendance are marked absent; days below 8 rendered hours are incomplete. Weekends and Philippine public holidays are excluded.</p>
   </div>
   <div class="page-actions">
     <a class="btn secondary" href="api/attendance.php?action=export"><?= icon('download') ?> Export CSV</a>
@@ -30,7 +30,7 @@ $completed = (float)($internship['completed_hours'] ?? 0);
 </section>
 
 <div class="grid-3 att-metrics">
-  <article class="stat"><div class="stat-ic"><?= icon('clock') ?></div><span>Today</span><strong id="mToday">0h 00m / 8h</strong><small>4h morning + 4h afternoon</small></article>
+  <article class="stat"><div class="stat-ic"><?= icon('clock') ?></div><span>Today</span><strong id="mToday">0h 00m / 8h</strong><small>8h daily target</small></article>
   <article class="stat"><div class="stat-ic"><?= icon('target') ?></div><span>Total achieved</span><strong id="mTotal"><?= number_format($completed, 2) ?> h</strong><small>OJT hours recorded</small></article>
   <article class="stat"><div class="stat-ic"><?= icon('trend') ?></div><span>Remaining</span><strong id="mRemain"><?= number_format(max(0, $required - $completed), 2) ?> h</strong><small>Until <?= number_format($required, 0) ?> required hours</small></article>
 </div>

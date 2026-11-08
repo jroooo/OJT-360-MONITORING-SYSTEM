@@ -4,8 +4,8 @@ $page_scripts = ['help.js'];
 require_once 'includes/header.php';
 $faqs = [
   ['Getting started', 'How do I time in?', 'Press Time In on the Dashboard or Attendance page. The QR scanner opens, you scan your company\'s OJT360 QR code, and your live timer starts. A daily log for today is created automatically.'],
-  ['Getting started', 'How do I take a break?', 'While you are timed in, press Take a Break. Your work timer pauses and the break is counted separately. Press Resume Work when you are back. A break that is still open is closed automatically when you time out.'],
-  ['Getting started', 'How do I time out?', 'Press Time Out and scan the same company QR again. Your rendered hours (time in to time out minus breaks) are saved, and you are taken to today\'s daily log to describe what you did.'],
+  ['Getting started', 'How are attendance times recorded?', 'Scan the company QR to time in or out. Afternoon time in scanned by 1:30 PM is recorded as 1:00 PM. Morning time out scanned by 12:30 PM is recorded as 12:00 PM, and afternoon time out scanned by 5:00 PM is recorded as 5:00 PM. Scans after those cutoffs use the actual scan time.'],
+  ['Getting started', 'How do I time out?', 'Press Time Out and scan the same company QR again. Your recorded attendance times and rendered hours are saved, and you are taken to today\'s daily log to describe what you did.'],
   ['Hours & logs', 'Why does my daily log say "Needs details"?', 'Daily logs are created for you when you time in, but only you can describe the work. Open it, add the task and what you accomplished, and optionally attach a photo.'],
   ['Hours & logs', 'Can I add a log for a day I forgot to time in?', 'Yes. Use New Entry on Daily Logs and enter the times. Manual entries appear in your reports, but only QR attendance counts toward your required OJT hours.'],
   ['Hours & logs', 'Where can I see past days?', 'Open Attendance. The Calendar shows every day colour-coded; click a date to see your attendance, log and photo. History and Timeline tabs list every session and break.'],

@@ -324,11 +324,10 @@ if (
 
     $_SESSION["employee_companies_flash"] = $companyFlash;
 
-    header("Location: dashboard(employee).php?section=companies", true, 303);
+    header("Location: adviser_companies.php", true, 303);
 
     exit;
 
 }
 
  
-

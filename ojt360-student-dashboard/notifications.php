@@ -12,7 +12,7 @@ $items = $stmt->fetchAll();
 </div>
 <section class="panel notification-list">
   <?php foreach ($items as $n): ?>
-    <div class="notification-item <?= !$n['is_read'] ? 'unread' : '' ?>" data-id="<?= (int)$n['id'] ?>">
+    <div class="notification-item <?= !$n['is_read'] ? 'unread' : '' ?>" id="notification-<?= (int)$n['id'] ?>" data-id="<?= (int)$n['id'] ?>">
       <div class="notification-icon"><?= icon('bell') ?></div>
       <div class="notif-body"><strong><?= e($n['title']) ?></strong><p><?= e($n['message']) ?></p><small><?= e(date('M d, Y · h:i A', strtotime($n['created_at']))) ?></small></div>
       <?php if (!$n['is_read']): ?><i class="unread-dot" title="Unread"></i><?php endif; ?>

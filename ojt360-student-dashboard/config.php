@@ -40,7 +40,7 @@ function db(): PDO {
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
-        try { $pdo->exec("SET time_zone = '" . APP_TZ_OFFSET . "'"); } catch (Throwable $e) { /* keep server default */ }
+        $pdo->exec("SET time_zone = '" . APP_TZ_OFFSET . "'");
         ensure_runtime_tables($pdo);
     }
     return $pdo;

@@ -29,10 +29,9 @@ $req = (float)($internship['required_hours'] ?? 480);
 
   <section class="panel" id="goal">
     <div class="panel-head"><div><span class="eyebrow">WORK SCHEDULE</span><h3>Attendance & hours goal</h3></div></div>
-    <p class="muted small" style="margin-bottom:14px">Your shift start decides whether a Time In counts as on time on the dashboard.</p>
+    <p class="muted small" style="margin-bottom:14px">Attendance uses fixed shifts: 8:00 AM–12:00 PM and 1:00 PM–5:00 PM. Afternoon Time In is on time through 1:30 PM; set the morning on-time grace period below.</p>
     <form class="form" id="scheduleForm">
-      <div class="form-grid-3">
-        <label>Shift starts<input type="time" name="shift_start" value="<?= e(substr($settingsRow['shift_start'], 0, 5)) ?>" required></label>
+      <div class="form-grid-2">
         <label>Grace period (min)<input type="number" name="grace_minutes" min="0" max="120" value="<?= (int)$settingsRow['grace_minutes'] ?>" required></label>
         <label>Daily target (hours)<input type="number" name="daily_target" min="1" max="16" step="0.5" value="<?= e((string)$settingsRow['daily_target']) ?>" required></label>
       </div>

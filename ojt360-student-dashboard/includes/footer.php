@@ -49,8 +49,9 @@
   <h2><?= e($user['full_name']) ?></h2><p class="muted"><?= e($user['student_no']) ?></p>
 </div></div>
 
-<script src="assets/js/app.js?v=28"></script>
+<script src="assets/js/app.js?v=29"></script>
+<script src="assets/js/notifications.js?v=30"></script>
 <?php if (in_array('editor.js', $page_scripts ?? [], true)): ?><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js" integrity="sha384-aBc0BOllaGWrQx51DYt978St/L7B+21jzNGc4N/jnGD0NxGwj8S/ftRgW0AkXIak" crossorigin="anonymous" referrerpolicy="no-referrer"></script><?php endif; ?>
-<?php foreach (($page_scripts ?? []) as $src): ?><script src="assets/js/<?= e($src) ?>?v=<?= in_array($src, ['attendance.js', 'dashboard.js', 'editor.js', 'journal.js', 'compilation.js'], true) ? ($src === 'attendance.js' ? '31' : '30') : '29' ?>"></script>
+<?php foreach (($page_scripts ?? []) as $src): if ($src === 'notifications.js') continue; ?><script src="assets/js/<?= e($src) ?>?v=<?= in_array($src, ['attendance.js', 'dashboard.js', 'editor.js', 'journal.js', 'compilation.js'], true) ? ($src === 'attendance.js' ? '31' : '30') : '29' ?>"></script>
 <?php endforeach; ?>
 </body></html>

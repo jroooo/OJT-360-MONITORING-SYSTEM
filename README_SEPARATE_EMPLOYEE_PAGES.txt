@@ -3,12 +3,12 @@ OJT-360 Employee Dashboard — Separate Page Entry Points
 This package is based on the uploaded project. The original dashboard implementation remains in
 "dashboard(employee).php". The existing page fragments remain under pages/employee/.
 
-New standalone employee page URLs:
-- employee_overview.php
-- employee_interns.php
-- employee_evaluations.php
-- employee_messages.php
-- employee_companies.php
+New standalone Adviser page URLs:
+- adviser_overview.php
+- adviser_interns.php
+- adviser_evaluations.php
+- adviser_messages.php
+- adviser_companies.php
 - employee_support.php
 - employee_settings.php
 

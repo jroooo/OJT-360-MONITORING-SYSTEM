@@ -17,14 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if ($action === 'export') {
         $stmt = db()->prepare(
             "SELECT a.time_in,a.time_out,a.break_seconds,a.duration_minutes,a.company_name,
-                    COALESCE(
-                        (SELECT MIN(ev.event_time)
-                         FROM attendance_events ev
-                         WHERE ev.attendance_id = a.id
-                           AND ev.student_pk = a.student_pk
-                           AND ev.event_type = 'time_in'),
-                        a.time_in
-                    ) AS actual_time_in
+                    a.time_in AS actual_time_in
              FROM attendance a
              WHERE a.student_pk=?
              ORDER BY a.time_in DESC"
@@ -35,8 +28,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $out = fopen('php://output', 'w');
         fputcsv($out, ['Date', 'Company', 'Time In', 'Time Out', 'Break (min)', 'Rendered (min)', 'Rendered (hours)']);
         while ($r = $stmt->fetch()) {
-            $mins = $r['duration_minutes'] !== null ? (int)$r['duration_minutes'] : '';
-            fputcsv($out, [date('Y-m-d', strtotime($r['time_in'])), $r['company_name'], date('h:i A', strtotime($r['actual_time_in'])), $r['time_out'] ? date('h:i A', strtotime($r['time_out'])) : '', (int)round(((int)$r['break_seconds']) / 60), $mins, $mins === '' ? '' : number_format($mins / 60, 2)]);
+            $elapsed = session_seconds($r);
+            $mins = !empty($r['time_out']) ? (int)floor($elapsed['net'] / 60) : '';
+            fputcsv($out, [date('Y-m-d', strtotime($r['actual_time_in'])), $r['company_name'], date('h:i A', strtotime($r['actual_time_in'])), $r['time_out'] ? date('h:i A', strtotime($r['time_out'])) : '', (int)round($elapsed['break'] / 60), $mins, $mins === '' ? '' : number_format($mins / 60, 2)]);
         }
         fclose($out);
         exit;
@@ -46,23 +40,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $month = (string)($_GET['month'] ?? date('Y-m'));
         if (!preg_match('/^\d{4}-\d{2}$/', $month)) $month = date('Y-m');
         $s = db()->prepare(
-            "SELECT a.*,
-                    COALESCE(
-                        (SELECT MIN(ev.event_time)
-                         FROM attendance_events ev
-                         WHERE ev.attendance_id = a.id
-                           AND ev.student_pk = a.student_pk
-                           AND ev.event_type = 'time_in'),
-                        a.time_in
-                    ) AS actual_time_in
+            "SELECT a.*, a.time_in AS actual_time_in
              FROM attendance a
-             WHERE a.student_pk = ? AND DATE_FORMAT(a.time_in,'%Y-%m') = ?
+             WHERE a.student_pk = ?
+               AND DATE_FORMAT(a.time_in, '%Y-%m') = ?
              ORDER BY a.time_in ASC"
         );
         $s->execute([$uid, $month]);
         $sessions = []; $days = []; $now = time(); $today = date('Y-m-d');
         foreach ($s->fetchAll() as $r) {
-            $date = date('Y-m-d', strtotime($r['time_in']));
+            $date = date('Y-m-d', strtotime($r['actual_time_in']));
             $sec = session_seconds($r, $now);
             $sessions[] = [
                 'id' => (int)$r['id'], 'date' => $date, 'company' => $r['company_name'] ?? '',
@@ -70,13 +57,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'time_out' => $r['time_out'] ? date('h:i A', strtotime($r['time_out'])) : null,
                 'time_out_date' => $r['time_out'] ? date('Y-m-d', strtotime($r['time_out'])) : null,
                 'break_min' => (int)round($sec['break'] / 60),
-                'net_min' => (int)round($sec['net'] / 60),
+                'net_min' => (int)floor($sec['net'] / 60),
                 'open' => empty($r['time_out']),
                 'on_break' => !empty($r['break_started_at']),
             ];
             if (!isset($days[$date])) $days[$date] = ['sessions' => 0, 'minutes' => 0, 'open' => false];
             $days[$date]['sessions']++;
-            $days[$date]['minutes'] += (int)round($sec['net'] / 60);
+            $days[$date]['minutes'] += (int)floor($sec['net'] / 60);
             if (empty($r['time_out'])) $days[$date]['open'] = true;
         }
         $statusData = student_attendance_statuses($uid, $month . '-01', date('Y-m-t', strtotime($month . '-01')));
@@ -106,17 +93,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $date = (string)($_GET['date'] ?? '');
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) json_out(['ok' => false, 'message' => 'Invalid date.'], 422);
         $a = db()->prepare(
-            "SELECT a.*,
-                    COALESCE(
-                        (SELECT MIN(ev.event_time)
-                         FROM attendance_events ev
-                         WHERE ev.attendance_id = a.id
-                           AND ev.student_pk = a.student_pk
-                           AND ev.event_type = 'time_in'),
-                        a.time_in
-                    ) AS actual_time_in
+            "SELECT a.*, a.time_in AS actual_time_in
              FROM attendance a
-             WHERE a.student_pk = ? AND DATE(a.time_in) = ?
+             WHERE a.student_pk = ?
+               AND DATE(a.time_in) = ?
              ORDER BY a.time_in"
         );
         $a->execute([$uid, $date]);
@@ -133,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 'time_in_date' => date('Y-m-d', strtotime($r['actual_time_in'])),
                 'time_out' => $r['time_out'] ? date('h:i A', strtotime($r['time_out'])) : null,
                 'time_out_date' => $r['time_out'] ? date('Y-m-d', strtotime($r['time_out'])) : null,
-                'break_min' => (int)round($sec['break'] / 60), 'net_min' => (int)round($sec['net'] / 60),
+                'break_min' => (int)round($sec['break'] / 60), 'net_min' => (int)floor($sec['net'] / 60),
                 'open' => empty($r['time_out']), 'events' => $events,
             ];
         }
@@ -201,24 +181,19 @@ if ($companyToken !== '') {
 
 if (!$qrRow) json_out(['ok' => false, 'message' => 'Invalid, expired, or inactive company QR code. Scan the current code.']);
 
-$settings = student_settings($uid);
 $date = date('Y-m-d', $now);
-$shiftStarts = attendance_shift_start_times($date, $settings);
-$isAfternoon = $now >= $shiftStarts['afternoon'];
+$isAfternoon = $now >= strtotime($date . ' 12:00:00');
 $slot = $isAfternoon ? 'afternoon' : 'morning';
-$slotStart = $shiftStarts[$slot];
-$slotBoundary = date('Y-m-d H:i:s', $shiftStarts['afternoon']);
 
 if (!$session) {
     $existingShift = db()->prepare(
         "SELECT COUNT(*)
-         FROM attendance_events
+         FROM attendance
          WHERE student_pk = ?
-           AND event_type = 'time_in'
-           AND DATE(event_time) = ?
-           AND event_time " . ($isAfternoon ? '>=' : '<') . ' ?'
+           AND DATE(time_in) = ?
+           AND TIME(time_in) " . ($isAfternoon ? '>=' : '<') . " '12:00:00'"
     );
-    $existingShift->execute([$uid, $date, $slotBoundary]);
+    $existingShift->execute([$uid, $date]);
     if ((int)$existingShift->fetchColumn() > 0) {
         $shiftName = $isAfternoon ? 'Afternoon' : 'Morning';
         json_out([
@@ -242,25 +217,44 @@ if (!$internship) {
 if ($session) {
     /* ---- TIME OUT ---- */
     if (strcasecmp(trim((string)$session['company_name']), trim((string)$qrRow['company_name'])) !== 0) json_out(['ok' => false, 'message' => 'Please use the same company QR used for Time In.']);
-    $requiredSeconds = ATTENDANCE_SHIFT_SECONDS;
-    $worked = session_seconds($session, $now);
-    $breakSec = (int)$session['break_seconds'];
-    $net = min($requiredSeconds, $worked['net']);
-    $minutes = min((int)($requiredSeconds / 60), (int)floor($net / 60));
-    $outStr = $nowStr;
+    $actualTimeIn = strtotime((string)$session['time_in']);
+    if ($actualTimeIn === false || $now <= $actualTimeIn) {
+        json_out([
+            'ok' => false,
+            'message' => 'Time Out must be later than the recorded Time In.',
+            'state' => tracker_state($uid),
+        ], 409);
+    }
+
+    $outStr = attendance_recorded_time_out((string)$session['time_in'], $now);
+    $recordedTimeOut = $outStr === null ? false : strtotime($outStr);
+    if ($recordedTimeOut === false) {
+        json_out([
+            'ok' => false,
+            'message' => 'Time Out must be later than the recorded Time In.',
+            'state' => tracker_state($uid),
+        ], 409);
+    }
+
+    $elapsedAtScan = session_seconds($session, $now);
+    $totalRecorded = max(0, $recordedTimeOut - $actualTimeIn);
+    $breakSec = min($totalRecorded, (int)$elapsedAtScan['break']);
+    $net = max(0, $totalRecorded - $breakSec);
+    $minutes = (int)floor($net / 60);
     db()->prepare('UPDATE attendance SET time_out=?, break_started_at=NULL, break_seconds=?, duration_minutes=? WHERE id=? AND student_pk=?')->execute([$outStr, $breakSec, $minutes, $session['id'], $uid]);
-    log_attendance_event((int)$session['id'], $uid, 'time_out', $outStr);
-    adjust_completed_hours($uid, $minutes / 60);
+    log_attendance_event((int)$session['id'], $uid, 'time_out', $nowStr);
+    adjust_completed_hours($uid);
     sync_auto_log($uid, (int)$session['id']);
     add_activity($uid, 'Timed out · ' . seconds_to_hm($net) . ' rendered');
-    add_notification($uid, 'Time Out recorded', 'This shift is credited as ' . seconds_to_hm($net) . '.', '✓');
-    $msg = 'Time Out recorded. This shift is credited as ' . seconds_to_hm($net) . '.';
+    add_notification($uid, 'Time Out recorded', 'This session logged ' . seconds_to_hm($net) . ' after breaks.', '✓');
+    $msg = 'Time Out recorded as ' . date('g:i A', $recordedTimeOut) . '. This session logged ' . seconds_to_hm($net) . ' after breaks.';
     json_out(['ok' => true, 'action' => 'timeout', 'message' => $msg, 'state' => tracker_state($uid)]);
 }
 
 /* ---- TIME IN ---- */
 $qrId = isset($qrRow['id']) ? (int)$qrRow['id'] : null;
-db()->prepare('INSERT INTO attendance(student_pk,qr_id,company_name,time_in) VALUES(?,?,?,?)')->execute([$uid, $qrId, $qrRow['company_name'], date('Y-m-d H:i:s', $slotStart)]);
+$recordedTimeIn = attendance_recorded_time_in($now);
+db()->prepare('INSERT INTO attendance(student_pk,qr_id,company_name,time_in) VALUES(?,?,?,?)')->execute([$uid, $qrId, $qrRow['company_name'], $recordedTimeIn]);
 $attId = (int)db()->lastInsertId();
 log_attendance_event($attId, $uid, 'time_in', $nowStr);
 sync_auto_log($uid, $attId);
@@ -269,7 +263,6 @@ add_notification($uid, 'Time In recorded', 'Your ' . $slot . ' attendance has st
 json_out([
     'ok' => true,
     'action' => 'timein',
-    'message' => ucfirst($slot) . ' shift started at ' . date('g:i A', $now)
-        . '. Up to four hours will be credited for this shift.',
+    'message' => ucfirst($slot) . ' shift recorded at ' . date('g:i A', strtotime($recordedTimeIn)) . '.',
     'state' => tracker_state($uid),
 ]);

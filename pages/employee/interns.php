@@ -205,7 +205,7 @@
 
                                             <td>
 
-                                                <form class="remove-student-form" method="post" action="dashboard(employee).php?section=interns" data-student-name="<?= htmlspecialchars($studentName, ENT_QUOTES, "UTF-8") ?>">
+                                                <form class="remove-student-form" method="post" action="adviser_interns.php" data-student-name="<?= htmlspecialchars($studentName, ENT_QUOTES, "UTF-8") ?>">
 
                                                     <input type="hidden" name="student_action" value="delete">
 

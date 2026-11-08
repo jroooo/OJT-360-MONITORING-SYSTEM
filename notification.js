@@ -360,7 +360,7 @@
                         );
 
                         if (companyNotification) {
-                            window.location.href = "employee_messages.php?company_id=" +
+                            window.location.href = "adviser_messages.php?company_id=" +
                                 encodeURIComponent(companyNotification.company_id);
                             return;
                         }

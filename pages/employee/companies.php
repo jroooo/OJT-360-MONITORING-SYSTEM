@@ -15,9 +15,9 @@
 
                         <div class="eyebrow">Placement & Advisory</div>
 
-                        <h1>Companies &amp; Assigned Students</h1>
+                        <h1>Companies &amp; Interns</h1>
 
-                        <p>View partner companies, assigned students, total logged hours, absence records, and weekly journals.</p>
+                        <p>Manage company placements and review each intern’s progress and records.</p>
                     </div>
                 </div>
 
@@ -33,7 +33,7 @@
 
                 <?php endif; ?>
 
- 
+                <div class="company-summary-grid" id="companySummary" aria-label="Company placement summary"></div>
 
                 <div class="section-card">
 
@@ -43,16 +43,18 @@
 
                             <div class="section-kicker">Partner Organizations</div>
 
-                            <h2 class="section-title">Companies &amp; Student Placement</h2>
-
-                            <p class="section-sub">Assign student interns to companies and monitor their progress, absences, and journals.</p>
+                            <h2 class="section-title">Company &amp; Intern Placement</h2>
+                            <p class="section-sub">Assign interns to partner companies and review their progress.</p>
 
                         </div>
 
  
 
-                        <div class="company-page-search">
-                            <input class="search" id="companyPageSearch" placeholder="Search company or student...">
+                        <div class="company-page-controls">
+                            <button class="small-btn primary company-global-assign-button" id="companyGlobalAssignButton" type="button" onclick="openInternAssignment()">+ Assign Intern</button>
+                            <div class="company-page-search">
+                                <input class="search" id="companyPageSearch" placeholder="Search company or student...">
+                            </div>
                         </div>
 
                     </div>

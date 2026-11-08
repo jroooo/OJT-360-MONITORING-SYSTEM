@@ -14,6 +14,8 @@ $studentAbsencesByStudentId = [];
 
 $studentJournalsByStudentId = [];
 
+$studentAttendanceByStudentId = [];
+
 $studentProgressPageError = "";
 
  
@@ -29,6 +31,8 @@ try {
             student.id AS student_db_id,
 
             registered_company.company_name AS company_name,
+
+            internship.required_hours AS required_hours,
 
             attendance_total.completed_minutes
 
@@ -52,11 +56,25 @@ try {
 
         LEFT JOIN (
 
-            SELECT student_pk, SUM(duration_minutes) AS completed_minutes
+            SELECT
+                a.student_pk,
+                SUM(
+                    CASE
+                        WHEN a.time_out IS NULL THEN 0
+                        ELSE FLOOR(GREATEST(
+                            0,
+                            TIMESTAMPDIFF(
+                                SECOND,
+                                a.time_in,
+                                a.time_out
+                            ) - COALESCE(a.break_seconds, 0)
+                        ) / 60)
+                    END
+                ) AS completed_minutes
 
-            FROM attendance
+            FROM attendance AS a
 
-            GROUP BY student_pk
+            GROUP BY a.student_pk
 
         ) AS attendance_total
 
@@ -78,7 +96,13 @@ try {
 
                     ? (float)$studentProgressRecord["completed_minutes"] / 60
 
-                    : 0.0
+                    : 0.0,
+
+                "requiredHours" => $studentProgressRecord["required_hours"] !== null
+
+                    ? (float)$studentProgressRecord["required_hours"]
+
+                    : null
 
             ];
 
@@ -116,11 +140,9 @@ try {
 
     $journalsQuery = $conn->query("
 
-        SELECT j.student_pk, j.week_number, j.start_date, j.end_date, j.journal_entry, j.status, j.feedback
-
-        FROM weekly_journals j
-
-        ORDER BY j.week_number DESC
+        SELECT j.id, j.student_pk, j.week_start, j.title, j.status
+        FROM journals j
+        ORDER BY j.week_start DESC
 
     ");
 
@@ -133,6 +155,43 @@ try {
         }
 
         $journalsQuery->free();
+
+    }
+
+    $attendanceQuery = $conn->query("
+
+        SELECT
+            student_pk,
+            company_name,
+            a.time_in AS actual_time_in,
+            time_out,
+            CASE
+                WHEN time_out IS NULL THEN NULL
+                ELSE FLOOR(GREATEST(
+                    0,
+                    TIMESTAMPDIFF(
+                        SECOND,
+                        a.time_in,
+                        a.time_out
+                    ) - COALESCE(break_seconds, 0)
+                ) / 60)
+            END AS logged_minutes
+
+        FROM attendance AS a
+
+        ORDER BY time_in DESC, id DESC
+
+    ");
+
+    if ($attendanceQuery) {
+
+        while ($attendance = $attendanceQuery->fetch_assoc()) {
+
+            $studentAttendanceByStudentId[$attendance["student_pk"]][] = $attendance;
+
+        }
+
+        $attendanceQuery->free();
 
     }
 

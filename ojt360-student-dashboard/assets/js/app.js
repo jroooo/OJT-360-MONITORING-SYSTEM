@@ -228,32 +228,20 @@ const T = {
       d.sessionTotal = total; d.sessionBreak = brk; d.sessionNet = Math.max(0, total - brk);
       d.todayNet += d.sessionNet; d.todayBreak += brk;
     }
-    d.completed = Math.min(d.required, s.completed_hours + d.sessionNet / 3600);
+    d.completed = s.completed_hours + Math.floor(d.sessionNet / 60) / 60;
     d.pct = d.required > 0 ? Math.min(100, d.completed / d.required * 100) : 0;
     return d;
   },
   paintButtons() {
     const st = this.state.status;
     $$('[data-track="timein"]').forEach(b => { b.disabled = st !== 'idle'; });
-    $$('[data-track="timeout"]').forEach(b => { b.disabled = st === 'idle'; });
-    $$('[data-track="break"]').forEach(b => {
-      b.disabled = st === 'idle';
-      const lbl = $('.lbl', b), ic = $('.btn-ic', b);
-      if (lbl) lbl.textContent = st === 'break' ? 'Resume Work' : 'Take a Break';
-      if (ic) ic.innerHTML = icon(st === 'break' ? 'play' : 'coffee');
-      b.classList.toggle('is-resume', st === 'break');
-    });
+    $$('[data-track="timeout"]').forEach(b => { b.disabled = st !== 'working'; });
     document.body.dataset.track = st;
   },
   async refresh() { const j = await getJSON('api/attendance.php?action=state'); if (j.ok) this.set(j.state); return j; },
   async act(action, extra = {}) {
     const j = await api('api/attendance.php', Object.assign({ action }, extra));
     if (j.state) this.set(j.state);
-    return j;
-  },
-  async breakToggle() {
-    const j = await this.act(this.state.status === 'break' ? 'break_end' : 'break_start');
-    toast(j.message || (j.ok ? 'Updated.' : 'Could not update.'), j.ok ? 'success' : 'error');
     return j;
   }
 };
@@ -322,14 +310,11 @@ $('#stopScan')?.addEventListener('click', async () => { await stopCamera(); setS
 $('#manualScan')?.addEventListener('click', () => { const v = $('#manualQr').value.trim(); if (v) { stopCamera(); submitQr(v); } else setScanStatus('Type or paste a code first.', 'bad'); });
 $('#manualQr')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#manualScan').click(); } });
 
-document.addEventListener('click', async e => {
+document.addEventListener('click', e => {
   const b = e.target.closest('[data-track]'); if (!b || b.disabled) return;
   const a = b.dataset.track;
   if (a === 'timein') openScan('timein');
-  else if (a === 'timeout') {
-    if (T.state.status === 'break') toast('Your break will be ended automatically when you time out.', 'info');
-    openScan('timeout');
-  } else if (a === 'break') { b.disabled = true; await T.breakToggle(); T.paintButtons(); }
+  else if (a === 'timeout') openScan('timeout');
 });
 // after Time Out, open the daily log form so the student can describe the work
 on('timeout', j => { if (j.log_id) { toast('Add what you worked on in today\'s daily log.', 'info', 2600); setTimeout(() => { location.href = 'daily_logs.php?edit=' + j.log_id; }, 900); } else location.reload(); });

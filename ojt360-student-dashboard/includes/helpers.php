@@ -94,12 +94,43 @@ function internship_for(int $uid): ?array {
     $stmt = db()->prepare('SELECT * FROM internships WHERE student_pk=? ORDER BY id DESC LIMIT 1');
     $stmt->execute([$uid]);
     $row = $stmt->fetch();
+    if ($row) {
+        $row['completed_hours'] = attendance_total_minutes($uid) / 60;
+    }
     return $row ?: null;
 }
 
-function adjust_completed_hours(int $uid, float $delta): void {
-    if ($delta == 0.0) return;
-    db()->prepare('UPDATE internships SET completed_hours = LEAST(required_hours, GREATEST(0, completed_hours + ?)) WHERE student_pk=?')->execute([$delta, $uid]);
+function attendance_total_minutes(int $uid): int {
+    $stmt = db()->prepare(
+        "SELECT COALESCE(SUM(
+            CASE
+                WHEN a.time_out IS NULL THEN 0
+                ELSE FLOOR(GREATEST(
+                    0,
+                    TIMESTAMPDIFF(
+                        SECOND,
+                        a.time_in,
+                        a.time_out
+                    ) - COALESCE(a.break_seconds, 0)
+                ) / 60)
+            END
+        ), 0)
+         FROM attendance a
+         WHERE a.student_pk = ?"
+    );
+    $stmt->execute([$uid]);
+    return (int)$stmt->fetchColumn();
+}
+
+function adjust_completed_hours(int $uid): void {
+    $minutes = attendance_total_minutes($uid);
+    db()->prepare(
+        'UPDATE internships
+         SET completed_hours = ?
+         WHERE student_pk = ?
+         ORDER BY id DESC
+         LIMIT 1'
+    )->execute([$minutes / 60, $uid]);
 }
 
 function add_activity(int $uid, string $text): void {
@@ -115,22 +146,41 @@ function add_notification(int $uid, string $title, string $message, string $icon
 const ATTENDANCE_SHIFT_SECONDS = 4 * 3600;
 const ATTENDANCE_DAILY_SECONDS = 2 * ATTENDANCE_SHIFT_SECONDS;
 
-function attendance_shift_start_times(string $date, array $settings): array {
-    $morning = strtotime($date . ' ' . substr($settings['shift_start'], 0, 5));
-    return ['morning' => $morning, 'afternoon' => $morning + 5 * 3600];
+function attendance_shift_start_times(string $date): array {
+    return [
+        'morning' => strtotime($date . ' 08:00:00'),
+        'afternoon' => strtotime($date . ' 13:00:00'),
+    ];
+}
+
+function attendance_recorded_time_in(int $scanTime): string {
+    $date = date('Y-m-d', $scanTime);
+    if ($scanTime >= strtotime($date . ' 12:00:00') && $scanTime <= strtotime($date . ' 13:30:00')) {
+        return $date . ' 13:00:00';
+    }
+    return date('Y-m-d H:i:s', $scanTime);
+}
+
+function attendance_recorded_time_out(string $timeIn, int $scanTime): ?string {
+    $timeInTimestamp = strtotime($timeIn);
+    if ($timeInTimestamp === false || $scanTime <= $timeInTimestamp) return null;
+
+    $date = date('Y-m-d', $timeInTimestamp);
+    $afternoon = date('H:i:s', $timeInTimestamp) >= '13:00:00';
+    $scheduledOut = $date . ($afternoon ? ' 17:00:00' : ' 12:00:00');
+    $cutoff = $afternoon ? strtotime($scheduledOut) : strtotime($date . ' 12:30:00');
+    $morningShiftStarted = $scanTime >= strtotime($date . ' 08:00:00');
+    $recordedOut = $scanTime <= $cutoff && ($afternoon || $morningShiftStarted)
+        ? strtotime($scheduledOut)
+        : $scanTime;
+
+    if ($recordedOut === false || $recordedOut <= $timeInTimestamp) return null;
+    return date('Y-m-d H:i:s', $recordedOut);
 }
 
 function active_session(int $uid): ?array {
     $stmt = db()->prepare(
-        'SELECT a.*,
-                COALESCE(
-                    (SELECT MIN(ev.event_time)
-                     FROM attendance_events ev
-                     WHERE ev.attendance_id = a.id
-                       AND ev.student_pk = a.student_pk
-                       AND ev.event_type = \'time_in\'),
-                    a.time_in
-                ) AS actual_time_in
+        'SELECT a.*, a.time_in AS actual_time_in
          FROM attendance a
          WHERE a.student_pk = ? AND a.time_out IS NULL
          ORDER BY a.time_in DESC
@@ -144,17 +194,18 @@ function active_session(int $uid): ?array {
 /* total / break / net seconds of one attendance row, live when the session is still open */
 function session_seconds(array $s, ?int $now = null): array {
     $now = $now ?? time();
-    $scheduledIn = strtotime((string)$s['time_in']);
-    $actualIn = strtotime((string)($s['actual_time_in'] ?? '')) ?: $scheduledIn;
+    $actualIn = strtotime((string)$s['time_in']);
+    if ($actualIn === false) $actualIn = $now;
     $end = !empty($s['time_out']) ? strtotime((string)$s['time_out']) : $now;
+    if ($end === false) $end = $actualIn;
     $break = (int)($s['break_seconds'] ?? 0);
     if (!empty($s['break_started_at']) && empty($s['time_out'])) {
-        $break += max(0, $now - strtotime((string)$s['break_started_at']));
+        $breakStarted = strtotime((string)$s['break_started_at']);
+        if ($breakStarted !== false) $break += max(0, $now - $breakStarted);
     }
     $total = max(0, $end - $actualIn);
-    $net = !empty($s['time_out']) && array_key_exists('duration_minutes', $s) && $s['duration_minutes'] !== null
-        ? min(ATTENDANCE_SHIFT_SECONDS, max(0, (int)$s['duration_minutes'] * 60))
-        : min(ATTENDANCE_SHIFT_SECONDS, max(0, $total - $break));
+    $break = min($total, $break);
+    $net = max(0, $total - $break);
     return ['start' => $actualIn, 'total' => $total, 'break' => $break, 'net' => $net];
 }
 
@@ -164,23 +215,23 @@ function log_attendance_event(int $attendanceId, int $uid, string $type, string 
 
 function today_events(int $uid): array {
     $stmt = db()->prepare(
-        'SELECT ev.event_type, ev.event_time, a.time_in AS scheduled_time_in
+        'SELECT ev.event_type, ev.event_time, a.time_in, a.time_out
          FROM attendance_events ev
-         LEFT JOIN attendance a ON a.id = ev.attendance_id AND a.student_pk = ev.student_pk
+         INNER JOIN attendance a ON a.id = ev.attendance_id AND a.student_pk = ev.student_pk
          WHERE ev.student_pk = ? AND DATE(ev.event_time) = ?
          ORDER BY ev.event_time ASC, ev.id ASC'
     );
     $stmt->execute([$uid, date('Y-m-d')]);
     $out = [];
     foreach ($stmt->fetchAll() as $r) {
-        $scheduledIn = $r['event_type'] === 'time_in' && !empty($r['scheduled_time_in'])
-            ? strtotime($r['scheduled_time_in'])
-            : false;
+        $eventTime = strtotime($r['event_time']);
+        $recordedTime = $r['event_type'] === 'time_in' ? $r['time_in'] : ($r['time_out'] ?? $r['event_time']);
+        $labelTime = strtotime((string)$recordedTime) ?: $eventTime;
         $out[] = [
             'type' => $r['event_type'],
-            'ts' => strtotime($r['event_time']),
-            'label' => date('h:i A', $scheduledIn ?: strtotime($r['event_time'])),
-            'actual_label' => date('h:i A', strtotime($r['event_time'])),
+            'ts' => $eventTime,
+            'label' => date('h:i A', $labelTime),
+            'actual_label' => date('h:i A', $eventTime),
         ];
     }
     return $out;
@@ -191,19 +242,19 @@ function tracker_state(int $uid): array {
     $s = active_session($uid);
     $state = ['status' => 'idle', 'server_now' => $now, 'session' => null];
     if ($s) {
-        $scheduledStart = strtotime((string)$s['time_in']);
-        $actualStart = strtotime((string)($s['actual_time_in'] ?? '')) ?: $scheduledStart;
+        $actualStart = strtotime((string)$s['time_in']);
+        if ($actualStart === false) $actualStart = $now;
         $shiftTargetSeconds = ATTENDANCE_SHIFT_SECONDS;
-        $shiftStarts = attendance_shift_start_times(date('Y-m-d', $scheduledStart), student_settings($uid));
-        $shift = $scheduledStart >= $shiftStarts['afternoon'] ? 'afternoon' : 'morning';
+        $shiftStarts = attendance_shift_start_times(date('Y-m-d', $actualStart));
+        $shift = $actualStart >= $shiftStarts['afternoon'] ? 'afternoon' : 'morning';
         $sessionTime = session_seconds($s, $now);
         $state['status'] = $now < $actualStart ? 'scheduled' : 'working';
         $state['session'] = [
             'id' => (int)$s['id'],
             'slot' => $shift,
-            'time_in_ts' => $scheduledStart,
+            'time_in_ts' => $actualStart,
             'time_in_label' => date('h:i A', $actualStart),
-            'scheduled_time_in_label' => date('h:i A', $scheduledStart),
+            'scheduled_time_in_label' => date('h:i A', $actualStart),
             'actual_time_in_ts' => $actualStart,
             'break_seconds' => (int)$s['break_seconds'],
             'required_seconds' => $shiftTargetSeconds,
@@ -212,17 +263,10 @@ function tracker_state(int $uid): array {
     }
     $today = date('Y-m-d');
     $stmt = db()->prepare(
-        "SELECT a.*,
-                COALESCE(
-                    (SELECT MIN(ev.event_time)
-                     FROM attendance_events ev
-                     WHERE ev.attendance_id = a.id
-                       AND ev.student_pk = a.student_pk
-                       AND ev.event_type = 'time_in'),
-                    a.time_in
-                ) AS actual_time_in
+        "SELECT a.*, a.time_in AS actual_time_in
          FROM attendance a
-         WHERE a.student_pk = ? AND DATE(a.time_out) = ?
+         WHERE a.student_pk = ?
+           AND DATE(a.time_in) = ?
          ORDER BY a.time_out"
     );
     $stmt->execute([$uid, $today]);
@@ -231,8 +275,7 @@ function tracker_state(int $uid): array {
     $lastCompletedToday = null;
     foreach ($stmt->fetchAll() as $completedSession) {
         $completedTime = session_seconds($completedSession, $now);
-        $creditedSeconds = (int)floor($completedTime['net'] / 3600) * 3600;
-        $todaySeconds = min(ATTENDANCE_DAILY_SECONDS, $todaySeconds + min(ATTENDANCE_SHIFT_SECONDS, $creditedSeconds));
+        $todaySeconds += $completedTime['net'];
         $todaySessions++;
         if ($lastCompletedToday === null || strtotime((string)$completedSession['time_out']) > $lastCompletedToday['time_out_ts']) {
             $lastCompletedToday = [
@@ -423,7 +466,11 @@ function student_attendance_statuses(int $uid, string $start, string $end): arra
 
     $internshipStart = (string)($internship['start_date'] ?? '');
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $internshipStart)) {
-        $earliest = db()->prepare('SELECT DATE(MIN(time_in)) FROM attendance WHERE student_pk=?');
+        $earliest = db()->prepare(
+            "SELECT DATE(MIN(a.time_in))
+             FROM attendance a
+             WHERE a.student_pk=?"
+        );
         $earliest->execute([$uid]);
         $internshipStart = (string)($earliest->fetchColumn() ?: '');
         if ($internshipStart === '') {
@@ -445,23 +492,19 @@ function student_attendance_statuses(int $uid, string $start, string $end): arra
     }
 
     $attendanceQuery = db()->prepare(
-        "SELECT a.*,
-                COALESCE(
-                    (SELECT MIN(ev.event_time)
-                     FROM attendance_events ev
-                     WHERE ev.attendance_id=a.id AND ev.student_pk=a.student_pk AND ev.event_type='time_in'),
-                    a.time_in
-                ) AS actual_time_in
+        "SELECT a.*, a.time_in AS actual_time_in
          FROM attendance a
-         WHERE a.student_pk=? AND a.time_in>=? AND a.time_in<?
-         ORDER BY a.time_in,a.id"
+         WHERE a.student_pk=?
+           AND a.time_in>=?
+           AND a.time_in<?
+         ORDER BY actual_time_in,a.id"
     );
     $attendanceQuery->execute([$uid, $internshipStart . ' 00:00:00', date('Y-m-d', strtotime($throughDate . ' +1 day')) . ' 00:00:00']);
     $workByDate = [];
     foreach ($attendanceQuery->fetchAll() as $row) {
-        $date = date('Y-m-d', strtotime((string)$row['time_in']));
+        $date = date('Y-m-d', strtotime((string)$row['actual_time_in']));
         if (!isset($workByDate[$date])) $workByDate[$date] = ['seconds' => 0, 'sessions' => 0];
-        $workByDate[$date]['seconds'] = min(ATTENDANCE_DAILY_SECONDS, $workByDate[$date]['seconds'] + session_seconds($row)['net']);
+        $workByDate[$date]['seconds'] += session_seconds($row)['net'];
         $workByDate[$date]['sessions']++;
     }
 
@@ -536,27 +579,19 @@ function student_attendance_statuses(int $uid, string $start, string $end): arra
 
 function report_data(int $uid, string $start, string $end): array {
     $q = db()->prepare(
-        "SELECT a.*,
-                COALESCE(
-                    (SELECT MIN(ev.event_time)
-                     FROM attendance_events ev
-                     WHERE ev.attendance_id = a.id
-                       AND ev.student_pk = a.student_pk
-                       AND ev.event_type = 'time_in'),
-                    a.time_in
-                ) AS actual_time_in
+        "SELECT a.*, a.time_in AS actual_time_in
          FROM attendance a
-         WHERE a.student_pk=? AND DATE(a.time_in) BETWEEN ? AND ?
-         ORDER BY a.time_in ASC, a.id ASC"
+         WHERE a.student_pk=?
+           AND DATE(a.time_in) BETWEEN ? AND ?
+         ORDER BY actual_time_in ASC, a.id ASC"
     );
     $q->execute([$uid, $start, $end]);
     $sessions = [];
     $daySeconds = [];
     foreach ($q->fetchAll() as $row) {
-        $day = date('Y-m-d', strtotime((string)$row['time_in']));
+        $day = date('Y-m-d', strtotime((string)$row['actual_time_in']));
         $seconds = session_seconds($row);
-        $remaining = max(0, ATTENDANCE_DAILY_SECONDS - ($daySeconds[$day] ?? 0));
-        $creditedSeconds = min($seconds['net'], $remaining);
+        $creditedSeconds = $seconds['net'];
         $daySeconds[$day] = ($daySeconds[$day] ?? 0) + $creditedSeconds;
         $sessions[] = [
             'log_date' => $day,
@@ -620,22 +655,29 @@ function attendance_insights(int $uid): array {
                         a.time_in
                     ) AS actual_time_in
              FROM attendance a
-             WHERE a.student_pk = ? AND DATE_FORMAT(a.time_in,'%Y-%m') = ?
-             ORDER BY a.time_in"
+             WHERE a.student_pk = ?
+               AND DATE_FORMAT(a.time_in, '%Y-%m') = ?
+             ORDER BY actual_time_in"
         );
         $stmt->execute([$uid, $month]);
         $total = 0; $ontime = 0; $break = 0; $byDay = []; $dailySeconds = [];
         foreach ($stmt->fetchAll() as $r) {
             $d = date('Y-m-d', strtotime($r['time_in']));
             $break += (int)$r['break_seconds'];
-            $scheduledStart = strtotime((string)$r['time_in']);
-            $actualStart = strtotime((string)$r['actual_time_in']) ?: $scheduledStart;
-            $isOnTime = $actualStart <= $scheduledStart + (int)$set['grace_minutes'] * 60;
+            $actualStart = strtotime((string)$r['actual_time_in']);
+            $shiftStarts = attendance_shift_start_times($d);
+            $scheduledStart = $actualStart >= $shiftStarts['afternoon']
+                ? $shiftStarts['afternoon']
+                : $shiftStarts['morning'];
+            $graceSeconds = $scheduledStart === $shiftStarts['afternoon']
+                ? 30 * 60
+                : (int)$set['grace_minutes'] * 60;
+            $isOnTime = $actualStart <= $scheduledStart + $graceSeconds;
             $total++;
             if ($isOnTime) $ontime++;
             $byDay[$d] = ($byDay[$d] ?? true) && $isOnTime;
             $duration = session_seconds($r);
-            $dailySeconds[$d] = min(ATTENDANCE_DAILY_SECONDS, ($dailySeconds[$d] ?? 0) + $duration['net']);
+            $dailySeconds[$d] = ($dailySeconds[$d] ?? 0) + $duration['net'];
         }
         $pct = $total ? (int)round($ontime / $total * 100) : 0;
         return [
@@ -652,25 +694,18 @@ function attendance_insights(int $uid): array {
     $prev = $calc(date('Y-m', strtotime('first day of last month')));
     $series = [];
     $q = db()->prepare(
-        "SELECT a.*,
-                COALESCE(
-                    (SELECT MIN(ev.event_time)
-                     FROM attendance_events ev
-                     WHERE ev.attendance_id = a.id
-                       AND ev.student_pk = a.student_pk
-                       AND ev.event_type = 'time_in'),
-                    a.time_in
-                ) AS actual_time_in
+        "SELECT a.*, a.time_in AS actual_time_in
          FROM attendance a
-         WHERE a.student_pk = ? AND a.time_in >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
-         ORDER BY a.time_in"
+         WHERE a.student_pk = ?
+           AND a.time_in >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
+         ORDER BY actual_time_in"
     );
     $q->execute([$uid]);
     $workMap = $breakMap = [];
     foreach ($q->fetchAll() as $r) {
-        $d = date('Y-m-d', strtotime($r['time_in']));
+        $d = date('Y-m-d', strtotime($r['actual_time_in']));
         $session = session_seconds($r);
-        $workMap[$d] = min(ATTENDANCE_DAILY_SECONDS, ($workMap[$d] ?? 0) + $session['net']);
+        $workMap[$d] = ($workMap[$d] ?? 0) + $session['net'];
         $breakMap[$d] = ($breakMap[$d] ?? 0) + $session['break'];
     }
     $work = $brk = $ot = $lt = [];

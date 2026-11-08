@@ -5,6 +5,17 @@
 session_start();
 
 $section = $_GET["section"] ?? "overview";
+$sectionTitles = [
+    "overview" => "Overview",
+    "interns" => "Interns",
+    "evaluations" => "Evaluations",
+    "messages" => "Messages",
+    "companies" => "Companies",
+    "support" => "Help & Support",
+    "settings" => "Settings",
+    "profile" => "Profile"
+];
+$sectionTitle = $sectionTitles[$section] ?? "Overview";
 
  
 
@@ -296,7 +307,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Employee Dashboard</title>
+    <title><?= htmlspecialchars($sectionTitle, ENT_QUOTES, "UTF-8") ?> | OJT 360</title>
 
     <link rel="stylesheet" href="style.css">
 
@@ -344,7 +355,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
         <nav class="sidebar-nav">
 
-            <a class="nav-link active" data-page="overview" href="employee_overview.php" aria-label="Overview" title="Overview">
+            <a class="nav-link active" data-page="overview" href="adviser_overview.php" aria-label="Overview" title="Overview">
 
                 <span class="nav-icon">▦</span>
 
@@ -354,7 +365,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
  
 
-            <a class="nav-link" data-page="interns" href="employee_interns.php" aria-label="Interns" title="Interns">
+            <a class="nav-link" data-page="interns" href="adviser_interns.php" aria-label="Interns" title="Interns">
 
                 <span class="nav-icon">♙</span>
 
@@ -364,7 +375,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
  
 
-            <a class="nav-link" data-page="evaluations" href="employee_evaluations.php" aria-label="Evaluations" title="Evaluations">
+            <a class="nav-link" data-page="evaluations" href="adviser_evaluations.php" aria-label="Evaluations" title="Evaluations">
 
                 <span class="nav-icon">▤</span>
 
@@ -374,7 +385,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
  
 
-            <a class="nav-link" data-page="messages" href="employee_messages.php" aria-label="Messages" title="Messages">
+            <a class="nav-link" data-page="messages" href="adviser_messages.php" aria-label="Messages" title="Messages">
 
                 <span class="nav-icon">➤</span>
 
@@ -384,7 +395,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
  
 
-            <a class="nav-link" data-page="companies" href="employee_companies.php" aria-label="Companies" title="Companies">
+            <a class="nav-link" data-page="companies" href="adviser_companies.php" aria-label="Companies" title="Companies">
 
                 <span class="nav-icon company-building-icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -485,7 +496,7 @@ require __DIR__ . "/includes/employee_company_data.php";
             </button>
  
             <div class="topbar-brand" aria-label="OJT360">
-                <div class="brand-text" id="topbarPageName" data-current-page="Employee">OJT360</div>
+                <div class="brand-text" id="topbarPageName" data-current-page="Adviser">OJT360</div>
             </div>
 
  
@@ -603,9 +614,11 @@ require __DIR__ . "/includes/employee_company_data.php";
 <button class="ai-launcher" id="aiLauncher" aria-label="Open OJT360 Assistant" aria-expanded="false" title="OJT360 Assistant">
 
     <span class="ai-launcher-logo" aria-hidden="true">
-        <span class="ai-logo-orbit ai-logo-orbit-blue"></span>
-        <span class="ai-logo-orbit ai-logo-orbit-green"></span>
-        <span class="ai-logo-orbit ai-logo-orbit-navy"></span>
+        <span class="ai-logo-orbits">
+            <span class="ai-logo-orbit ai-logo-orbit-blue"></span>
+            <span class="ai-logo-orbit ai-logo-orbit-green"></span>
+            <span class="ai-logo-orbit ai-logo-orbit-navy"></span>
+        </span>
         <span class="ai-logo-text">AI</span>
     </span>
 
@@ -796,7 +809,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
  
 
-        <form id="companyForm" method="post" action="dashboard(employee).php">
+        <form id="companyForm" method="post" action="adviser_companies.php">
 
             <input type="hidden" name="company_action" value="create">
 
@@ -1098,7 +1111,39 @@ require __DIR__ . "/includes/employee_company_data.php";
 
             </div>
 
- 
+            <h3 style="font-size: 14px; margin-bottom: 10px;">Attendance &amp; Logged Hours</h3>
+
+            <div class="table-wrap" style="margin-bottom: 24px;">
+
+                <table>
+
+                    <thead>
+
+                        <tr>
+
+                            <th>Date</th>
+
+                            <th>Company</th>
+
+                            <th>Time In</th>
+
+                            <th>Time Out</th>
+
+                            <th>Logged Hours</th>
+
+                        </tr>
+
+                    </thead>
+
+                    <tbody id="advAttendanceTable">
+
+                        <!-- Populated by JS -->
+
+                    </tbody>
+
+                </table>
+
+            </div>
 
             <h3 style="font-size: 14px; margin-bottom: 10px;">Absence Log &amp; Reasons</h3>
 
@@ -1142,13 +1187,9 @@ require __DIR__ . "/includes/employee_company_data.php";
 
                         <tr>
 
-                            <th>Week</th>
-
-                            <th>Journal Entry</th>
-
+                            <th>Week Starting</th>
+                            <th>Weekly Journal (click title to view draft)</th>
                             <th>Status</th>
-
-                            <th>Feedback</th>
 
                         </tr>
 
@@ -1474,9 +1515,9 @@ require __DIR__ . "/includes/employee_company_data.php";
 
             <div>
 
-                <div class="assignment-kicker">Student Placement</div>
+                <div class="assignment-kicker">Intern Placement</div>
 
-                <h2>Assign Student to Company</h2>
+                <h2>Assign Intern to Company</h2>
 
             </div>
 
@@ -1486,13 +1527,15 @@ require __DIR__ . "/includes/employee_company_data.php";
 
  
 
-        <form id="assignmentForm" method="post" action="dashboard(employee).php">
+        <form id="assignmentForm" method="post" action="adviser_companies.php">
 
             <input type="hidden" name="student_action" value="assign_company">
-
             <input type="hidden" id="assignmentStudentDbId" name="student_db_id" value="">
-
             <div class="assignment-body">
+                <div class="form-group" id="assignmentStudentPicker" hidden>
+                    <label class="form-label" for="assignmentStudentSelect">Select intern</label>
+                    <select class="field" id="assignmentStudentSelect"></select>
+                </div>
 
                 <div class="assignment-student">
 
@@ -1528,7 +1571,7 @@ require __DIR__ . "/includes/employee_company_data.php";
 
                 <button type="button" class="btn btn-light" data-close="assignmentModal">Cancel</button>
 
-                <button class="btn btn-primary" id="saveAssignmentBtn" type="submit">Assign Student</button>
+                <button class="btn btn-primary" id="saveAssignmentBtn" type="submit">Assign Intern</button>
 
             </div>
 
@@ -1548,7 +1591,7 @@ const CURRENT_EMPLOYEE_TYPE = "employee";
 
 const STUDENT_DATA_ERROR = <?= json_encode($internPageError !== "") ?>;
 
-const STUDENT_PROGRESS_DATA_ERROR = <?= json_encode($studentProgressPageError !== "") ?>;
+const STUDENT_PROGRESS_DATA_ERROR = <?= json_encode($studentProgressPageError, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
 
 const EVALUATION_DATA_ERROR = <?= json_encode($evaluationPageError !== "") ?>;
 
@@ -1634,7 +1677,7 @@ const placementCompanies = companies;
 
 let students = <?= json_encode(
 
-    array_map(static function (array $studentRecord) use ($studentProgressByStudentId, $studentAbsencesByStudentId, $studentJournalsByStudentId): array {
+    array_map(static function (array $studentRecord) use ($studentProgressByStudentId, $studentAbsencesByStudentId, $studentJournalsByStudentId, $studentAttendanceByStudentId): array {
 
         $stId = $studentRecord["id"];
 
@@ -1668,9 +1711,17 @@ let students = <?= json_encode(
 
             "completedHours" => $studentProgressByStudentId[$studentRecord["student_id"]]["completedHours"] ?? 0,
 
+            "requiredHours" => isset($studentProgressByStudentId[$studentRecord["student_id"]]["requiredHours"])
+
+                ? (float)$studentProgressByStudentId[$studentRecord["student_id"]]["requiredHours"]
+
+                : null,
+
             "absences" => $studentAbsencesByStudentId[$stId] ?? [],
 
             "journals" => $studentJournalsByStudentId[$stId] ?? [],
+
+            "attendance" => $studentAttendanceByStudentId[$stId] ?? [],
 
             "status" => !empty($studentProgressByStudentId[$studentRecord["student_id"]]["company"])
 

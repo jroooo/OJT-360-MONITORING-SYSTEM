@@ -317,7 +317,7 @@ if (
             ============================================= */
 
             header(
-                "Location: dashboard(employee).php"
+                "Location: adviser_overview.php"
             );
 
             exit;

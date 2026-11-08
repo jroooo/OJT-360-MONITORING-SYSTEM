@@ -62,8 +62,6 @@ const topbarPageName = document.getElementById("topbarPageName");
 
 const themeStorageKey = "ojt360-employee-theme-" + CURRENT_EMPLOYEE_ID;
 
-let keepSidebarOpen = false;
-
  
 
 function setDashboardTheme(theme){
@@ -198,14 +196,25 @@ document.addEventListener("keydown", (event) => {
     }
 });
 
-// Persist the sidebar and reduced-motion preferences on this browser.
+// Keep the Adviser sidebar preference consistent across its separate PHP pages.
+let sidebarPreferenceOpen = true;
+try {
+    const storedSidebarPreference = localStorage.getItem("ojt360-sidebar-open");
+    sidebarPreferenceOpen = storedSidebarPreference === null || storedSidebarPreference === "true";
+} catch (error) {
+    console.error("Unable to load the sidebar preference.", error);
+}
+sidebar?.classList.toggle("compact", !sidebarPreferenceOpen);
 if (settingsSidebarToggle) {
-    try {
-        settingsSidebarToggle.checked = localStorage.getItem("ojt360-sidebar-open") === "true";
-    } catch (error) {}
+    settingsSidebarToggle.checked = sidebarPreferenceOpen;
     settingsSidebarToggle.addEventListener("change", () => {
-        try { localStorage.setItem("ojt360-sidebar-open", String(settingsSidebarToggle.checked)); } catch (error) {}
-        sidebar?.classList.toggle("compact", !settingsSidebarToggle.checked);
+        sidebarPreferenceOpen = settingsSidebarToggle.checked;
+        sidebar?.classList.toggle("compact", !sidebarPreferenceOpen);
+        try {
+            localStorage.setItem("ojt360-sidebar-open", String(sidebarPreferenceOpen));
+        } catch (error) {
+            console.error("Unable to save the sidebar preference.", error);
+        }
     });
 }
 if (settingsMotionToggle) {
@@ -242,9 +251,6 @@ function openSidebar(){
     if(window.innerWidth > 1000){
 
         sidebar.classList.remove("compact");
-
-        keepSidebarOpen = true;
-
         settingsSidebarToggle.checked = true;
 
     } else {
@@ -300,7 +306,8 @@ function showPage(pageName){
 
  
 
-    topbarPageName.dataset.currentPage = pageLabels[pageName] || "Employee";
+    topbarPageName.dataset.currentPage = pageLabels[pageName] || "Adviser";
+    document.title = (pageLabels[pageName] || "Adviser") + " | OJT 360";
 
     closeSidebar();
 
@@ -323,10 +330,36 @@ if(["overview", "interns", "evaluations", "messages", "companies", "support", "s
 navLinks.forEach(link => {
 
     link.addEventListener("click", event => {
-        // Sidebar items are links to separate PHP entry points. Allow normal navigation.
-        if (link.tagName.toLowerCase() !== "a") showPage(link.dataset.page);
+        if (link.tagName.toLowerCase() !== "a") {
+            showPage(link.dataset.page);
+            return;
+        }
+
+        const pageName = link.dataset.page;
+        if (!pageName || !document.getElementById("page-" + pageName)) return;
+
+        event.preventDefault();
+        if (window.location.pathname !== new URL(link.href, window.location.href).pathname) {
+            window.history.pushState({ adviserSection: pageName }, "", link.href);
+        }
+        showPage(pageName);
     });
 
+});
+
+window.addEventListener("popstate", () => {
+    const sectionByPath = {
+        "adviser_overview.php": "overview",
+        "adviser_interns.php": "interns",
+        "adviser_evaluations.php": "evaluations",
+        "adviser_messages.php": "messages",
+        "adviser_companies.php": "companies",
+        "employee_support.php": "support",
+        "employee_settings.php": "settings",
+        "employee_profile.php": "profile"
+    };
+    const section = sectionByPath[window.location.pathname.split("/").pop()] || "overview";
+    showPage(section);
 });
 
  
@@ -335,9 +368,14 @@ menuToggle.addEventListener("click", () => {
 
     if(window.innerWidth > 1000){
 
-        keepSidebarOpen = sidebar.classList.contains("compact");
-
-        sidebar.classList.toggle("compact", !keepSidebarOpen);
+        sidebarPreferenceOpen = sidebar.classList.contains("compact");
+        sidebar.classList.toggle("compact", !sidebarPreferenceOpen);
+        if (settingsSidebarToggle) settingsSidebarToggle.checked = sidebarPreferenceOpen;
+        try {
+            localStorage.setItem("ojt360-sidebar-open", String(sidebarPreferenceOpen));
+        } catch (error) {
+            console.error("Unable to save the sidebar preference.", error);
+        }
 
         return;
 
@@ -368,10 +406,12 @@ sidebarOverlay.addEventListener("click", closeSidebar);
  
 
 function renderCompaniesPage(){
-
     const container = document.getElementById("companyPlacementContainer");
-
+    const summary = document.getElementById("companySummary");
+    const assignButton = document.getElementById("companyGlobalAssignButton");
     const search = (document.getElementById("companyPageSearch")?.value || "").toLowerCase().trim();
+
+    assignButton.disabled = students.length === 0 || placementCompanies.length === 0;
 
  
 
@@ -380,21 +420,55 @@ function renderCompaniesPage(){
         return;
     }
 
-    if(!placementCompanies.length){
-        container.innerHTML = `<div class="empty">No companies registered yet.</div>`;
+    if(STUDENT_PROGRESS_DATA_ERROR){
+        container.innerHTML = `<div class="interns-flash error" role="alert">${escapeHtml(STUDENT_PROGRESS_DATA_ERROR)}</div>`;
         return;
-
     }
 
- 
+    const assignedStudents = students.filter(student => Boolean(student.company));
+    const unassignedInterns = students.filter(student => !student.company).length;
+    const totalJournals = assignedStudents.reduce((total, student) => total + (student.journals || []).length, 0);
+    const completedJournals = assignedStudents.reduce((total, student) =>
+        total + (student.journals || []).filter(journal =>
+            ["submitted", "reviewed"].includes(String(journal.status || "").toLowerCase())
+        ).length, 0
+    );
+    const journalCompletion = totalJournals > 0 ? Math.round((completedJournals / totalJournals) * 100) : 0;
+
+    summary.innerHTML = `
+        <article class="company-summary-card">
+            <span>Partner Companies</span>
+            <strong>${placementCompanies.length}</strong>
+        </article>
+        <article class="company-summary-card">
+            <span>Assigned Interns</span>
+            <strong>${assignedStudents.length}</strong>
+        </article>
+        <article class="company-summary-card">
+            <span>Unassigned Interns</span>
+            <strong>${unassignedInterns}</strong>
+        </article>
+        <article class="company-summary-card">
+            <span>Journal Completion</span>
+            <strong>${journalCompletion}%</strong>
+            <small>${completedJournals} of ${totalJournals} journals submitted or reviewed</small>
+        </article>
+    `;
+
+    if(!placementCompanies.length){
+        container.innerHTML = `<div class="empty company-no-companies">No partner companies registered yet. Add a company to start assigning interns.</div>`;
+        return;
+    }
 
     let html = "";
 
- 
-
     placementCompanies.forEach(company => {
-
-        const companyStudents = students.filter(s => s.company === company.name);
+        const companyStudents = students.filter(s =>
+            String(s.company || "").trim().toLowerCase() === String(company.name || "").trim().toLowerCase()
+        );
+        const companyHours = companyStudents.reduce((total, student) => total + Number(student.completedHours || 0), 0);
+        const companyAbsences = companyStudents.reduce((total, student) => total + (student.absences || []).length, 0);
+        const companyJournals = companyStudents.reduce((total, student) => total + (student.journals || []).length, 0);
         
         const matchesCompany = [
             company.name,
@@ -404,7 +478,10 @@ function renderCompaniesPage(){
             company.email
         ].some(value => String(value || "").toLowerCase().includes(search));
 
-        const matchesStudent = companyStudents.some(s => s.name.toLowerCase().includes(search) || s.studentId.toLowerCase().includes(search));
+        const matchesStudent = companyStudents.some(student =>
+            [student.name, student.studentId, student.program, student.email]
+                .some(value => String(value || "").toLowerCase().includes(search))
+        );
 
         
 
@@ -430,7 +507,8 @@ function renderCompaniesPage(){
 
                                 <p class="section-sub company-placement-meta">
                                     Representative: ${escapeHtml(company.representative)} (${escapeHtml(company.position)})
-                                    | Contact: ${escapeHtml(company.phone)} | ${escapeHtml(company.email)}
+                                    | Contact: ${escapeHtml(company.phone)}
+                                    | <a href="mailto:${escapeHtml(company.email)}">${escapeHtml(company.email)}</a>
                                 </p>
 
                             </div>
@@ -441,12 +519,11 @@ function renderCompaniesPage(){
 
                 </div>
 
- 
-
-                <div class="company-placement-count">
-
-                    Assigned Student Interns (${companyStudents.length})
-
+                <div class="company-placement-summary" aria-label="${escapeHtml(company.name)} internship summary">
+                    <span><strong>${companyStudents.length}</strong> ${companyStudents.length === 1 ? "Intern" : "Interns"}</span>
+                    <span><strong>${companyHours.toFixed(1)}</strong> hrs</span>
+                    <span><strong>${companyAbsences}</strong> ${companyAbsences === 1 ? "Absence" : "Absences"}</span>
+                    <span><strong>${companyJournals}</strong> ${companyJournals === 1 ? "Journal" : "Journals"}</span>
                 </div>
 
  
@@ -459,7 +536,7 @@ function renderCompaniesPage(){
 
                             <tr>
 
-                                <th>Student Name</th>
+                                <th>Intern Name</th>
 
                                 <th>Student ID</th>
 
@@ -483,7 +560,7 @@ function renderCompaniesPage(){
 
                                 <tr>
 
-                                    <td colspan="7"><div class="empty company-placement-empty">No students assigned to this company yet.</div></td>
+                                    <td colspan="7"><div class="empty company-placement-empty">No interns assigned yet.</div></td>
 
                                 </tr>
 
@@ -507,7 +584,9 @@ function renderCompaniesPage(){
 
                                     <td>${escapeHtml(student.program)}</td>
 
-                                    <td><strong>${Number(student.completedHours).toFixed(1)} hrs</strong></td>
+                                    <td>
+                                                        ${renderInternProgress(student)}
+                                    </td>
 
                                     <td>
 
@@ -523,7 +602,7 @@ function renderCompaniesPage(){
 
                                         <span class="badge blue">
 
-                                            ${student.journals.length} journal(s)
+                                            ${student.journals.length} ${student.journals.length === 1 ? "journal" : "journals"}
 
                                         </span>
 
@@ -533,9 +612,9 @@ function renderCompaniesPage(){
 
                                         <div class="action-row">
 
-                                            <button class="small-btn" type="button" onclick="openStudentAdviserRecord(${student.id})">View Record</button>
+                                            <button class="small-btn primary company-view-record" type="button" onclick="openStudentAdviserRecord(${student.id})">View Record</button>
 
-                                            <button class="small-btn" type="button" onclick="assignCompany(${student.id})">Reassign</button>
+                                            <button class="small-btn company-reassign" type="button" onclick="assignCompany(${student.id})">Reassign</button>
 
                                         </div>
 
@@ -559,9 +638,14 @@ function renderCompaniesPage(){
 
  
 
-    const unassignedStudents = students.filter(s => !s.company);
-
-    if(unassignedStudents.length > 0 && (!search || "unassigned".includes(search))){
+    const allUnassignedStudents = students.filter(student => !student.company);
+    const unassignedStudents = allUnassignedStudents.filter(student =>
+        !search ||
+        "unassigned".includes(search) ||
+        [student.name, student.studentId, student.program, student.email]
+            .some(value => String(value || "").toLowerCase().includes(search))
+    );
+    if(unassignedStudents.length > 0){
 
         html += `
 
@@ -571,9 +655,9 @@ function renderCompaniesPage(){
 
                     <div>
 
-                        <h3 class="company-unassigned-title">Unassigned Student Interns (${unassignedStudents.length})</h3>
+                        <h3 class="company-unassigned-title">Unassigned Interns (${unassignedStudents.length})</h3>
 
-                        <p class="section-sub">Students currently waiting for company assignment.</p>
+                        <p class="section-sub">Interns currently waiting for company assignment.</p>
 
                     </div>
 
@@ -587,15 +671,13 @@ function renderCompaniesPage(){
 
                             <tr>
 
-                                <th>Student Name</th>
+                                <th>Intern Name</th>
 
                                 <th>Student ID</th>
 
                                 <th>Program</th>
 
                                 <th>Institutional Email</th>
-
-                                <th>Action</th>
 
                             </tr>
 
@@ -625,12 +707,6 @@ function renderCompaniesPage(){
 
                                     <td>${escapeHtml(s.email)}</td>
 
-                                    <td>
-
-                                        <button class="small-btn primary" type="button" onclick="assignCompany(${s.id})">Assign to Company</button>
-
-                                    </td>
-
                                 </tr>
 
                             `).join("")}
@@ -649,11 +725,36 @@ function renderCompaniesPage(){
 
  
 
-    container.innerHTML = html || `<div class="empty">No matching companies or students found.</div>`;
+    container.innerHTML = html || `<div class="empty">No matching companies or interns found.</div>`;
 
 }
 
- 
+function renderInternProgress(student){
+    const completedHours = Number(student.completedHours || 0);
+    const requiredHours = Number(student.requiredHours || 0);
+    const hasAbsences = (student.absences || []).length > 0;
+    const isComplete = requiredHours > 0 && completedHours >= requiredHours;
+    const status = isComplete ? "Completed" : hasAbsences ? "Needs Attention" : "In Progress";
+    const statusClass = isComplete ? "green" : hasAbsences ? "yellow" : "blue";
+    const hours = requiredHours > 0
+        ? `${completedHours.toFixed(1)} / ${requiredHours.toFixed(1)} hrs`
+        : `${completedHours.toFixed(1)} hrs`;
+
+    return `<strong>${hours}</strong><br><span class="badge ${statusClass} company-progress-status">${status}</span>`;
+}
+
+function formatAttendanceDate(value){
+    const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(!match) return "—";
+
+    const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+    return new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "2-digit",
+        year: "numeric",
+        timeZone: "UTC"
+    }).format(date);
+}
 
 document.getElementById("companyPageSearch")?.addEventListener("input", renderCompaniesPage);
 
@@ -683,7 +784,27 @@ function openStudentAdviserRecord(studentId){
 
     document.getElementById("advCompletedHours").textContent = Number(student.completedHours).toFixed(1) + " hrs";
 
- 
+    const studentAttendance = student.attendance || [];
+    const attendanceTbody = document.getElementById("advAttendanceTable");
+    if(studentAttendance.length === 0){
+        attendanceTbody.innerHTML = `<tr><td colspan="5"><div class="empty" style="padding:10px;">No attendance records logged.</div></td></tr>`;
+    } else {
+        attendanceTbody.innerHTML = studentAttendance.map(attendance => {
+            const timeIn = String(attendance.actual_time_in || attendance.time_in || "");
+            const timeOut = String(attendance.time_out || "");
+            const loggedMinutes = attendance.logged_minutes === null ? null : Number(attendance.logged_minutes);
+
+            return `
+                <tr>
+                    <td>${formatAttendanceDate(timeIn)}</td>
+                    <td>${escapeHtml(attendance.company_name || "—")}</td>
+                    <td>${escapeHtml(timeIn.slice(11, 16) || "—")}</td>
+                    <td>${timeOut ? escapeHtml(timeOut.slice(11, 16) || "—") : "In progress"}</td>
+                    <td>${loggedMinutes === null ? "—" : (loggedMinutes / 60).toFixed(2) + " hrs"}</td>
+                </tr>
+            `;
+        }).join("");
+    }
 
     const absTbody = document.getElementById("advAbsenceTable");
 
@@ -715,29 +836,22 @@ function openStudentAdviserRecord(studentId){
 
     if(!student.journals || student.journals.length === 0){
 
-        jnlTbody.innerHTML = `<tr><td colspan="4"><div class="empty" style="padding:10px;">No weekly journals submitted yet.</div></td></tr>`;
+        jnlTbody.innerHTML = `<tr><td colspan="3"><div class="empty" style="padding:10px;">No weekly journals submitted yet.</div></td></tr>`;
 
     } else {
 
-        jnlTbody.innerHTML = student.journals.map(j => `
-
+        jnlTbody.innerHTML = student.journals.map(journal => `
             <tr>
-
-                <td><strong>Week ${escapeHtml(j.week_number)}</strong><br><small>${escapeHtml(j.start_date)} to ${escapeHtml(j.end_date)}</small></td>
-
-                <td>${escapeHtml(j.journal_entry)}</td>
-
-                <td><span class="badge ${j.status === 'Approved' ? 'green' : 'yellow'}">${escapeHtml(j.status || 'Pending')}</span></td>
-
-                <td>${escapeHtml(j.feedback || 'None')}</td>
-
+                <td>${escapeHtml(journal.week_start)}</td>
+                <td>
+                    <a class="journal-draft-toggle" href="adviser_journal.php?journal_id=${Number(journal.id)}">
+                        ${escapeHtml(journal.title)}
+                    </a>
+                </td>
+                <td><span class="badge ${journal.status === "reviewed" ? "green" : "yellow"}">${escapeHtml(journal.status || "draft")}</span></td>
             </tr>
-
         `).join("");
-
     }
-
- 
 
     document.getElementById("studentAdviserRecordModal").classList.add("show");
 
@@ -756,44 +870,66 @@ function openStudentAdviserRecord(studentId){
 function assignCompany(id){
 
     const student = students.find(s => s.id === id);
-
     if(!student) return;
 
- 
+    document.getElementById("assignmentStudentPicker").hidden = true;
+    setAssignmentStudent(student.id);
 
     const registeredCompanies = placementCompanies;
-
     const companySelect = document.getElementById("assignmentCompany");
-
- 
-
-    document.getElementById("assignmentStudentDbId").value = student.id;
-
-    document.getElementById("assignmentStudentAvatar").textContent = initials(student.name);
-
-    document.getElementById("assignmentStudentName").textContent = student.name;
-
-    document.getElementById("assignmentStudentId").textContent = "Student ID: " + student.studentId;
-
-    document.getElementById("assignmentStudentProgram").textContent = student.program;
-
-    
 
     companySelect.innerHTML = `<option value="">Select Company</option>` +
 
         registeredCompanies.map(company =>
 
-            `<option value="${escapeHtml(company.name)}" ${student.company === company.name ? 'selected' : ''}>${escapeHtml(company.name)}</option>`
+            `<option value="${escapeHtml(company.name)}">${escapeHtml(company.name)}</option>`
 
         ).join("");
 
- 
+    companySelect.value = student.company || "";
 
     document.getElementById("saveAssignmentBtn").disabled = registeredCompanies.length === 0;
 
     document.getElementById("assignmentModal").classList.add("show");
 
 }
+
+function setAssignmentStudent(studentId){
+    const student = students.find(record => record.id === Number(studentId));
+    if(!student) return;
+
+    document.getElementById("assignmentStudentDbId").value = student.id;
+    document.getElementById("assignmentStudentAvatar").textContent = initials(student.name);
+    document.getElementById("assignmentStudentName").textContent = student.name;
+    document.getElementById("assignmentStudentId").textContent = "Student ID: " + student.studentId;
+    document.getElementById("assignmentStudentProgram").textContent = student.program;
+}
+
+function openInternAssignment(){
+    if(!students.length || !placementCompanies.length) return;
+    const studentPicker = document.getElementById("assignmentStudentSelect");
+    studentPicker.innerHTML = students.map(student =>
+        `<option value="${student.id}">${escapeHtml(student.name)} (${escapeHtml(student.studentId)})</option>`
+    ).join("");
+    const firstUnassignedStudent = students.find(student => !student.company);
+    studentPicker.value = String(firstUnassignedStudent ? firstUnassignedStudent.id : students[0].id);
+    setAssignmentStudent(studentPicker.value);
+
+    document.getElementById("assignmentStudentPicker").hidden = false;
+    const companySelect = document.getElementById("assignmentCompany");
+    companySelect.innerHTML = `<option value="">Select Company</option>` + placementCompanies.map(record =>
+        `<option value="${escapeHtml(record.name)}">${escapeHtml(record.name)}</option>`
+    ).join("");
+    companySelect.value = students.find(student => student.id === Number(studentPicker.value))?.company || "";
+    document.getElementById("saveAssignmentBtn").disabled = placementCompanies.length === 0;
+    document.getElementById("assignmentModal").classList.add("show");
+}
+
+document.getElementById("assignmentStudentSelect").addEventListener("change", event => {
+    setAssignmentStudent(event.target.value);
+    const student = students.find(record => record.id === Number(event.target.value));
+    document.getElementById("assignmentCompany").value = student?.company || "";
+});
 
  
 

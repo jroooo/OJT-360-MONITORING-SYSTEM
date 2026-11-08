@@ -664,11 +664,10 @@ if (
 
     $_SESSION["employee_evaluations_flash"] = $evaluationFlash;
 
-    header("Location: dashboard(employee).php?section=evaluations", true, 303);
+    header("Location: adviser_evaluations.php", true, 303);
 
     exit;
 
 }
 
  
-

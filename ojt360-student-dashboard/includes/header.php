@@ -15,6 +15,9 @@ if (!empty($user['profile_image'])) {
 $unreadStmt = db()->prepare('SELECT COUNT(*) FROM notifications WHERE student_pk=? AND is_read=0');
 $unreadStmt->execute([$uid]);
 $unread = (int)$unreadStmt->fetchColumn();
+$notificationStmt = db()->prepare('SELECT id,title,message,is_read,created_at FROM notifications WHERE student_pk=? ORDER BY created_at DESC LIMIT 30');
+$notificationStmt->execute([$uid]);
+$headerNotifications = $notificationStmt->fetchAll();
 $trackerState = tracker_state($uid);
 $settingsRow = student_settings($uid);
 $page_title = $page_title ?? 'Dashboard';
@@ -40,7 +43,7 @@ $bodyClass = 'page-' . preg_replace('/[^a-z0-9]+/', '-', strtolower(basename($pa
 <script>(function(){try{var t=localStorage.getItem('ojt360-theme');if(!t){t=localStorage.getItem('ojt360-dark')==='1'?'dark':'light';}var d=t==='dark'||(t==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);var h=document.documentElement;h.setAttribute('data-theme',d?'dark':'light');h.setAttribute('data-theme-pref',t);if(localStorage.getItem('ojt360-sidebar')==='collapsed')h.classList.add('sb-collapsed');if(localStorage.getItem('ojt360-motion')==='reduce')h.classList.add('reduce-motion');}catch(e){}})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/app.css?v=24">
+<link rel="stylesheet" href="assets/css/app.css?v=25">
 <script>window.OJT360=<?= json_encode([
     'csrf' => csrf_token(),
     'userId' => $uid,
@@ -88,7 +91,43 @@ $bodyClass = 'page-' . preg_replace('/[^a-z0-9]+/', '-', strtolower(basename($pa
     <a class="track-chip" id="trackChip" href="index.php" hidden><i class="live-dot"></i><span data-chip-label>Working</span><b data-chip-time>00:00:00</b></a>
     <span class="net-pill" id="netPill"><i></i><span>Online</span></span>
     <button type="button" class="icon-btn" id="themeQuick" aria-label="Switch light or dark mode" title="Switch light / dark"><span class="ic-sun"><?= icon('sun') ?></span><span class="ic-moon"><?= icon('moon') ?></span></button>
-    <a class="icon-btn notification-btn" href="notifications.php" title="Notifications" aria-label="Notifications"><?= icon('bell') ?><?php if ($unread > 0): ?><b class="notif-dot"><?= $unread > 9 ? '9+' : $unread ?></b><?php endif; ?></a>
+    <div class="notification-menu">
+      <button type="button" class="icon-btn notification-btn" id="notificationButton" title="Notifications" aria-label="Notifications" aria-controls="notificationPopover" aria-expanded="false">
+        <?= icon('bell') ?>
+        <b class="notif-dot" id="notificationBadge"<?= $unread === 0 ? ' hidden' : '' ?>><?= $unread > 9 ? '9+' : $unread ?></b>
+      </button>
+      <section class="notification-popover" id="notificationPopover" aria-label="Notifications" hidden>
+        <div class="notification-popover-head">
+          <strong>Notifications</strong>
+          <button type="button" class="notification-mark-read" id="notificationReadAll"<?= $unread === 0 ? ' disabled' : '' ?>>Mark all read</button>
+        </div>
+        <div class="notification-popover-list" id="notificationPopoverList">
+          <?php foreach ($headerNotifications as $notification): ?>
+            <?php
+              $created = new DateTimeImmutable((string)$notification['created_at']);
+              $ageSeconds = max(0, time() - $created->getTimestamp());
+              if ($ageSeconds < 60) $ageLabel = 'Just now';
+              elseif ($ageSeconds < 3600) $ageLabel = (int)floor($ageSeconds / 60) . ' minutes ago';
+              elseif ($ageSeconds < 86400) $ageLabel = (int)floor($ageSeconds / 3600) . ' hours ago';
+              elseif ($ageSeconds < 604800) $ageLabel = (int)floor($ageSeconds / 86400) . ' days ago';
+              else $ageLabel = $created->format('m/d/Y');
+            ?>
+            <a class="notification-popover-item<?= empty($notification['is_read']) ? ' unread' : '' ?>" href="notifications.php#notification-<?= (int)$notification['id'] ?>" data-notification-id="<?= (int)$notification['id'] ?>">
+              <span class="notification-popover-icon"><?= icon('mail') ?></span>
+              <span class="notification-popover-copy">
+                <strong><?= e($notification['title']) ?></strong>
+                <span><?= e($notification['message']) ?></span>
+                <small><?= e($ageLabel) ?></small>
+              </span>
+            </a>
+          <?php endforeach; ?>
+          <?php if (!$headerNotifications): ?>
+            <p class="notification-popover-empty">You're all caught up.</p>
+          <?php endif; ?>
+        </div>
+        <a class="notification-popover-all" href="notifications.php">View all notifications</a>
+      </section>
+    </div>
     <div class="profile-menu">
       <button type="button" class="profile-chip" id="profileMenuButton" aria-label="Open profile menu" aria-haspopup="true" aria-expanded="false"><div class="avatar small" data-avatar><?= $avatarInner ?></div></button>
       <div class="profile-dropdown" id="profileDropdown" role="menu">
