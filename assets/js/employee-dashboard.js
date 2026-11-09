@@ -834,13 +834,15 @@ function openStudentAdviserRecord(studentId){
 
     const jnlTbody = document.getElementById("advJournalTable");
 
-    if(!student.journals || student.journals.length === 0){
+    const studentJournals = student.journals || [];
+    const studentJournalSubmissions = student.journalSubmissions || [];
+    if(studentJournals.length === 0 && studentJournalSubmissions.length === 0){
 
-        jnlTbody.innerHTML = `<tr><td colspan="3"><div class="empty" style="padding:10px;">No weekly journals submitted yet.</div></td></tr>`;
+        jnlTbody.innerHTML = `<tr><td colspan="4"><div class="empty" style="padding:10px;">No weekly journals submitted yet.</div></td></tr>`;
 
     } else {
 
-        jnlTbody.innerHTML = student.journals.map(journal => `
+        const draftRows = studentJournals.map(journal => `
             <tr>
                 <td>${escapeHtml(journal.week_start)}</td>
                 <td>
@@ -849,8 +851,22 @@ function openStudentAdviserRecord(studentId){
                     </a>
                 </td>
                 <td><span class="badge ${journal.status === "reviewed" ? "green" : "yellow"}">${escapeHtml(journal.status || "draft")}</span></td>
+                <td>—</td>
             </tr>
         `).join("");
+        const submissionRows = studentJournalSubmissions.map(submission => {
+            const submissionStatus = String(submission.status || "pending").toLowerCase();
+            const statusClass = submissionStatus === "reviewed" ? "green" : submissionStatus === "returned" ? "red" : "yellow";
+            return `
+            <tr>
+                <td>${escapeHtml(formatAttendanceDate(submission.submitted_at))}</td>
+                <td>${escapeHtml(submission.title)}</td>
+                <td><span class="badge ${statusClass}">${escapeHtml(submission.status || "pending")}</span></td>
+                <td><a class="journal-draft-toggle" href="api/employee_journal_pdf.php?id=${Number(submission.id)}" target="_blank" rel="noopener noreferrer">View PDF</a></td>
+            </tr>
+        `;
+        }).join("");
+        jnlTbody.innerHTML = draftRows + submissionRows;
     }
 
     document.getElementById("studentAdviserRecordModal").classList.add("show");

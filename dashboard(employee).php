@@ -1187,9 +1187,10 @@ require __DIR__ . "/includes/employee_company_data.php";
 
                         <tr>
 
-                            <th>Week Starting</th>
-                            <th>Weekly Journal (click title to view draft)</th>
+                            <th>Week / Submitted</th>
+                            <th>Weekly Journal</th>
                             <th>Status</th>
+                            <th>PDF</th>
 
                         </tr>
 
@@ -1677,7 +1678,7 @@ const placementCompanies = companies;
 
 let students = <?= json_encode(
 
-    array_map(static function (array $studentRecord) use ($studentProgressByStudentId, $studentAbsencesByStudentId, $studentJournalsByStudentId, $studentAttendanceByStudentId): array {
+    array_map(static function (array $studentRecord) use ($studentProgressByStudentId, $studentAbsencesByStudentId, $studentJournalsByStudentId, $studentJournalSubmissionsByStudentId, $studentAttendanceByStudentId): array {
 
         $stId = $studentRecord["id"];
 
@@ -1720,6 +1721,8 @@ let students = <?= json_encode(
             "absences" => $studentAbsencesByStudentId[$stId] ?? [],
 
             "journals" => $studentJournalsByStudentId[$stId] ?? [],
+
+            "journalSubmissions" => $studentJournalSubmissionsByStudentId[$stId] ?? [],
 
             "attendance" => $studentAttendanceByStudentId[$stId] ?? [],
 

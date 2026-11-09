@@ -14,6 +14,8 @@ $studentAbsencesByStudentId = [];
 
 $studentJournalsByStudentId = [];
 
+$studentJournalSubmissionsByStudentId = [];
+
 $studentAttendanceByStudentId = [];
 
 $studentProgressPageError = "";
@@ -155,6 +157,34 @@ try {
         }
 
         $journalsQuery->free();
+
+    }
+
+    $journalSubmissionsQuery = $conn->query("
+
+        SELECT id, student_pk, title, status, submitted_at
+
+        FROM journal_submissions
+
+        WHERE submission_type = 'weekly'
+
+            AND pdf_file IS NOT NULL
+
+            AND pdf_file <> ''
+
+        ORDER BY submitted_at DESC, id DESC
+
+    ");
+
+    if ($journalSubmissionsQuery) {
+
+        while ($submission = $journalSubmissionsQuery->fetch_assoc()) {
+
+            $studentJournalSubmissionsByStudentId[$submission["student_pk"]][] = $submission;
+
+        }
+
+        $journalSubmissionsQuery->free();
 
     }
 

@@ -185,6 +185,7 @@ button{cursor:pointer}
 
 @media(prefers-reduced-motion:reduce){
     .brand-mark,.ai-logo-orbits{animation:none}
+    .page.active{animation:none}
 }
 
 .icon-button{
@@ -223,6 +224,8 @@ button{cursor:pointer}
     display:flex;align-items:flex-start;gap:11px;padding:14px 16px;border-bottom:1px solid var(--line-2);
     cursor:pointer;transition:background .15s;
 }
+.notification-item-link{color:inherit;text-decoration:none}
+.notification-item-link:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
 .notification-item:last-child{border-bottom:0}
 .notification-item:hover{background:var(--page)}
 .notification-item.unread{background:#f0f8ff}
@@ -263,8 +266,9 @@ body[data-theme="dark"] #themeToggleIcon .theme-icon-moon{display:block}
 ========================== */
 .content{width:100%;max-width:1440px;margin:0 auto;padding:32px 34px 56px}
 .page{display:none}
-.page.active{display:block;animation:fade .26s ease-out}
-@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.page.active{display:block;animation:page-enter .32s cubic-bezier(.2,.7,.2,1) both}
+@keyframes page-enter{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+html.reduce-motion .page.active{animation:none}
 
 .eyebrow{text-transform:uppercase;font-size:10.5px;font-weight:800;letter-spacing:2.2px;color:var(--blue);margin-bottom:10px}
 

@@ -34,15 +34,39 @@
 
     let companyNotifications = [];
 
+    let journalNotifications = [];
+
     const seenCompanyMessageIds = new Set();
 
     const toastedCompanyMessageIds = new Set();
 
+    const seenJournalSubmissionIds = new Set();
+
+    const knownJournalSubmissionIds = new Set();
+
     let initialCompanyNotificationsLoaded = false;
+
+    let initialJournalNotificationsLoaded = false;
 
     let companyNotificationPoll = null;
 
+    let journalNotificationPoll = null;
+
     let notificationRealtimeChannel = null;
+
+    const journalNotificationStorageKey =
+        "ojt360-employee-journal-notifications-" + NOTIFICATION_EMPLOYEE_ID;
+
+    try {
+        const savedJournalSubmissionIds = JSON.parse(
+            localStorage.getItem(journalNotificationStorageKey) || "[]"
+        );
+        if (Array.isArray(savedJournalSubmissionIds)) {
+            savedJournalSubmissionIds.forEach(id => seenJournalSubmissionIds.add(String(id)));
+        }
+    } catch (error) {
+        console.error("Unable to load read journal notifications.", error);
+    }
 
 
     // =================================================
@@ -229,7 +253,7 @@
 
 
         const unreadCount =
-            [...notifications, ...companyNotifications].filter(
+            [...notifications, ...companyNotifications, ...journalNotifications].filter(
                 notification =>
                     !notification.is_read
             ).length;
@@ -269,7 +293,7 @@
 
         updateNotificationBadge();
         if (markAllReadBtn) {
-            markAllReadBtn.disabled = ![...notifications, ...companyNotifications].some(notification => !notification.is_read);
+            markAllReadBtn.disabled = ![...notifications, ...companyNotifications, ...journalNotifications].some(notification => !notification.is_read);
         }
 
 
@@ -277,7 +301,7 @@
         // NO NOTIFICATIONS
         // ---------------------------------------------
 
-        const allNotifications = [...notifications, ...companyNotifications]
+        const allNotifications = [...notifications, ...companyNotifications, ...journalNotifications]
             .sort((left, right) => new Date(right.created_at) - new Date(left.created_at))
             .slice(0, 30);
 
@@ -305,6 +329,26 @@
                     notification.is_read
                         ? ""
                         : "unread";
+
+                if (notification.kind === "journal") {
+                    return `
+                        <a
+                            class="notification-item notification-item-link ${unreadClass}"
+                            href="api/employee_journal_pdf.php?id=${Number(notification.submission_id)}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            data-notification-id="${escapeHtml(notification.id)}"
+                            data-journal-submission-id="${Number(notification.submission_id)}"
+                        >
+                            <div class="notification-icon">▤</div>
+                            <div class="notification-content">
+                                <div class="notification-title">Weekly journal PDF from ${escapeHtml(notification.student_name)}</div>
+                                <div class="notification-message">${escapeHtml(notification.title)}</div>
+                                <div class="notification-time">${escapeHtml(formatNotificationTime(notification.created_at))}</div>
+                            </div>
+                        </a>
+                    `;
+                }
 
                 const companyName = notification.company_name || getSenderName(notification.sender_type);
 
@@ -350,27 +394,31 @@
 
                 item.addEventListener(
                     "click",
-                    function () {
+                    function (event) {
+                    const journalSubmissionId = this.dataset.journalSubmissionId;
+                    if (journalSubmissionId) {
+                        event.preventDefault();
+                        markJournalNotificationAsRead(journalSubmissionId);
+                        window.open(this.href, "_blank", "noopener,noreferrer");
+                        return;
+                    }
 
-                        const id =
-                            this.dataset.notificationId;
+                    const id = this.dataset.notificationId;
+                    const companyNotification = companyNotifications.find(
+                        notification => String(notification.id) === String(id)
+                    );
 
-                        const companyNotification = companyNotifications.find(
-                            notification => String(notification.id) === String(id)
-                        );
+                    if (companyNotification) {
+                        window.location.href = "adviser_messages.php?company_id=" +
+                            encodeURIComponent(companyNotification.company_id);
+                        return;
+                    }
 
-                        if (companyNotification) {
-                            window.location.href = "adviser_messages.php?company_id=" +
-                                encodeURIComponent(companyNotification.company_id);
-                            return;
-                        }
-
-                        markNotificationAsRead(id);
-
+                    markNotificationAsRead(id);
                     }
                 );
 
-            });
+                });
 
     }
 
@@ -435,6 +483,99 @@
         companyNotificationPoll = window.setInterval(loadCompanyNotifications, 5000);
     }
 
+    function saveSeenJournalSubmissionIds() {
+        try {
+            localStorage.setItem(
+                journalNotificationStorageKey,
+                JSON.stringify([...seenJournalSubmissionIds])
+            );
+        } catch (error) {
+            console.error("Unable to save read journal notifications.", error);
+        }
+    }
+
+    function markJournalNotificationAsRead(submissionId) {
+        const id = String(submissionId);
+        seenJournalSubmissionIds.add(id);
+        journalNotifications = journalNotifications.map(notification =>
+            String(notification.submission_id) === id
+                ? { ...notification, is_read: true }
+                : notification
+        );
+        saveSeenJournalSubmissionIds();
+        renderNotifications();
+    }
+
+    async function loadJournalNotifications() {
+        try {
+            const response = await fetch("api/employee_journal_notifications.php", {
+                credentials: "same-origin",
+                cache: "no-store"
+            });
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.message || "Unable to load weekly journal notifications.");
+            }
+
+            const freshNotifications = (data.notifications || []).map(notification => ({
+                ...notification,
+                id: "journal-" + notification.id,
+                submission_id: String(notification.id),
+                kind: "journal",
+                created_at: notification.submitted_at,
+                is_read: seenJournalSubmissionIds.has(String(notification.id))
+            }));
+
+            if (initialJournalNotificationsLoaded) {
+                freshNotifications.forEach(notification => {
+                    if (knownJournalSubmissionIds.has(notification.submission_id)) {
+                        return;
+                    }
+
+                    window.dispatchEvent(new CustomEvent("ojt360:journal-submission", {
+                        detail: {
+                            id: notification.submission_id,
+                            studentName: notification.student_name,
+                            title: notification.title
+                        }
+                    }));
+
+                    if ("Notification" in window && Notification.permission === "granted") {
+                        try {
+                            new Notification("Weekly journal PDF submitted", {
+                                body: notification.student_name + " submitted " + notification.title + "."
+                            });
+                        } catch (error) {
+                            console.warn("Browser notification failed:", error);
+                        }
+                    }
+                });
+            }
+
+            knownJournalSubmissionIds.clear();
+            freshNotifications.forEach(notification => knownJournalSubmissionIds.add(notification.submission_id));
+            journalNotifications = freshNotifications;
+            initialJournalNotificationsLoaded = true;
+            renderNotifications();
+        } catch (error) {
+            console.error("Weekly journal notification polling failed:", error);
+        }
+    }
+
+    function startJournalNotifications() {
+        if (journalNotificationPoll) {
+            return;
+        }
+
+        if (notificationDropdown) {
+            notificationDropdown.hidden = false;
+        }
+
+        loadJournalNotifications();
+        journalNotificationPoll = window.setInterval(loadJournalNotifications, 10000);
+    }
+
     window.addEventListener("ojt360:company-reply", event => {
         const messageId = String(event.detail?.id || "");
         if (messageId && toastedCompanyMessageIds.has(messageId)) {
@@ -453,6 +594,20 @@
             toast.textContent = "You have a message from " + companyName + ".";
             toast.classList.add("show");
             window.setTimeout(() => toast.classList.remove("show"), 3000);
+        }
+    });
+
+    window.addEventListener("ojt360:journal-submission", event => {
+        const submissionId = String(event.detail?.id || "");
+        const studentName = event.detail?.studentName || "A student";
+        const toast = document.getElementById("toast");
+        if (toast) {
+            toast.textContent = "Weekly journal PDF received from " + studentName + ".";
+            toast.classList.add("show");
+            window.setTimeout(() => toast.classList.remove("show"), 4000);
+        }
+        if (submissionId && notificationDropdown && !notificationDropdown.hidden) {
+            renderNotifications();
         }
     });
 
@@ -522,11 +677,15 @@
                 );
 
                 if (notificationList) {
-                    notificationList.innerHTML = `
-                        <p class="notification-empty">
-                            Unable to load notifications. Please try again later.
-                        </p>
-                    `;
+                    if (journalNotifications.length > 0) {
+                        renderNotifications();
+                    } else {
+                        notificationList.innerHTML = `
+                            <p class="notification-empty">
+                                Unable to load notifications. Please try again later.
+                            </p>
+                        `;
+                    }
                 }
 
                 return;
@@ -549,11 +708,15 @@
             );
 
             if (notificationList) {
-                notificationList.innerHTML = `
-                    <p class="notification-empty">
-                        Unable to load notifications. Please try again later.
-                    </p>
-                `;
+                if (journalNotifications.length > 0) {
+                    renderNotifications();
+                } else {
+                    notificationList.innerHTML = `
+                        <p class="notification-empty">
+                            Unable to load notifications. Please try again later.
+                        </p>
+                    `;
+                }
             }
 
         }
@@ -653,6 +816,16 @@
     // =================================================
 
     async function markAllNotificationsAsRead() {
+
+        journalNotifications.forEach(notification => {
+            seenJournalSubmissionIds.add(String(notification.submission_id));
+        });
+        journalNotifications = journalNotifications.map(notification => ({
+            ...notification,
+            is_read: true
+        }));
+        saveSeenJournalSubmissionIds();
+        renderNotifications();
 
         fetch(window.location.pathname + "?message_api=mark_all_read", {
             method: "POST",
@@ -1136,7 +1309,7 @@
                             waitForSupabase
                         );
 
-                        if (!supabaseIsReady() && notificationList) {
+                        if (!supabaseIsReady() && notificationList && journalNotifications.length === 0) {
                             notificationList.innerHTML = `
                                 <p class="notification-empty">
                                     Notifications are unavailable. Check the messaging connection and try again.
@@ -1156,6 +1329,7 @@
     // Start the notification system
 
     startCompanyMessageNotifications();
+    startJournalNotifications();
     startNotificationSystem();
 
 
