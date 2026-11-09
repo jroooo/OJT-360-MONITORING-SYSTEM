@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /* Extracted from dashboard(employee).php; runs in the dashboard request scope. */
 /* =========================================================
 
@@ -324,10 +324,11 @@ if (
 
     $_SESSION["employee_companies_flash"] = $companyFlash;
 
-    header("Location: adviser_companies.php", true, 303);
+    header("Location: dashboard(employee).php?section=companies", true, 303);
 
     exit;
 
 }
 
  
+
